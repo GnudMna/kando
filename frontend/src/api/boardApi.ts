@@ -43,6 +43,10 @@ export const fetchBoard = (): Promise<Row[]> =>
 export const createRow = (title: string, position: number): Promise<Row> =>
   request<Row>(`${API_URL}/rows`, json('POST', { title, position }));
 
+/** 行とデフォルト3カラムを一括作成する。@param title タイトル @param position 表示順 */
+export const createRowWithDefaultColumns = (title: string, position: number): Promise<Row> =>
+  request<Row>(`${API_URL}/rows/with-default-columns`, json('POST', { title, position }));
+
 /** 行のタイトルを更新する。@param id 行 ID @param title 新たなタイトル */
 export const updateRow = (id: number, title: string): Promise<Row> =>
   request<Row>(`${API_URL}/rows/${id}`, json('PUT', { title }));

@@ -66,17 +66,17 @@ describe('useBoard', () => {
   });
 
   it('addRow が行と 3 つのデフォルトカラムを追加すること', async () => {
-    const newRow = { id: 99, title: '新しい行', position: 3000 };
-    const colMocks = [
-      { id: 31, row_id: 99, title: '未着手', position: 1000 },
-      { id: 32, row_id: 99, title: '進行中', position: 2000 },
-      { id: 33, row_id: 99, title: '完了', position: 3000 },
-    ];
-    vi.mocked(api.createRow).mockResolvedValue(newRow);
-    vi.mocked(api.createColumn)
-      .mockResolvedValueOnce(colMocks[0])
-      .mockResolvedValueOnce(colMocks[1])
-      .mockResolvedValueOnce(colMocks[2]);
+    const newRow: Row = {
+      id: 99,
+      title: '新しい行',
+      position: 3000,
+      columns: [
+        { id: 31, row_id: 99, title: '未着手', position: 1000, tasks: [] },
+        { id: 32, row_id: 99, title: '進行中', position: 2000, tasks: [] },
+        { id: 33, row_id: 99, title: '完了', position: 3000, tasks: [] },
+      ],
+    };
+    vi.mocked(api.createRowWithDefaultColumns).mockResolvedValue(newRow);
 
     const { result } = renderHook(() => useBoard());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -89,11 +89,12 @@ describe('useBoard', () => {
     expect(addedRow).toBeDefined();
     expect(addedRow?.columns).toHaveLength(3);
     expect(addedRow?.columns[0].title).toBe('未着手');
-    expect(api.createRow).toHaveBeenCalledWith('新しい行', 3000);
+    expect(api.createRowWithDefaultColumns).toHaveBeenCalledWith('新しい行', 3000);
+    expect(api.createColumn).not.toHaveBeenCalled();
   });
 
   it('addRow が失敗した場合 operationError がセットされること', async () => {
-    vi.mocked(api.createRow).mockRejectedValue(new Error('fail'));
+    vi.mocked(api.createRowWithDefaultColumns).mockRejectedValue(new Error('fail'));
     const { result } = renderHook(() => useBoard());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
