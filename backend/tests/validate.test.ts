@@ -78,4 +78,28 @@ describe('validateBody', () => {
     expect(res.statusCode).toBe(400);
     expect((res.body as { error: string }).error).toMatch(/'position' must be a number/);
   });
+
+  it('maxLength を超える場合は 400 を返す', () => {
+    const mw = validateBody({
+      title: { type: 'string', required: true, notEmpty: true, maxLength: 10 },
+    });
+    const req = { body: { title: 'a'.repeat(11) } } as Request;
+    const res = mockRes();
+    const next: NextFunction = () => {};
+    mw(req, res, next);
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { error: string }).error).toMatch(/'title' must be 10 characters or fewer/);
+  });
+
+  it('maxLength 以内の場合は next() を呼び出す', () => {
+    const mw = validateBody({
+      title: { type: 'string', required: true, notEmpty: true, maxLength: 10 },
+    });
+    const req = { body: { title: 'a'.repeat(10) } } as Request;
+    const res = mockRes();
+    let called = false;
+    const next: NextFunction = () => { called = true; };
+    mw(req, res, next);
+    expect(called).toBe(true);
+  });
 });
