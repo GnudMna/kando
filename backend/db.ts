@@ -61,6 +61,37 @@ async function initDB(): Promise<void> {
         completed BOOLEAN DEFAULT false
       );
     `);
+    // checklist_items は task_id / subtask_id のどちらか一方のみを保持する
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'checklist_items_parent_xor_chk'
+        ) THEN
+          ALTER TABLE checklist_items
+            ADD CONSTRAINT checklist_items_parent_xor_chk
+            CHECK (
+              (task_id IS NOT NULL AND subtask_id IS NULL) OR
+              (task_id IS NULL AND subtask_id IS NOT NULL)
+            ) NOT VALID;
+        END IF;
+      END $$;
+    `);
+    // 既存データが有効な場合は制約を validate して完全適用する
+    const { rowCount: invalidChecklistRefs } = await client.query(`
+      SELECT 1
+      FROM checklist_items
+      WHERE (task_id IS NULL AND subtask_id IS NULL)
+         OR (task_id IS NOT NULL AND subtask_id IS NOT NULL)
+      LIMIT 1;
+    `);
+    if ((invalidChecklistRefs ?? 0) === 0) {
+      await client.query('ALTER TABLE checklist_items VALIDATE CONSTRAINT checklist_items_parent_xor_chk;');
+    } else {
+      console.warn('Found invalid checklist_items rows; skipped constraint validation.');
+    }
 
     // rowsが空の場合のみ初期データを投入する
     const { rowCount: existingRows } = await client.query('SELECT 1 FROM rows LIMIT 1');
