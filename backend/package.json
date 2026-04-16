@@ -1,6 +1,6 @@
 {
   "name": "kando-backend",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Kando API",
   "main": "dist/server.js",
   "type": "module",
