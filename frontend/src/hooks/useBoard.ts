@@ -48,7 +48,7 @@ export function useBoard() {
   }, [loadBoard]);
 
   /**
-   * 新しい行を作成する。デフォルトで「未着手」「進行中」「完了」の 3 カラムを自動作成する。
+   * 新しい行を作成する。行とデフォルト3カラムをバックエンドで一括作成する。
    * @param title - 行のタイトル
    */
   const addRow = useCallback(async (title: string) => {
@@ -56,16 +56,8 @@ export function useBoard() {
       const rows = rowsRef.current;
       const position =
         rows.length > 0 ? rows[rows.length - 1].position + POSITION_GAP : POSITION_GAP;
-      const newRow = await api.createRow(title, position);
-      const defaultStatuses = ['未着手', '進行中', '完了'];
-      const newColumns = await Promise.all(
-        defaultStatuses.map((statusTitle, i) =>
-          api
-            .createColumn(statusTitle, (i + 1) * POSITION_GAP, newRow.id)
-            .then((col) => ({ ...col, tasks: [] }))
-        )
-      );
-      setRows((prev) => [...prev, { ...newRow, columns: newColumns }]);
+      const newRow = await api.createRowWithDefaultColumns(title, position);
+      setRows((prev) => [...prev, newRow]);
     } catch (err) {
       console.error(err);
       setOperationError('行の追加に失敗しました');
@@ -293,6 +285,7 @@ export function useBoard() {
       const dstTasks = isSameCol
         ? srcTasks
         : newRows[dstInfo.ri].columns[dstInfo.ci].tasks;
+      const destColId = newRows[dstInfo.ri].columns[dstInfo.ci].id;
 
       // 移動元から取り出して移動先に挿入する
       const [movedTask] = srcTasks.splice(srcIndex, 1);
@@ -311,7 +304,11 @@ export function useBoard() {
       } else {
         newPosition = POSITION_GAP;
       }
-      dstTasks[dstIndex] = { ...movedTask, position: newPosition };
+      dstTasks[dstIndex] = {
+        ...movedTask,
+        column_id: destColId,
+        position: newPosition,
+      };
 
       newRows[dstInfo.ri].columns[dstInfo.ci].tasks = dstTasks;
       if (!isSameCol) {
@@ -319,7 +316,6 @@ export function useBoard() {
       }
       setRows(newRows);
 
-      const destColId = newRows[dstInfo.ri].columns[dstInfo.ci].id;
       try {
         await api.moveTask(
           taskId,

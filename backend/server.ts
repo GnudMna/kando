@@ -3,7 +3,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { initDBWithRetry } from './db.js';
+import { initDBWithRetry, pool } from './db.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import boardRouter from './routes/board.js';
@@ -33,12 +33,16 @@ app.use(express.json({ limit: '100kb' }));
 // リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
 app.use(requestLogger);
 
-// アプリ起動時にDBの初期化を実行する（失敗時はリトライする）
-initDBWithRetry();
-
 // ヘルスチェックエンドポイント（ロードバランサー・コンテナオーケストレーター向け）
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Health check failed: ${message}`);
+    res.status(503).json({ status: 'error' });
+  }
 });
 
 // 各リソースのAPIルートを登録する
@@ -53,6 +57,19 @@ app.use('/api/checklist-items', checklistItemsRouter);
 app.use(errorHandler);
 
 const PORT = process.env.PORT ?? 3001;
-app.listen(PORT, () => {
-  console.log(`Backend listening on port ${PORT}`);
-});
+
+async function startServer(): Promise<void> {
+  try {
+    // DB 初期化が完了するまで API の待ち受けを開始しない
+    await initDBWithRetry();
+    app.listen(PORT, () => {
+      console.log(`Backend listening on port ${PORT}`);
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`FATAL: Unable to initialize database: ${message}`);
+    process.exit(1);
+  }
+}
+
+void startServer();

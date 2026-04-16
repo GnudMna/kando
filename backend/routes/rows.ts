@@ -1,17 +1,19 @@
 // 行（プロジェクト単位）に対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from 'express';
 import { pool } from '../db.js';
-import type { DbRow } from '../types.js';
+import type { DbRow, DbColumn, Row } from '../types.js';
 import { parseId, validateBody } from '../middleware/validate.js';
 
 const router = Router();
+const DEFAULT_COLUMN_TITLES = ['未着手', '進行中', '完了'];
+const DEFAULT_COLUMN_POSITION_GAP = 1000;
 
 // 新しい行を作成する: POST /api/rows
 router.post(
   '/',
   validateBody({
     title: { type: 'string', required: true, notEmpty: true, maxLength: 200 },
-    position: { type: 'number', required: true },
+    position: { type: 'number', required: true, positive: true },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
     const { title, position } = req.body as { title: string; position: number };
@@ -23,6 +25,55 @@ router.post(
       res.json(result.rows[0]);
     } catch (err) {
       next(err);
+    }
+  }
+);
+
+// 行とデフォルト3カラムを一括作成する: POST /api/rows/with-default-columns
+// DB トランザクションで処理し、途中失敗時はすべてロールバックする
+router.post(
+  '/with-default-columns',
+  validateBody({
+    title: { type: 'string', required: true, notEmpty: true, maxLength: 200 },
+    position: { type: 'number', required: true, positive: true },
+  }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { title, position } = req.body as { title: string; position: number };
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const rowResult = await client.query<DbRow>(
+        'INSERT INTO rows (title, position) VALUES ($1, $2) RETURNING *',
+        [title, position]
+      );
+      const row = rowResult.rows[0];
+
+      const columns: DbColumn[] = [];
+      for (const [index, columnTitle] of DEFAULT_COLUMN_TITLES.entries()) {
+        const columnPosition = (index + 1) * DEFAULT_COLUMN_POSITION_GAP;
+        const columnResult = await client.query<DbColumn>(
+          'INSERT INTO columns (title, position, row_id) VALUES ($1, $2, $3) RETURNING *',
+          [columnTitle, columnPosition, row.id]
+        );
+        columns.push(columnResult.rows[0]);
+      }
+
+      await client.query('COMMIT');
+
+      const rowWithDefaultColumns: Row = {
+        ...row,
+        columns: columns.map((column) => ({ ...column, tasks: [] })),
+      };
+      res.json(rowWithDefaultColumns);
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Rollback failed:', rollbackErr);
+      }
+      next(err);
+    } finally {
+      client.release();
     }
   }
 );

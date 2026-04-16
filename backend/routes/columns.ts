@@ -11,8 +11,8 @@ router.post(
   '/',
   validateBody({
     title: { type: 'string', required: true, notEmpty: true, maxLength: 200 },
-    position: { type: 'number', required: true },
-    row_id: { type: 'number', required: true },
+    position: { type: 'number', required: true, positive: true },
+    row_id: { type: 'number', required: true, integer: true, positive: true },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
     const { title, position, row_id } = req.body as {
@@ -56,7 +56,7 @@ router.put(
 // カラムの表示順（position）を更新する: PUT /api/columns/:id/move
 router.put(
   '/:id/move',
-  validateBody({ position: { type: 'number', required: true } }),
+  validateBody({ position: { type: 'number', required: true, positive: true } }),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) { res.status(400).json({ error: 'Invalid ID' }); return; }

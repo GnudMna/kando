@@ -10,7 +10,7 @@ const router = Router();
 router.post(
   '/',
   validateBody({
-    task_id: { type: 'number', required: true },
+    task_id: { type: 'number', required: true, integer: true, positive: true },
     content: { type: 'string', required: true, notEmpty: true, maxLength: 2000 },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
