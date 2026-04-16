@@ -132,15 +132,20 @@ async function initDB(): Promise<void> {
  * @param delayMs - リトライ間隔（ミリ秒、デフォルト: 3000）
  */
 export async function initDBWithRetry(retries = 10, delayMs = 3000): Promise<void> {
+  let lastError: unknown = null;
   for (let i = 0; i < retries; i++) {
     try {
       await initDB();
       return;
     } catch (err) {
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       console.error(`DB init attempt ${i + 1}/${retries} failed: ${message}`);
       if (i < retries - 1) await new Promise<void>((r) => setTimeout(r, delayMs));
     }
   }
-  console.error('DB init failed after all retries.');
+  const suffix = lastError instanceof Error ? ` Last error: ${lastError.message}` : '';
+  const finalMessage = `DB init failed after all retries.${suffix}`;
+  console.error(finalMessage);
+  throw new Error(finalMessage);
 }
