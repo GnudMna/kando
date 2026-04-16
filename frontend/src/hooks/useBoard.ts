@@ -298,16 +298,24 @@ export function useBoard() {
       const [movedTask] = srcTasks.splice(srcIndex, 1);
       dstTasks.splice(dstIndex, 0, movedTask);
 
-      // 移動後のタスクに連番の position を振り直す
-      const updatedDstTasks = dstTasks.map((t, i) => ({
-        ...t,
-        position: (i + 1) * POSITION_GAP,
-      }));
-      newRows[dstInfo.ri].columns[dstInfo.ci].tasks = updatedDstTasks;
+      // 移動後の隣タスクの position から中間値を計算する（他のタスクは変更しない）
+      const prev = dstTasks[dstIndex - 1];
+      const next = dstTasks[dstIndex + 1];
+      let newPosition: number;
+      if (prev && next) {
+        newPosition = (prev.position + next.position) / 2;
+      } else if (prev) {
+        newPosition = prev.position + POSITION_GAP;
+      } else if (next) {
+        newPosition = next.position / 2;
+      } else {
+        newPosition = POSITION_GAP;
+      }
+      dstTasks[dstIndex] = { ...movedTask, position: newPosition };
+
+      newRows[dstInfo.ri].columns[dstInfo.ci].tasks = dstTasks;
       if (!isSameCol) {
-        newRows[srcInfo.ri].columns[srcInfo.ci].tasks = srcTasks.map(
-          (t, i) => ({ ...t, position: (i + 1) * POSITION_GAP })
-        );
+        newRows[srcInfo.ri].columns[srcInfo.ci].tasks = srcTasks;
       }
       setRows(newRows);
 
@@ -316,7 +324,7 @@ export function useBoard() {
         await api.moveTask(
           taskId,
           destColId,
-          updatedDstTasks[dstIndex].position
+          newPosition
         );
       } catch (err) {
         // API 失敗時は元の state に戻す（楽観的更新のロールバック）

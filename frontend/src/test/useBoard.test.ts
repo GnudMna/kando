@@ -183,7 +183,7 @@ describe('useBoard', () => {
         ],
       },
     ]);
-    vi.mocked(api.updateTask).mockResolvedValue({ ...taskA, position: 500 });
+    vi.mocked(api.moveTask).mockResolvedValue({ ...taskA, position: 3000 });
     const { result } = renderHook(() => useBoard());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -192,13 +192,16 @@ describe('useBoard', () => {
     });
 
     const tasks = result.current.rows[0].columns[0].tasks;
-    // タスクBが先頭、タスクAが後
+    // タスクBが先頭、タスクAが後ろ
     expect(tasks[0].id).toBe(2);
     expect(tasks[1].id).toBe(1);
+    // taskA の新 position は taskB(2000) + POSITION_GAP(1000) = 3000
+    expect(tasks[1].position).toBe(3000);
+    expect(api.moveTask).toHaveBeenCalledWith(1, 10, 3000);
   });
 
   it('moveTask が異なるカラム間でタスクを移動すること', async () => {
-    vi.mocked(api.updateTask).mockResolvedValue({ ...taskA, column_id: 11, position: 1000 });
+    vi.mocked(api.moveTask).mockResolvedValue({ ...taskA, column_id: 11, position: 1000 });
     const { result } = renderHook(() => useBoard());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -211,5 +214,8 @@ describe('useBoard', () => {
     expect(srcCol?.tasks).toHaveLength(0);
     expect(dstCol?.tasks).toHaveLength(1);
     expect(dstCol?.tasks[0].id).toBe(1);
+    // 移動先が空なので position = POSITION_GAP = 1000
+    expect(dstCol?.tasks[0].position).toBe(1000);
+    expect(api.moveTask).toHaveBeenCalledWith(1, 11, 1000);
   });
 });
