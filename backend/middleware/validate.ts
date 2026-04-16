@@ -16,6 +16,7 @@ type FieldDef = {
   type: 'string' | 'number' | 'boolean';
   required?: boolean;
   notEmpty?: boolean;
+  maxLength?: number;
 };
 
 // スキーマ定義: フィールド名とバリデーションルールのマップ
@@ -46,6 +47,11 @@ export function validateBody(schema: Schema) {
         // 空文字チェック（notEmpty が true の場合）
         if (def.notEmpty && typeof val === 'string' && val.trim().length === 0) {
           res.status(400).json({ error: `'${key}' must not be empty` });
+          return;
+        }
+        // 最大文字数チェック（maxLength が指定されている場合）
+        if (def.maxLength !== undefined && typeof val === 'string' && val.length > def.maxLength) {
+          res.status(400).json({ error: `'${key}' must be ${def.maxLength} characters or fewer` });
           return;
         }
       }

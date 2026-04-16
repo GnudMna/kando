@@ -11,7 +11,7 @@ const router = Router();
 // task_id または subtask_id のどちらかが必須
 router.post(
   '/',
-  validateBody({ content: { type: 'string', required: true, notEmpty: true } }),
+  validateBody({ content: { type: 'string', required: true, notEmpty: true, maxLength: 500 } }),
   async (req: Request, res: Response, next: NextFunction) => {
     const { content } = req.body as { content: string };
     const body = req.body as Record<string, unknown>;

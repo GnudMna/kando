@@ -5,6 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { initDBWithRetry } from './db.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { requestLogger } from './middleware/requestLogger.js';
 import boardRouter from './routes/board.js';
 import rowsRouter from './routes/rows.js';
 import columnsRouter from './routes/columns.js';
@@ -29,6 +30,8 @@ app.use(cors({
 }));
 // リクエストボディをJSONとして解析する（100kB上限でDoSを防ぐ）
 app.use(express.json({ limit: '100kb' }));
+// リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
+app.use(requestLogger);
 
 // アプリ起動時にDBの初期化を実行する（失敗時はリトライする）
 initDBWithRetry();
