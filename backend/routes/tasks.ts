@@ -10,9 +10,9 @@ const router = Router();
 router.post(
   '/',
   validateBody({
-    column_id: { type: 'number', required: true },
+    column_id: { type: 'number', required: true, integer: true, positive: true },
     content: { type: 'string', required: true, notEmpty: true, maxLength: 2000 },
-    position: { type: 'number', required: true },
+    position: { type: 'number', required: true, positive: true },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
     const { column_id, content, position } = req.body as {
@@ -58,8 +58,8 @@ router.put(
 router.put(
   '/:id/move',
   validateBody({
-    column_id: { type: 'number', required: true },
-    position: { type: 'number', required: true },
+    column_id: { type: 'number', required: true, integer: true, positive: true },
+    position: { type: 'number', required: true, positive: true },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);

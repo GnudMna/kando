@@ -11,7 +11,7 @@ router.post(
   '/',
   validateBody({
     title: { type: 'string', required: true, notEmpty: true, maxLength: 200 },
-    position: { type: 'number', required: true },
+    position: { type: 'number', required: true, positive: true },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
     const { title, position } = req.body as { title: string; position: number };

@@ -7,8 +7,10 @@ import { Request, Response, NextFunction } from 'express';
  * @returns 正の整数値、または不正な値の場合は null
  */
 export function parseId(id: string): number | null {
-  const n = parseInt(id, 10);
-  return isNaN(n) || n <= 0 ? null : n;
+  const normalized = id.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const n = Number(normalized);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 // フィールドのバリデーションルール定義
@@ -17,6 +19,11 @@ type FieldDef = {
   required?: boolean;
   notEmpty?: boolean;
   maxLength?: number;
+  finite?: boolean;
+  integer?: boolean;
+  positive?: boolean;
+  min?: number;
+  max?: number;
 };
 
 // スキーマ定義: フィールド名とバリデーションルールのマップ
@@ -53,6 +60,32 @@ export function validateBody(schema: Schema) {
         if (def.maxLength !== undefined && typeof val === 'string' && val.length > def.maxLength) {
           res.status(400).json({ error: `'${key}' must be ${def.maxLength} characters or fewer` });
           return;
+        }
+
+        if (typeof val === 'number') {
+          // デフォルトでは number は有限値のみ許容する
+          if ((def.finite ?? true) && !Number.isFinite(val)) {
+            res.status(400).json({ error: `'${key}' must be a finite number` });
+            return;
+          }
+          // integer 指定時は整数のみ許容
+          if (def.integer && !Number.isInteger(val)) {
+            res.status(400).json({ error: `'${key}' must be an integer` });
+            return;
+          }
+          // positive 指定時は 0 以下を拒否
+          if (def.positive && val <= 0) {
+            res.status(400).json({ error: `'${key}' must be greater than 0` });
+            return;
+          }
+          if (def.min !== undefined && val < def.min) {
+            res.status(400).json({ error: `'${key}' must be greater than or equal to ${def.min}` });
+            return;
+          }
+          if (def.max !== undefined && val > def.max) {
+            res.status(400).json({ error: `'${key}' must be less than or equal to ${def.max}` });
+            return;
+          }
         }
       }
     }
