@@ -1,7 +1,7 @@
 // タスクカードコンポーネント
 // かんばんボード上でタスクの内容・チェックリスト・サブタスクを表示し
 // チェック状態の切り替えや削除確認ダイアログを提供する
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Trash2, CheckSquare, Square, CornerDownRight } from 'lucide-react';
 import type { Task } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -25,7 +25,7 @@ interface Props {
  * @param onTaskUpdated - タスク更新時のコールバック
  * @param onEditTask - タスク編集開始時のコールバック
  */
-export function TaskCard({ task, columnId, onDeleteTask, onTaskUpdated, onEditTask }: Props) {
+export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, onTaskUpdated, onEditTask }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   /**
@@ -44,19 +44,21 @@ export function TaskCard({ task, columnId, onDeleteTask, onTaskUpdated, onEditTa
       const updatedItem = await api.updateChecklistItem(item.id, {
         completed: !item.completed,
       });
-      // ディープコピーで immutable に state を更新する
-      const newTask = JSON.parse(JSON.stringify(task)) as Task;
       if (type === 'task') {
-        const idx = newTask.checklists.findIndex((c) => c.id === item.id);
-        newTask.checklists[idx] = updatedItem;
+        onTaskUpdated({
+          ...task,
+          checklists: task.checklists.map((c) => (c.id === item.id ? updatedItem : c)),
+        });
       } else if (subtaskId !== undefined) {
-        const subIndex = newTask.subtasks.findIndex((s) => s.id === subtaskId);
-        const idx = newTask.subtasks[subIndex].checklists.findIndex(
-          (c) => c.id === item.id
-        );
-        newTask.subtasks[subIndex].checklists[idx] = updatedItem;
+        onTaskUpdated({
+          ...task,
+          subtasks: task.subtasks.map((s) =>
+            s.id === subtaskId
+              ? { ...s, checklists: s.checklists.map((c) => (c.id === item.id ? updatedItem : c)) }
+              : s
+          ),
+        });
       }
-      onTaskUpdated(newTask);
     } catch (err) {
       console.error(err);
     }
@@ -179,4 +181,4 @@ export function TaskCard({ task, columnId, onDeleteTask, onTaskUpdated, onEditTa
       )}
     </>
   );
-}
+});

@@ -1,6 +1,6 @@
 // かんばんボードの状態管理カスタムフック
 // rows（行）の CRUD・タスクの移動など、ボード操作全般のロジックを提供する
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Row, Task } from '../types';
 import * as api from '../api/boardApi';
 
@@ -12,6 +12,11 @@ import * as api from '../api/boardApi';
  */
 export function useBoard() {
   const [rows, setRows] = useState<Row[]>([]);
+  // 最新の rows を ref で保持し、コールバックの deps から rows を除去する
+  const rowsRef = useRef<Row[]>([]);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
 
   /**
    * API からボードデータを取得して rows を更新する。
@@ -36,6 +41,7 @@ export function useBoard() {
    * @param title - 行のタイトル
    */
   const addRow = useCallback(async (title: string) => {
+    const rows = rowsRef.current;
     const position =
       rows.length > 0 ? rows[rows.length - 1].position + 1000 : 1000;
     const newRow = await api.createRow(title, position);
@@ -48,7 +54,7 @@ export function useBoard() {
       )
     );
     setRows((prev) => [...prev, { ...newRow, columns: newColumns }]);
-  }, [rows]);
+  }, []);
 
   /**
    * 行のタイトルを変更する。
@@ -79,7 +85,7 @@ export function useBoard() {
    */
   const addColumn = useCallback(
     async (rowId: number, title: string) => {
-      const row = rows.find((r) => r.id === rowId);
+      const row = rowsRef.current.find((r) => r.id === rowId);
       if (!row) return;
       const position =
         row.columns.length > 0
@@ -94,7 +100,7 @@ export function useBoard() {
         )
       );
     },
-    [rows]
+    []
   );
 
   /**
@@ -135,7 +141,7 @@ export function useBoard() {
    */
   const addTask = useCallback(
     async (colId: number, rowId: number): Promise<Task | null> => {
-      const row = rows.find((r) => r.id === rowId);
+      const row = rowsRef.current.find((r) => r.id === rowId);
       const col = row?.columns.find((c) => c.id === colId);
       if (!col) return null;
       const position =
@@ -155,7 +161,7 @@ export function useBoard() {
       );
       return newTask;
     },
-    [rows]
+    []
   );
 
   /**
@@ -214,6 +220,7 @@ export function useBoard() {
       taskId: number
     ) => {
       // カラム ID 文字列から rows 内の位置（行インデックス・列インデックス）を探す
+      const rows = rowsRef.current;
       const findCol = (id: string) => {
         for (const row of rows) {
           const idx = row.columns.findIndex((c) => c.id.toString() === id);
@@ -228,7 +235,7 @@ export function useBoard() {
 
       // 楽観的更新用に現在の state を退避しておく
       const prevRows = rows;
-      const newRows = JSON.parse(JSON.stringify(rows)) as Row[];
+      const newRows = structuredClone(rows) as Row[];
       const srcTasks = newRows[srcInfo.ri].columns[srcInfo.ci].tasks;
       const isSameCol = srcDroppableId === dstDroppableId;
       const dstTasks = isSameCol
@@ -265,7 +272,7 @@ export function useBoard() {
         setRows(prevRows);
       }
     },
-    [rows]
+    []
   );
 
   return {
