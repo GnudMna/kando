@@ -1,0 +1,43 @@
+// 削除確認ダイアログコンポーネント
+// React Portal を使って document.body 直下にレンダリングし、
+// オーバーレイクリックでキャンセルできる
+import { createPortal } from 'react-dom';
+
+interface Props {
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * 削除確認ダイアログコンポーネント。
+ * React Portal を使って document.body 直下にレンダリングする。
+ * オーバーレイクリックでキャンセルできる。
+ * @param message - 確認メッセージ
+ * @param onConfirm - 削除確定時のコールバック
+ * @param onCancel - キャンセル時のコールバック
+ */
+export function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
+  return createPortal(
+    <div className="modal-overlay" onClick={onCancel}>
+      <div
+        className="modal-content"
+        style={{ maxWidth: '360px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-body" style={{ padding: '1.5rem' }}>
+          <p style={{ margin: 0, lineHeight: 1.6 }}>{message}</p>
+        </div>
+        <div className="modal-footer">
+          <button className="btn" onClick={onCancel}>
+            キャンセル
+          </button>
+          <button className="btn btn-danger" onClick={onConfirm}>
+            削除する
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
