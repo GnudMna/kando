@@ -293,6 +293,7 @@ export function useBoard() {
       const dstTasks = isSameCol
         ? srcTasks
         : newRows[dstInfo.ri].columns[dstInfo.ci].tasks;
+      const destColId = newRows[dstInfo.ri].columns[dstInfo.ci].id;
 
       // 移動元から取り出して移動先に挿入する
       const [movedTask] = srcTasks.splice(srcIndex, 1);
@@ -311,7 +312,11 @@ export function useBoard() {
       } else {
         newPosition = POSITION_GAP;
       }
-      dstTasks[dstIndex] = { ...movedTask, position: newPosition };
+      dstTasks[dstIndex] = {
+        ...movedTask,
+        column_id: destColId,
+        position: newPosition,
+      };
 
       newRows[dstInfo.ri].columns[dstInfo.ci].tasks = dstTasks;
       if (!isSameCol) {
@@ -319,7 +324,6 @@ export function useBoard() {
       }
       setRows(newRows);
 
-      const destColId = newRows[dstInfo.ri].columns[dstInfo.ci].id;
       try {
         await api.moveTask(
           taskId,

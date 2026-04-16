@@ -214,6 +214,7 @@ describe('useBoard', () => {
     expect(srcCol?.tasks).toHaveLength(0);
     expect(dstCol?.tasks).toHaveLength(1);
     expect(dstCol?.tasks[0].id).toBe(1);
+    expect(dstCol?.tasks[0].column_id).toBe(11);
     // 移動先が空なので position = POSITION_GAP = 1000
     expect(dstCol?.tasks[0].position).toBe(1000);
     expect(api.moveTask).toHaveBeenCalledWith(1, 11, 1000);
