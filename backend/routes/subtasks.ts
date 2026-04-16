@@ -1,8 +1,8 @@
 // サブタスクに対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from 'express';
-import { pool } from '../db';
-import type { DbSubtask } from '../types';
-import { parseId, validateBody } from '../middleware/validate';
+import { pool } from '../db.js';
+import type { DbSubtask } from '../types.js';
+import { parseId, validateBody } from '../middleware/validate.js';
 
 const router = Router();
 

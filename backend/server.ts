@@ -3,14 +3,14 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { initDBWithRetry } from './db';
-import { errorHandler } from './middleware/errorHandler';
-import boardRouter from './routes/board';
-import rowsRouter from './routes/rows';
-import columnsRouter from './routes/columns';
-import tasksRouter from './routes/tasks';
-import subtasksRouter from './routes/subtasks';
-import checklistItemsRouter from './routes/checklistItems';
+import { initDBWithRetry } from './db.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import boardRouter from './routes/board.js';
+import rowsRouter from './routes/rows.js';
+import columnsRouter from './routes/columns.js';
+import tasksRouter from './routes/tasks.js';
+import subtasksRouter from './routes/subtasks.js';
+import checklistItemsRouter from './routes/checklistItems.js';
 
 const app = express();
 

@@ -1,8 +1,8 @@
 // 行（プロジェクト単位）に対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from 'express';
-import { pool } from '../db';
-import type { DbRow } from '../types';
-import { parseId, validateBody } from '../middleware/validate';
+import { pool } from '../db.js';
+import type { DbRow } from '../types.js';
+import { parseId, validateBody } from '../middleware/validate.js';
 
 const router = Router();
 

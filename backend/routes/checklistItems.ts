@@ -1,9 +1,9 @@
 // チェックリスト項目に対する CRUD エンドポイントを定義するルーター
 // チェックリストはタスク直下またはサブタスク配下に紐付けられる
 import { Router, Request, Response, NextFunction } from 'express';
-import { pool } from '../db';
-import type { DbChecklistItem } from '../types';
-import { parseId, validateBody } from '../middleware/validate';
+import { pool } from '../db.js';
+import type { DbChecklistItem } from '../types.js';
+import { parseId, validateBody } from '../middleware/validate.js';
 
 const router = Router();
 

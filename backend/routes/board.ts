@@ -1,8 +1,8 @@
 // ボード全体のデータを返す GET /api/board エンドポイント
 // rows → columns → tasks → subtasks → checklist_items の順にネストして返す
 import { Router, Request, Response, NextFunction } from 'express';
-import { pool } from '../db';
-import type { DbRow, DbColumn, DbTask, DbSubtask, DbChecklistItem, Row } from '../types';
+import { pool } from '../db.js';
+import type { DbRow, DbColumn, DbTask, DbSubtask, DbChecklistItem, Row } from '../types.js';
 
 const router = Router();
 
