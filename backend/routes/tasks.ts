@@ -1,8 +1,8 @@
 // タスクに対する CRUD・移動エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from 'express';
-import { pool } from '../db';
-import type { DbTask } from '../types';
-import { parseId, validateBody } from '../middleware/validate';
+import { pool } from '../db.js';
+import type { DbTask } from '../types.js';
+import { parseId, validateBody } from '../middleware/validate.js';
 
 const router = Router();
 

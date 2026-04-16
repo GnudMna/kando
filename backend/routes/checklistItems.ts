@@ -1,9 +1,9 @@
 // チェックリスト項目に対する CRUD エンドポイントを定義するルーター
 // チェックリストはタスク直下またはサブタスク配下に紐付けられる
 import { Router, Request, Response, NextFunction } from 'express';
-import { pool } from '../db';
-import type { DbChecklistItem } from '../types';
-import { parseId, validateBody } from '../middleware/validate';
+import { pool } from '../db.js';
+import type { DbChecklistItem } from '../types.js';
+import { parseId, validateBody } from '../middleware/validate.js';
 
 const router = Router();
 
@@ -13,20 +13,30 @@ router.post(
   '/',
   validateBody({ content: { type: 'string', required: true, notEmpty: true } }),
   async (req: Request, res: Response, next: NextFunction) => {
-    const { task_id, subtask_id, content } = req.body as {
-      task_id?: number;
-      subtask_id?: number;
-      content: string;
-    };
-    // task_id と subtask_id が両方未指定の場合はエラー
-    if (!task_id && !subtask_id) {
+    const { content } = req.body as { content: string };
+    const body = req.body as Record<string, unknown>;
+    const task_id = body.task_id;
+    const subtask_id = body.subtask_id;
+
+    // task_id と subtask_id が両方 null/undefined の場合はエラー
+    if (task_id == null && subtask_id == null) {
       res.status(400).json({ error: "'task_id' or 'subtask_id' is required" });
+      return;
+    }
+    // task_id が指定された場合は正の整数であることを検証する（null は許容）
+    if (task_id != null && (!Number.isInteger(task_id) || (task_id as number) <= 0)) {
+      res.status(400).json({ error: "'task_id' must be a positive integer" });
+      return;
+    }
+    // subtask_id が指定された場合は正の整数であることを検証する（null は許容）
+    if (subtask_id != null && (!Number.isInteger(subtask_id) || (subtask_id as number) <= 0)) {
+      res.status(400).json({ error: "'subtask_id' must be a positive integer" });
       return;
     }
     try {
       const result = await pool.query<DbChecklistItem>(
         'INSERT INTO checklist_items (task_id, subtask_id, content) VALUES ($1, $2, $3) RETURNING *',
-        [task_id ?? null, subtask_id ?? null, content]
+        [(task_id as number) ?? null, (subtask_id as number) ?? null, content]
       );
       res.json(result.rows[0]);
     } catch (err) {
