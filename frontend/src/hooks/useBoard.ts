@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Row, Task } from '../types';
 import * as api from '../api/boardApi';
 
+// タスク・カラム・行の position 間隔。新規追加時はこの値を加算する
+const POSITION_GAP = 1000;
+
 /**
  * かんばんボードの状態管理カスタムフック。
  * rows の CRUD およびタスク移動のロジックを提供する。
@@ -52,13 +55,13 @@ export function useBoard() {
     try {
       const rows = rowsRef.current;
       const position =
-        rows.length > 0 ? rows[rows.length - 1].position + 1000 : 1000;
+        rows.length > 0 ? rows[rows.length - 1].position + POSITION_GAP : POSITION_GAP;
       const newRow = await api.createRow(title, position);
       const defaultStatuses = ['未着手', '進行中', '完了'];
       const newColumns = await Promise.all(
         defaultStatuses.map((statusTitle, i) =>
           api
-            .createColumn(statusTitle, (i + 1) * 1000, newRow.id)
+            .createColumn(statusTitle, (i + 1) * POSITION_GAP, newRow.id)
             .then((col) => ({ ...col, tasks: [] }))
         )
       );
@@ -113,8 +116,8 @@ export function useBoard() {
         if (!row) return;
         const position =
           row.columns.length > 0
-            ? row.columns[row.columns.length - 1].position + 1000
-            : 1000;
+            ? row.columns[row.columns.length - 1].position + POSITION_GAP
+            : POSITION_GAP;
         const newCol = await api.createColumn(title, position, rowId);
         setRows((prev) =>
           prev.map((r) =>
@@ -184,7 +187,7 @@ export function useBoard() {
         const col = row?.columns.find((c) => c.id === colId);
         if (!col) return null;
         const position =
-          col.tasks.length > 0 ? col.tasks[col.tasks.length - 1].position + 1000 : 1000;
+          col.tasks.length > 0 ? col.tasks[col.tasks.length - 1].position + POSITION_GAP : POSITION_GAP;
         const newTask = await api.createTask(colId, '新しいタスク', position);
         setRows((prev) =>
           prev.map((r) =>
@@ -298,12 +301,12 @@ export function useBoard() {
       // 移動後のタスクに連番の position を振り直す
       const updatedDstTasks = dstTasks.map((t, i) => ({
         ...t,
-        position: (i + 1) * 1000,
+        position: (i + 1) * POSITION_GAP,
       }));
       newRows[dstInfo.ri].columns[dstInfo.ci].tasks = updatedDstTasks;
       if (!isSameCol) {
         newRows[srcInfo.ri].columns[srcInfo.ci].tasks = srcTasks.map(
-          (t, i) => ({ ...t, position: (i + 1) * 1000 })
+          (t, i) => ({ ...t, position: (i + 1) * POSITION_GAP })
         );
       }
       setRows(newRows);

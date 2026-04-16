@@ -10,7 +10,7 @@ const router = Router();
 router.post(
   '/',
   validateBody({
-    title: { type: 'string', required: true, notEmpty: true },
+    title: { type: 'string', required: true, notEmpty: true, maxLength: 200 },
     position: { type: 'number', required: true },
     row_id: { type: 'number', required: true },
   }),
@@ -35,7 +35,7 @@ router.post(
 // カラムのタイトルを更新する: PUT /api/columns/:id
 router.put(
   '/:id',
-  validateBody({ title: { type: 'string', required: true, notEmpty: true } }),
+  validateBody({ title: { type: 'string', required: true, notEmpty: true, maxLength: 200 } }),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) { res.status(400).json({ error: 'Invalid ID' }); return; }

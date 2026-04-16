@@ -11,7 +11,7 @@ router.post(
   '/',
   validateBody({
     task_id: { type: 'number', required: true },
-    content: { type: 'string', required: true, notEmpty: true },
+    content: { type: 'string', required: true, notEmpty: true, maxLength: 2000 },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
     const { task_id, content } = req.body as { task_id: number; content: string };
@@ -31,7 +31,7 @@ router.post(
 // サブタスクの内容を更新する: PUT /api/subtasks/:id
 router.put(
   '/:id',
-  validateBody({ content: { type: 'string', required: true, notEmpty: true } }),
+  validateBody({ content: { type: 'string', required: true, notEmpty: true, maxLength: 2000 } }),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) { res.status(400).json({ error: 'Invalid ID' }); return; }

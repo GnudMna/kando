@@ -11,7 +11,7 @@ router.post(
   '/',
   validateBody({
     column_id: { type: 'number', required: true },
-    content: { type: 'string', required: true, notEmpty: true },
+    content: { type: 'string', required: true, notEmpty: true, maxLength: 2000 },
     position: { type: 'number', required: true },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -36,7 +36,7 @@ router.post(
 // タスクの内容を更新する: PUT /api/tasks/:id
 router.put(
   '/:id',
-  validateBody({ content: { type: 'string', required: true, notEmpty: true } }),
+  validateBody({ content: { type: 'string', required: true, notEmpty: true, maxLength: 2000 } }),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) { res.status(400).json({ error: 'Invalid ID' }); return; }
