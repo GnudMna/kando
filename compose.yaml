@@ -1,25 +1,26 @@
 services:
   db:
     image: postgres:18-alpine
+    container_name: kando-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kando_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kando_password}
       POSTGRES_DB: ${POSTGRES_DB:-kanban_db}
       PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data/pgdata
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kando_user -d kanban_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kando_user} -d ${POSTGRES_DB:-kanban_db}"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
+    restart: unless-stopped
 
   app:
     build:
       context: .
+    container_name: kando-app
     ports:
       - "8080:80"
       - "3001:3001"
@@ -28,3 +29,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped

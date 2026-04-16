@@ -1,5 +1,5 @@
 {
-  "name": "Kanban App DevContainer",
+  "name": "Kando DevContainer",
   "dockerComposeFile": "compose.yaml",
   "service": "app",
   "workspaceFolder": "/workspace",
@@ -32,8 +32,13 @@
     "8080": {
       "label": "Frontend Nginx",
       "onAutoForward": "silent"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
     }
   },
   "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend",
+  "shutdownAction": "stopCompose",
   "remoteUser": "node"
 }
