@@ -1,0 +1,29 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/javascript-node:24
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-kando_user}:${POSTGRES_PASSWORD:-kando_password}@db:5432/${POSTGRES_DB:-kanban_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kando_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kando_password}
+      POSTGRES_DB: ${POSTGRES_DB:-kanban_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ../pgdata:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kando_user} -d ${POSTGRES_DB:-kanban_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s

@@ -1,0 +1,59 @@
+import { describe, it, expect } from 'vitest';
+import { buildBoardHierarchy } from '../routes/board';
+import type { DbRow, DbColumn, DbTask, DbSubtask, DbChecklistItem } from '../types';
+
+describe('buildBoardHierarchy', () => {
+  it('線形グルーピングで正しくネスト構造を組み立てる', () => {
+    const rows: DbRow[] = [
+      { id: 1, title: 'Row 1', position: 1000 },
+      { id: 2, title: 'Row 2', position: 2000 },
+    ];
+
+    const columns: DbColumn[] = [
+      { id: 11, title: 'Column A', position: 1000, row_id: 1 },
+      { id: 12, title: 'Column B', position: 2000, row_id: 1 },
+      { id: 21, title: 'Column C', position: 1000, row_id: 2 },
+      { id: 99, title: 'Orphan Column', position: 9999, row_id: 999 },
+    ];
+
+    const tasks: DbTask[] = [
+      { id: 101, column_id: 11, content: 'Task 1', position: 1000 },
+      { id: 102, column_id: 11, content: 'Task 2', position: 2000 },
+      { id: 201, column_id: 21, content: 'Task 3', position: 1000 },
+      { id: 999, column_id: 999, content: 'Orphan Task', position: 1 },
+    ];
+
+    const subtasks: DbSubtask[] = [
+      { id: 1001, task_id: 101, content: 'Subtask 1-1' },
+      { id: 1002, task_id: 101, content: 'Subtask 1-2' },
+      { id: 2001, task_id: 201, content: 'Subtask 3-1' },
+    ];
+
+    const checklistItems: DbChecklistItem[] = [
+      { id: 5001, task_id: 101, subtask_id: null, content: 'Task 1 checklist', completed: false },
+      { id: 5002, task_id: null, subtask_id: 1001, content: 'Subtask 1-1 checklist', completed: true },
+      { id: 5003, task_id: 201, subtask_id: null, content: 'Task 3 checklist', completed: false },
+      { id: 5999, task_id: null, subtask_id: null, content: 'Invalid checklist', completed: false },
+    ];
+
+    const board = buildBoardHierarchy(rows, columns, tasks, subtasks, checklistItems);
+
+    expect(board).toHaveLength(2);
+
+    expect(board[0].id).toBe(1);
+    expect(board[0].columns.map((c) => c.id)).toEqual([11, 12]);
+
+    const row1colA = board[0].columns[0];
+    expect(row1colA.tasks.map((t) => t.id)).toEqual([101, 102]);
+
+    const task1 = row1colA.tasks[0];
+    expect(task1.checklists.map((c) => c.id)).toEqual([5001]);
+    expect(task1.subtasks.map((s) => s.id)).toEqual([1001, 1002]);
+    expect(task1.subtasks[0].checklists.map((c) => c.id)).toEqual([5002]);
+
+    expect(board[1].id).toBe(2);
+    expect(board[1].columns.map((c) => c.id)).toEqual([21]);
+    expect(board[1].columns[0].tasks.map((t) => t.id)).toEqual([201]);
+    expect(board[1].columns[0].tasks[0].checklists.map((c) => c.id)).toEqual([5003]);
+  });
+});

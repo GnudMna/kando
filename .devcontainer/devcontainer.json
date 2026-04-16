@@ -1,0 +1,44 @@
+{
+  "name": "Kando DevContainer",
+  "dockerComposeFile": "compose.yaml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg",
+        "fill-labs.dependi",
+        "oderwat.indent-rainbow",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "forwardPorts": [8080, 5173, 3001, 5432],
+  "portsAttributes": {
+    "3001": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Frontend Vite",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Frontend Nginx",
+      "onAutoForward": "silent"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "node"
+}
