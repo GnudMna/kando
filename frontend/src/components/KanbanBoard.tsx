@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
-import { Plus, Trash2, LayoutTemplate, List } from 'lucide-react';
+import { Plus, Trash2, LayoutTemplate, List, AlertCircle, X } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { TaskEditModal } from './TaskEditModal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -37,6 +37,9 @@ interface ConfirmState {
 export function KanbanBoard() {
   const {
     rows,
+    isLoading,
+    operationError,
+    clearError,
     addRow,
     renameRow,
     removeRow,
@@ -209,8 +212,41 @@ export function KanbanBoard() {
     </div>
   );
 
+  if (isLoading) {
+    return (
+      <div className="kanban-wrapper" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted, #888)' }}>
+        読み込み中…
+      </div>
+    );
+  }
+
   return (
     <div className="kanban-wrapper" style={{ padding: '2rem' }}>
+      {operationError && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginBottom: '1rem',
+            padding: '0.75rem 1rem',
+            borderRadius: '6px',
+            background: 'var(--error-bg, #fee2e2)',
+            color: 'var(--error-text, #b91c1c)',
+          }}
+        >
+          <AlertCircle size={16} />
+          <span style={{ flex: 1 }}>{operationError}</span>
+          <button
+            onClick={clearError}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}
+            aria-label="エラーを閉じる"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <button className="btn btn-primary" onClick={() => void handleAddRow()}>
           <Plus size={16} /> 行を追加

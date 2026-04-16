@@ -33,6 +33,11 @@ app.use(express.json({ limit: '100kb' }));
 // アプリ起動時にDBの初期化を実行する（失敗時はリトライする）
 initDBWithRetry();
 
+// ヘルスチェックエンドポイント（ロードバランサー・コンテナオーケストレーター向け）
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // 各リソースのAPIルートを登録する
 app.use('/api/board', boardRouter);
 app.use('/api/rows', rowsRouter);
