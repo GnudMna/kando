@@ -1,0 +1,177 @@
+// TaskCard コンポーネントのユニットテスト
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { TaskCard } from '../components/TaskCard';
+import type { Task } from '../types';
+import * as api from '../api/boardApi';
+
+vi.mock('../api/boardApi');
+
+const baseTask: Task = {
+  id: 1,
+  column_id: 10,
+  content: 'テストタスク',
+  position: 1000,
+  subtasks: [],
+  checklists: [],
+};
+
+const taskWithChecklists: Task = {
+  ...baseTask,
+  checklists: [
+    { id: 101, task_id: 1, subtask_id: null, content: 'チェック項目A', completed: false },
+    { id: 102, task_id: 1, subtask_id: null, content: 'チェック項目B', completed: true },
+  ],
+};
+
+const taskWithSubtasks: Task = {
+  ...baseTask,
+  subtasks: [
+    {
+      id: 201,
+      task_id: 1,
+      content: 'サブタスク1',
+      checklists: [
+        { id: 301, task_id: null, subtask_id: 201, content: 'サブチェック', completed: false },
+      ],
+    },
+  ],
+};
+
+describe('TaskCard', () => {
+  const defaultProps = {
+    task: baseTask,
+    columnId: 10,
+    onDeleteTask: vi.fn(),
+    onTaskUpdated: vi.fn(),
+    onEditTask: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('タスク内容が表示されること', () => {
+    render(<TaskCard {...defaultProps} />);
+    expect(screen.getByText('テストタスク')).toBeInTheDocument();
+  });
+
+  it('タスクをクリックすると onEditTask が呼ばれること', () => {
+    render(<TaskCard {...defaultProps} />);
+    fireEvent.click(screen.getByText('テストタスク'));
+    expect(defaultProps.onEditTask).toHaveBeenCalledWith(baseTask);
+  });
+
+  it('チェックリスト項目が表示されること', () => {
+    render(<TaskCard {...defaultProps} task={taskWithChecklists} />);
+    expect(screen.getByText('チェック項目A')).toBeInTheDocument();
+    expect(screen.getByText('チェック項目B')).toBeInTheDocument();
+  });
+
+  it('チェックリストのトグルで API が呼ばれ onTaskUpdated が実行されること', async () => {
+    const updatedItem = { id: 101, task_id: 1, subtask_id: null, content: 'チェック項目A', completed: true };
+    vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
+
+    const onTaskUpdated = vi.fn();
+    render(
+      <TaskCard
+        {...defaultProps}
+        task={taskWithChecklists}
+        onTaskUpdated={onTaskUpdated}
+      />
+    );
+
+    // 未完了のチェックリストボタンをクリック
+    const toggleButtons = screen.getAllByRole('button', { name: '' });
+    fireEvent.click(toggleButtons[0]);
+
+    await waitFor(() => {
+      expect(api.updateChecklistItem).toHaveBeenCalledWith(101, { completed: true });
+      expect(onTaskUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          checklists: expect.arrayContaining([
+            expect.objectContaining({ id: 101, completed: true }),
+          ]),
+        })
+      );
+    });
+  });
+
+  it('API エラー時に onTaskUpdated が呼ばれないこと', async () => {
+    vi.mocked(api.updateChecklistItem).mockRejectedValue(new Error('network error'));
+    const onTaskUpdated = vi.fn();
+    render(
+      <TaskCard
+        {...defaultProps}
+        task={taskWithChecklists}
+        onTaskUpdated={onTaskUpdated}
+      />
+    );
+    const toggleButtons = screen.getAllByRole('button', { name: '' });
+    fireEvent.click(toggleButtons[0]);
+
+    await waitFor(() => {
+      expect(onTaskUpdated).not.toHaveBeenCalled();
+    });
+  });
+
+  it('削除ボタンをクリックすると確認ダイアログが表示されること', () => {
+    render(<TaskCard {...defaultProps} />);
+    const deleteBtn = screen.getByTitle('タスク削除');
+    fireEvent.click(deleteBtn);
+    expect(screen.getByText('「テストタスク」を削除しますか？')).toBeInTheDocument();
+    expect(screen.getByText('削除する')).toBeInTheDocument();
+  });
+
+  it('確認ダイアログで削除を確定すると onDeleteTask が呼ばれること', () => {
+    render(<TaskCard {...defaultProps} />);
+    fireEvent.click(screen.getByTitle('タスク削除'));
+    fireEvent.click(screen.getByText('削除する'));
+    expect(defaultProps.onDeleteTask).toHaveBeenCalledWith(10, 1);
+  });
+
+  it('確認ダイアログでキャンセルすると onDeleteTask が呼ばれないこと', () => {
+    render(<TaskCard {...defaultProps} />);
+    fireEvent.click(screen.getByTitle('タスク削除'));
+    fireEvent.click(screen.getByText('キャンセル'));
+    expect(defaultProps.onDeleteTask).not.toHaveBeenCalled();
+  });
+
+  it('サブタスクが表示されること', () => {
+    render(<TaskCard {...defaultProps} task={taskWithSubtasks} />);
+    expect(screen.getByText('サブタスク1')).toBeInTheDocument();
+    expect(screen.getByText('サブチェック')).toBeInTheDocument();
+  });
+
+  it('サブタスク配下のチェックリストをトグルできること', async () => {
+    const updatedItem = { id: 301, task_id: null, subtask_id: 201, content: 'サブチェック', completed: true };
+    vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
+    const onTaskUpdated = vi.fn();
+
+    render(
+      <TaskCard
+        {...defaultProps}
+        task={taskWithSubtasks}
+        onTaskUpdated={onTaskUpdated}
+      />
+    );
+
+    const toggleButtons = screen.getAllByRole('button', { name: '' });
+    fireEvent.click(toggleButtons[0]);
+
+    await waitFor(() => {
+      expect(api.updateChecklistItem).toHaveBeenCalledWith(301, { completed: true });
+      expect(onTaskUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subtasks: expect.arrayContaining([
+            expect.objectContaining({
+              checklists: expect.arrayContaining([
+                expect.objectContaining({ id: 301, completed: true }),
+              ]),
+            }),
+          ]),
+        })
+      );
+    });
+  });
+});

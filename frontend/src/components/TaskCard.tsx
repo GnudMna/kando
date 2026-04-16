@@ -36,9 +36,9 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
    */
   const toggleChecklist = async (
-    item: { id: number | string; completed: boolean },
+    item: { id: number; completed: boolean },
     type: 'task' | 'subtask',
-    subtaskId?: number | string
+    subtaskId?: number
   ) => {
     try {
       const updatedItem = await api.updateChecklistItem(item.id, {
