@@ -108,11 +108,11 @@ export const createSubtask = (task_id: number, content: string): Promise<Subtask
   request<Subtask>(`${API_URL}/subtasks`, json('POST', { task_id, content }));
 
 /** サブタスクの内容を更新する。@param id サブタスク ID @param content 新たな内容 */
-export const updateSubtask = (id: number | string, content: string): Promise<Subtask> =>
+export const updateSubtask = (id: number, content: string): Promise<Subtask> =>
   request<Subtask>(`${API_URL}/subtasks/${id}`, json('PUT', { content }));
 
 /** サブタスクを削除する（配下チェックリストも連鎖削除）。@param id サブタスク ID */
-export const deleteSubtask = (id: number | string): Promise<void> =>
+export const deleteSubtask = (id: number): Promise<void> =>
   request<void>(`${API_URL}/subtasks/${id}`, { method: 'DELETE' });
 
 // チェックリスト項目の操作
@@ -125,7 +125,7 @@ export const deleteSubtask = (id: number | string): Promise<void> =>
 export const createChecklistItem = (
   content: string,
   task_id?: number | null,
-  subtask_id?: number | string | null
+  subtask_id?: number | null
 ): Promise<ChecklistItem> =>
   request<ChecklistItem>(
     `${API_URL}/checklist-items`,
@@ -138,11 +138,11 @@ export const createChecklistItem = (
  * @param patch 更新するフィールド（completed または content）
  */
 export const updateChecklistItem = (
-  id: number | string,
+  id: number,
   patch: { completed?: boolean; content?: string }
 ): Promise<ChecklistItem> =>
   request<ChecklistItem>(`${API_URL}/checklist-items/${id}`, json('PUT', patch));
 
 /** チェックリスト項目を削除する。@param id 項目 ID */
-export const deleteChecklistItem = (id: number | string): Promise<void> =>
+export const deleteChecklistItem = (id: number): Promise<void> =>
   request<void>(`${API_URL}/checklist-items/${id}`, { method: 'DELETE' });

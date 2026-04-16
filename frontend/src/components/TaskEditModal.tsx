@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Plus, CheckSquare, Square, CornerDownRight } from 'lucide-react';
-import type { Task, Subtask, ChecklistItem } from '../types';
+import type { Task, LocalTask, LocalSubtask, LocalChecklistItem, TempId } from '../types';
 import * as api from '../api/boardApi';
 
 // 一時的な新規レコード用 ID のカウンター
@@ -13,16 +13,16 @@ let _tempId = 0;
  * DB 保存前の項目に付与するために使用する。
  * @returns "__new__{n}" 形式の一意な文字列 ID
  */
-function tempId(): string {
-  return `__new__${++_tempId}`;
+function tempId(): TempId {
+  return `__new__${++_tempId}` as TempId;
 }
 /**
- * 値が一時 ID（まだ DB 保存前）かどうかを判定する。
+ * 値が一時 ID（まだ DB 保存前）かどうかを判定する型ガード。
  * @param id - 検査する ID
- * @returns 一時 ID の場合 true
+ * @returns 一時 ID の場合 true（id は TempId に絞り込まれる）
  */
-function isTemp(id: number | string): boolean {
-  return typeof id === 'string' && id.startsWith('__new__');
+function isTemp(id: number | TempId): id is TempId {
+  return typeof id === 'string';
 }
 
 interface Props {
@@ -33,20 +33,21 @@ interface Props {
 
 export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // モーダル内のローカル編集状態（保存前は外部に影響しない）
-  const [localTask, setLocalTask] = useState<Task>(() =>
-    JSON.parse(JSON.stringify(task)) as Task
+  const [localTask, setLocalTask] = useState<LocalTask>(() =>
+    structuredClone(task) as LocalTask
   );
   // 削除対象のサブタスク・チェックリストIDを保存しておき、保存時にまとめて削除する
-  const [deletedSubtaskIds, setDeletedSubtaskIds] = useState<(number | string)[]>([]);
-  const [deletedChecklistIds, setDeletedChecklistIds] = useState<(number | string)[]>([]);
+  // 一時IDの項目はサーバーに存在しないため含まれない（常に number）
+  const [deletedSubtaskIds, setDeletedSubtaskIds] = useState<number[]>([]);
+  const [deletedChecklistIds, setDeletedChecklistIds] = useState<number[]>([]);
   // サブタスクのインライン編集状態
-  const [editingSubtaskId, setEditingSubtaskId] = useState<number | string | null>(null);
+  const [editingSubtaskId, setEditingSubtaskId] = useState<number | TempId | null>(null);
   const [editingSubtaskContent, setEditingSubtaskContent] = useState('');
   // サブタスク追加フォームの表示状態と入力値
   const [newSubtaskContent, setNewSubtaskContent] = useState('');
   const [addingSubtask, setAddingSubtask] = useState(false);
   // チェックリスト追加フォームの表示状態（'task' | subtaskId | null）
-  const [addingChecklist, setAddingChecklist] = useState<'task' | number | string | null>(null);
+  const [addingChecklist, setAddingChecklist] = useState<'task' | number | TempId | null>(null);
   const [newChecklistContent, setNewChecklistContent] = useState('');
   // 保存中エラーとローディング状態
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     setSaveError(null);
     setIsSaving(true);
     try {
-      const final: Task = JSON.parse(JSON.stringify(localTask)) as Task;
+      const final: LocalTask = structuredClone(localTask) as LocalTask;
 
       // タスク内容が変更されていれば更新する
       if (final.content !== task.content) {
@@ -97,30 +98,33 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
         } else {
           const orig = task.checklists.find((oc) => oc.id === c.id);
           if (orig && orig.completed !== c.completed) {
-            await api.updateChecklistItem(c.id, { completed: c.completed });
+            await api.updateChecklistItem(c.id as number, { completed: c.completed });
           }
         }
       }
 
       // サブタスク配下のチェックリストを保存する
+      // この時点で全サブタスクは DB に保存済みのため sub.id は number
       for (let i = 0; i < final.subtasks.length; i++) {
         const sub = final.subtasks[i];
-        const origSub = task.subtasks.find((s) => s.id === sub.id) ?? null;
+        const subId = sub.id as number;
+        const origSub = task.subtasks.find((s) => s.id === subId) ?? null;
         for (let j = 0; j < sub.checklists.length; j++) {
           const c = sub.checklists[j];
           if (isTemp(c.id)) {
-            const created = await api.createChecklistItem(c.content, null, sub.id);
+            const created = await api.createChecklistItem(c.content, null, subId);
             final.subtasks[i].checklists[j] = { ...c, id: created.id };
           } else if (origSub) {
             const origC = origSub.checklists.find((oc) => oc.id === c.id);
             if (origC && origC.completed !== c.completed) {
-              await api.updateChecklistItem(c.id, { completed: c.completed });
+              await api.updateChecklistItem(c.id as number, { completed: c.completed });
             }
           }
         }
       }
 
-      onTaskUpdated(final);
+      // 保存完了後は全IDが number に確定しているため Task として扱う
+      onTaskUpdated(final as unknown as Task);
       onClose();
     } catch (err) {
       console.error(err);
@@ -136,7 +140,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    */
   const addSubtask = () => {
     if (!newSubtaskContent.trim()) return;
-    const newSub: Subtask = {
+    const newSub: LocalSubtask = {
       id: tempId(),
       task_id: task.id,
       content: newSubtaskContent,
@@ -152,7 +156,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * 内容が空の場合は編集をキャンセルする。
    * @param subtaskId - 編集対象のサブタスク ID
    */
-  const saveSubtaskEdit = (subtaskId: number | string) => {
+  const saveSubtaskEdit = (subtaskId: number | TempId) => {
     if (!editingSubtaskContent.trim()) {
       setEditingSubtaskId(null);
       return;
@@ -171,7 +175,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * DB 保存済みの場合は deletedSubtaskIds に追加し、saveAndClose 時にまとめて削除する。
    * @param subId - 削除対象のサブタスク ID
    */
-  const removeSubtask = (subId: number | string) => {
+  const removeSubtask = (subId: number | TempId) => {
     if (!isTemp(subId)) setDeletedSubtaskIds((prev) => [...prev, subId]);
     setLocalTask((prev) => ({
       ...prev,
@@ -186,10 +190,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    */
   const addChecklistItem = (
     type: 'task' | 'subtask',
-    subtaskId: number | string | null = null
+    subtaskId: number | TempId | null = null
   ) => {
     if (!newChecklistContent.trim()) return;
-    const newItem: ChecklistItem = {
+    const newItem: LocalChecklistItem = {
       id: tempId(),
       content: newChecklistContent,
       completed: false,
@@ -219,9 +223,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
    */
   const toggleChecklist = (
-    itemId: number | string,
+    itemId: number | TempId,
     type: 'task' | 'subtask',
-    subtaskId: number | string | null = null
+    subtaskId: number | TempId | null = null
   ) => {
     setLocalTask((prev) => {
       if (type === 'task') {
@@ -256,9 +260,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
    */
   const removeChecklist = (
-    itemId: number | string,
+    itemId: number | TempId,
     type: 'task' | 'subtask',
-    subtaskId: number | string | null = null
+    subtaskId: number | TempId | null = null
   ) => {
     if (!isTemp(itemId)) setDeletedChecklistIds((prev) => [...prev, itemId]);
     setLocalTask((prev) => {
