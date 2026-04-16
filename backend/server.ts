@@ -14,6 +14,12 @@ import checklistItemsRouter from './routes/checklistItems';
 
 const app = express();
 
+// 本番環境では CORS_ORIGIN の明示的な指定を必須にする
+if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+  console.error('FATAL: CORS_ORIGIN environment variable must be set in production');
+  process.exit(1);
+}
+
 // セキュリティヘッダーを付与する
 app.use(helmet());
 // CORS設定: 許可オリジンは環境変数 CORS_ORIGIN で制御する
@@ -21,8 +27,8 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN ?? '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
-// リクエストボディをJSONとして解析する
-app.use(express.json());
+// リクエストボディをJSONとして解析する（100kB上限でDoSを防ぐ）
+app.use(express.json({ limit: '100kb' }));
 
 // アプリ起動時にDBの初期化を実行する（失敗時はリトライする）
 initDBWithRetry();
