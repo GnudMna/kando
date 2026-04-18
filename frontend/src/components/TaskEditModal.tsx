@@ -72,11 +72,6 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     cloned.due_date = normalizeDueDateValue(cloned.due_date);
     return cloned;
   });
-  // 削除対象のサブタスク・チェックリストIDを保存しておき、保存時にまとめて削除する
-  // 一時IDの項目はサーバーに存在しないため含まれない（常に number）
-  const [deletedSubtaskIds, setDeletedSubtaskIds] = useState<number[]>([]);
-  const [deletedChecklistIds, setDeletedChecklistIds] = useState<number[]>([]);
-  const [deletedCommentIds, setDeletedCommentIds] = useState<number[]>([]);
   // コメント表示順の切替（古い順 / 最新順 / 手動）
   const [commentSortMode, setCommentSortMode] =
     useState<CommentSortMode>("newest");
@@ -123,7 +118,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
   /**
    * ローカルの編集内容を API に保存してモーダルを閉じる。
-   * 区別 API: タスク内容の変更、サブタスク・チェックリストの新規作成・更新・削除。
+   * タスク本体・サブタスク・チェックリスト・コメントを単一 API で一括保存する。
    * 失敗時はエラーメッセージを表示する。
    */
   const saveAndClose = async () => {
@@ -132,155 +127,31 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     try {
       const final: LocalTask = structuredClone(localTask) as LocalTask;
       final.due_date = normalizeDueDateValue(final.due_date);
-      const taskDueDate = normalizeDueDateValue(task.due_date);
+      const payload: api.TaskSnapshotPayload = {
+        content: final.content,
+        due_date: final.due_date,
+        checklists: final.checklists.map((checklist) => ({
+          id: isTemp(checklist.id) ? undefined : checklist.id,
+          content: checklist.content,
+          completed: checklist.completed,
+        })),
+        subtasks: final.subtasks.map((subtask) => ({
+          id: isTemp(subtask.id) ? undefined : subtask.id,
+          content: subtask.content,
+          checklists: subtask.checklists.map((checklist) => ({
+            id: isTemp(checklist.id) ? undefined : checklist.id,
+            content: checklist.content,
+            completed: checklist.completed,
+          })),
+        })),
+        comments: final.comments.map((comment) => ({
+          id: isTemp(comment.id) ? undefined : comment.id,
+          content: comment.content,
+        })),
+      };
 
-      // タスク内容または期限が変更されていれば更新する
-      if (final.content !== task.content || final.due_date !== taskDueDate) {
-        await api.updateTask(task.id, {
-          content: final.content,
-          due_date: final.due_date,
-        });
-      }
-
-      // 削除対象のサブタスク・チェックリストを並行削除する
-      await Promise.all([
-        ...deletedSubtaskIds.map((id) => api.deleteSubtask(id)),
-        ...deletedChecklistIds.map((id) => api.deleteChecklistItem(id)),
-        ...deletedCommentIds.map((id) => api.deleteTaskComment(id)),
-      ]);
-
-      // サブタスクを保存する（一時IDのものは新規作成、既存は内容変更時のみ更新）
-      for (let i = 0; i < final.subtasks.length; i++) {
-        const sub = final.subtasks[i];
-        if (isTemp(sub.id)) {
-          const created = await api.createSubtask(task.id, sub.content);
-          final.subtasks[i] = { ...sub, id: created.id, task_id: task.id };
-        } else {
-          const orig = task.subtasks.find((s) => s.id === sub.id);
-          if (orig && orig.content !== sub.content) {
-            await api.updateSubtask(sub.id, sub.content);
-          }
-        }
-      }
-
-      // タスク直下のチェックリストを保存する
-      for (let i = 0; i < final.checklists.length; i++) {
-        const c = final.checklists[i];
-        const expectedPosition = (i + 1) * 1000;
-        if (isTemp(c.id)) {
-          const created = await api.createChecklistItem(
-            c.content,
-            task.id,
-            null,
-          );
-          // 作成後に position を確定値に更新する
-          if (created.position !== expectedPosition) {
-            await api.updateChecklistItem(created.id, {
-              position: expectedPosition,
-            });
-            created.position = expectedPosition;
-          }
-          final.checklists[i] = {
-            ...c,
-            id: created.id,
-            position: created.position,
-          };
-        } else {
-          const orig = task.checklists.find((oc) => oc.id === c.id);
-          const patch: { completed?: boolean; position?: number } = {};
-          if (orig && orig.completed !== c.completed)
-            patch.completed = c.completed;
-          if (orig && orig.position !== expectedPosition)
-            patch.position = expectedPosition;
-          if (Object.keys(patch).length > 0) {
-            await api.updateChecklistItem(c.id as number, patch);
-          }
-        }
-      }
-
-      // サブタスク配下のチェックリストを保存する
-      // この時点で全サブタスクは DB に保存済みのため sub.id は number
-      for (let i = 0; i < final.subtasks.length; i++) {
-        const sub = final.subtasks[i];
-        const subId = sub.id as number;
-        const origSub = task.subtasks.find((s) => s.id === subId) ?? null;
-        for (let j = 0; j < sub.checklists.length; j++) {
-          const c = sub.checklists[j];
-          const expectedPosition = (j + 1) * 1000;
-          if (isTemp(c.id)) {
-            const created = await api.createChecklistItem(
-              c.content,
-              null,
-              subId,
-            );
-            if (created.position !== expectedPosition) {
-              await api.updateChecklistItem(created.id, {
-                position: expectedPosition,
-              });
-              created.position = expectedPosition;
-            }
-            final.subtasks[i].checklists[j] = {
-              ...c,
-              id: created.id,
-              position: created.position,
-            };
-          } else if (origSub) {
-            const origC = origSub.checklists.find((oc) => oc.id === c.id);
-            const patch: { completed?: boolean; position?: number } = {};
-            if (origC && origC.completed !== c.completed)
-              patch.completed = c.completed;
-            if (origC && origC.position !== expectedPosition)
-              patch.position = expectedPosition;
-            if (Object.keys(patch).length > 0) {
-              await api.updateChecklistItem(c.id as number, patch);
-            }
-          }
-        }
-      }
-
-      // タスクコメントを保存する（新規作成・内容更新）
-      for (let i = 0; i < final.comments.length; i++) {
-        const comment = final.comments[i];
-        const expectedPosition = (i + 1) * POSITION_GAP;
-
-        if (isTemp(comment.id)) {
-          const created = await api.createTaskComment(task.id, comment.content);
-          if (created.position !== expectedPosition) {
-            await api.updateTaskComment(created.id, {
-              position: expectedPosition,
-            });
-            created.position = expectedPosition;
-          }
-          final.comments[i] = {
-            ...comment,
-            id: created.id,
-            task_id: created.task_id,
-            created_at: created.created_at,
-            position: created.position,
-          };
-          continue;
-        }
-
-        const orig = task.comments.find((c) => c.id === comment.id);
-        const patch: { content?: string; position?: number } = {};
-        if (orig && orig.content !== comment.content) {
-          patch.content = comment.content;
-        }
-        if (orig && orig.position !== expectedPosition) {
-          patch.position = expectedPosition;
-        }
-        if (Object.keys(patch).length > 0) {
-          const updated = await api.updateTaskComment(comment.id, patch);
-          final.comments[i] = {
-            ...comment,
-            created_at: updated.created_at,
-            position: updated.position,
-          };
-        }
-      }
-
-      // 保存完了後は全IDが number に確定しているため Task として扱う
-      onTaskUpdated(final as unknown as Task);
+      const savedTask = await api.saveTaskSnapshot(task.id, payload);
+      onTaskUpdated(savedTask);
       onClose("saved");
     } catch (err) {
       console.error(err);
@@ -328,11 +199,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
   /**
    * サブタスクをローカル state から削除する。
-   * DB 保存済みの場合は deletedSubtaskIds に追加し、saveAndClose 時にまとめて削除する。
    * @param subId - 削除対象のサブタスク ID
    */
   const removeSubtask = (subId: number | TempId) => {
-    if (!isTemp(subId)) setDeletedSubtaskIds((prev) => [...prev, subId]);
     setLocalTask((prev) => ({
       ...prev,
       subtasks: prev.subtasks.filter((s) => s.id !== subId),
@@ -459,7 +328,6 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
   /**
    * チェックリスト項目をローカル state から削除する。
-   * DB 保存済みの場合は deletedChecklistIds に追加し、saveAndClose 時にまとめて削除する。
    * @param itemId - 削除対象項目 ID
    * @param type - 'task' または 'subtask'
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
@@ -469,7 +337,6 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     type: "task" | "subtask",
     subtaskId: number | TempId | null = null,
   ) => {
-    if (!isTemp(itemId)) setDeletedChecklistIds((prev) => [...prev, itemId]);
     setLocalTask((prev) => {
       if (type === "task") {
         return {
@@ -552,12 +419,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
   /**
    * コメントをローカル state から削除する。
-   * DB 保存済みの場合は deletedCommentIds に追加し、saveAndClose 時にまとめて削除する。
    * @param commentId - 削除対象のコメント ID
    */
   const removeComment = (commentId: number | TempId) => {
-    if (!isTemp(commentId))
-      setDeletedCommentIds((prev) => [...prev, commentId]);
     setLocalTask((prev) => ({
       ...prev,
       comments: prev.comments.filter((comment) => comment.id !== commentId),

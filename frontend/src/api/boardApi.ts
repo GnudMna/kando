@@ -9,6 +9,31 @@ import type {
   TaskComment,
 } from "../types";
 
+export interface TaskSnapshotChecklistPayload {
+  id?: number;
+  content: string;
+  completed: boolean;
+}
+
+export interface TaskSnapshotSubtaskPayload {
+  id?: number;
+  content: string;
+  checklists: TaskSnapshotChecklistPayload[];
+}
+
+export interface TaskSnapshotCommentPayload {
+  id?: number;
+  content: string;
+}
+
+export interface TaskSnapshotPayload {
+  content: string;
+  due_date: string | null;
+  checklists: TaskSnapshotChecklistPayload[];
+  subtasks: TaskSnapshotSubtaskPayload[];
+  comments: TaskSnapshotCommentPayload[];
+}
+
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
 
 /**
@@ -116,6 +141,13 @@ export const updateTask = (
   id: number,
   patch: { content?: string; due_date?: string | null },
 ): Promise<Task> => request<Task>(`${API_URL}/tasks/${id}`, json("PUT", patch));
+
+/** タスク編集モーダルの内容を一括保存する。@param id タスク ID @param payload モーダル全体の保存ペイロード */
+export const saveTaskSnapshot = (
+  id: number,
+  payload: TaskSnapshotPayload,
+): Promise<Task> =>
+  request<Task>(`${API_URL}/tasks/${id}/snapshot`, json("PUT", payload));
 
 /**
  * タスクを別のカラムへ移動する。
