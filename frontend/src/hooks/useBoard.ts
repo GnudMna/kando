@@ -247,6 +247,54 @@ export function useBoard() {
   }, []);
 
   /**
+   * カラムをドラッグ&ドロップで同一行内で並び替える。
+   * 楽観的更新で UI を即時反映し、API 失敗時は元の state にロールバックする。
+   * @param rowId - カラムが属する行 ID
+   * @param srcIndex - 移動元カラムインデックス
+   * @param dstIndex - 移動先カラムインデックス
+   * @param colId - 移動するカラム ID
+   */
+  const moveColumn = useCallback(
+    async (rowId: number, srcIndex: number, dstIndex: number, colId: number) => {
+      const rows = rowsRef.current;
+      const rowIdx = rows.findIndex((r) => r.id === rowId);
+      if (rowIdx === -1) return;
+
+      const prevRows = rows;
+      const newRows = structuredClone(rows) as Row[];
+      const cols = newRows[rowIdx].columns;
+
+      const [movedCol] = cols.splice(srcIndex, 1);
+      cols.splice(dstIndex, 0, movedCol);
+
+      const prev = cols[dstIndex - 1];
+      const next = cols[dstIndex + 1];
+      let newPosition: number;
+      if (prev && next) {
+        newPosition = (prev.position + next.position) / 2;
+      } else if (prev) {
+        newPosition = prev.position + POSITION_GAP;
+      } else if (next) {
+        newPosition = next.position / 2;
+      } else {
+        newPosition = POSITION_GAP;
+      }
+      cols[dstIndex] = { ...movedCol, position: newPosition };
+      newRows[rowIdx].columns = cols;
+      setRows(newRows);
+
+      try {
+        await api.moveColumn(colId, newPosition);
+      } catch (err) {
+        console.error('Failed to move column:', err);
+        setRows(prevRows);
+        setOperationError('カラムの移動に失敗しました');
+      }
+    },
+    []
+  );
+
+  /**
    * タスクをドラッグ&ドロップで別カラムへ移動する。
    * 楽観的更新で UI を即時反映し、API 失敗時は元の state にロールバックする。
    * @param srcDroppableId - 移動元カラム ID 文字列
@@ -347,5 +395,6 @@ export function useBoard() {
     removeTask,
     updateTask,
     moveTask,
+    moveColumn,
   };
 }

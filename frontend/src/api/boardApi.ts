@@ -75,6 +75,10 @@ export const updateColumn = (id: number, title: string): Promise<Column> =>
 export const deleteColumn = (id: number): Promise<void> =>
   request<void>(`${API_URL}/columns/${id}`, { method: 'DELETE' });
 
+/** カラムの表示順を更新する。@param id カラム ID @param position 新たな表示順 */
+export const moveColumn = (id: number, position: number): Promise<Column> =>
+  request<Column>(`${API_URL}/columns/${id}/move`, json('PUT', { position }));
+
 // タスクの操作
 /**
  * 新しいタスクを作成する。
