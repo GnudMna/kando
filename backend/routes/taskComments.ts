@@ -23,18 +23,35 @@ router.post(
       task_id: number;
       content: string;
     };
+    const client = await pool.connect();
     try {
-      const result = await pool.query<DbTaskComment>(
-        `INSERT INTO task_comments (task_id, content, position)
-         SELECT $1, $2, COALESCE(MAX(position), 0) + 1000
-         FROM task_comments
-         WHERE task_id = $1
-         RETURNING *`,
-        [task_id, content],
+      await client.query("BEGIN");
+      // 同一 task への同時追加を直列化して position の重複採番を防ぐ。
+      await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [
+        task_id,
+      ]);
+      const nextPositionResult = await client.query<{ next_position: number }>(
+        "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM task_comments WHERE task_id = $1",
+        [task_id],
       );
+      const nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+
+      const result = await client.query<DbTaskComment>(
+        "INSERT INTO task_comments (task_id, content, position) VALUES ($1, $2, $3) RETURNING *",
+        [task_id, content, nextPosition],
+      );
+
+      await client.query("COMMIT");
       res.json(result.rows[0]);
     } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback failed:", rollbackErr);
+      }
       next(err);
+    } finally {
+      client.release();
     }
   },
 );
