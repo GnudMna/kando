@@ -91,9 +91,16 @@ scripts\windows\dev.bat
 ```bash
 # Linux / macOS
 ./scripts/linux/test.sh
-
+```
+```powershell
 # Windows
 scripts\windows\test.bat
+```
+
+バックエンドの統合テストのみ実行する場合:
+
+```bash
+npm --prefix backend run test:integration
 ```
 
 ---
