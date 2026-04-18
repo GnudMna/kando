@@ -85,10 +85,7 @@ export function ListView({
                       className="list-view-row list-view-subtask-row"
                       onClick={() => onTaskClick(task, column.id)}
                     >
-                      <span
-                        className="list-view-col list-view-col-task"
-                        style={{ paddingLeft: '3rem' }}
-                      >
+                      <span className="list-view-col list-view-col-task list-view-col-task-deep">
                         <span className="list-subtask-indent">↳</span>
                         <span
                           className={`list-checklist-item${item.completed ? ' list-checklist-checked' : ''}`}
@@ -130,6 +127,7 @@ export function ListView({
             {row.columns.length > 0 && (
               <div className="list-view-add-row">
                 <button
+                  type="button"
                   className="text-btn text-muted"
                   onClick={() => onAddTask(row.columns[0].id, row.id)}
                 >

@@ -19,8 +19,8 @@ const baseTask: Task = {
 const taskWithChecklists: Task = {
   ...baseTask,
   checklists: [
-    { id: 101, task_id: 1, subtask_id: null, content: 'チェック項目A', completed: false },
-    { id: 102, task_id: 1, subtask_id: null, content: 'チェック項目B', completed: true },
+    { id: 101, task_id: 1, subtask_id: null, content: 'チェック項目A', completed: false, position: 1000 },
+    { id: 102, task_id: 1, subtask_id: null, content: 'チェック項目B', completed: true, position: 2000 },
   ],
 };
 
@@ -32,7 +32,7 @@ const taskWithSubtasks: Task = {
       task_id: 1,
       content: 'サブタスク1',
       checklists: [
-        { id: 301, task_id: null, subtask_id: 201, content: 'サブチェック', completed: false },
+        { id: 301, task_id: null, subtask_id: 201, content: 'サブチェック', completed: false, position: 1000 },
       ],
     },
   ],
@@ -69,7 +69,7 @@ describe('TaskCard', () => {
   });
 
   it('チェックリストのトグルで API が呼ばれ onTaskUpdated が実行されること', async () => {
-    const updatedItem = { id: 101, task_id: 1, subtask_id: null, content: 'チェック項目A', completed: true };
+    const updatedItem = { id: 101, task_id: 1, subtask_id: null, content: 'チェック項目A', completed: true, position: 1000 };
     vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
 
     const onTaskUpdated = vi.fn();
@@ -146,7 +146,7 @@ describe('TaskCard', () => {
   });
 
   it('サブタスク配下のチェックリストをトグルできること', async () => {
-    const updatedItem = { id: 301, task_id: null, subtask_id: 201, content: 'サブチェック', completed: true };
+    const updatedItem = { id: 301, task_id: null, subtask_id: 201, content: 'サブチェック', completed: true, position: 1000 };
     vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
     const onTaskUpdated = vi.fn();
 

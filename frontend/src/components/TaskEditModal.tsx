@@ -27,7 +27,7 @@ function isTemp(id: number | TempId): id is TempId {
 
 interface Props {
   task: Task;
-  onClose: () => void;
+  onClose: (reason: 'saved' | 'dismiss') => void;
   onTaskUpdated: (task: Task) => void;
 }
 
@@ -147,7 +147,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
       // 保存完了後は全IDが number に確定しているため Task として扱う
       onTaskUpdated(final as unknown as Task);
-      onClose();
+      onClose('saved');
     } catch (err) {
       console.error(err);
       setSaveError('保存中にエラーが発生しました。再試行してください。');
@@ -215,21 +215,38 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     subtaskId: number | TempId | null = null
   ) => {
     if (!newChecklistContent.trim()) return;
-    const newItem: LocalChecklistItem = {
-      id: tempId(),
-      content: newChecklistContent,
-      completed: false,
-      task_id: type === 'task' ? task.id : null,
-      subtask_id: subtaskId,
-    };
     setLocalTask((prev) => {
       if (type === 'task') {
+        const position = (prev.checklists.length + 1) * 1000;
+        const newItem: LocalChecklistItem = {
+          id: tempId(),
+          content: newChecklistContent,
+          completed: false,
+          task_id: task.id,
+          subtask_id: null,
+          position,
+        };
         return { ...prev, checklists: [...prev.checklists, newItem] };
       }
       return {
         ...prev,
         subtasks: prev.subtasks.map((s) =>
-          s.id === subtaskId ? { ...s, checklists: [...s.checklists, newItem] } : s
+          s.id === subtaskId
+            ? {
+                ...s,
+                checklists: [
+                  ...s.checklists,
+                  {
+                    id: tempId(),
+                    content: newChecklistContent,
+                    completed: false,
+                    task_id: null,
+                    subtask_id: subtaskId,
+                    position: (s.checklists.length + 1) * 1000,
+                  },
+                ],
+              }
+            : s
         ),
       };
     });
@@ -345,7 +362,12 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
       >
         <div className="modal-header">
           <h3 id={modalTitleId} className="modal-title">タスクを編集</h3>
-          <button type="button" className="action-btn" onClick={onClose} aria-label="編集モーダルを閉じる">
+          <button
+            type="button"
+            className="action-btn"
+            onClick={() => onClose('dismiss')}
+            aria-label="編集モーダルを閉じる"
+          >
             <X size={18} />
           </button>
         </div>
