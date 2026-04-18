@@ -9,6 +9,8 @@
     "build": "tsc",
     "dev": "tsx watch server.ts",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },

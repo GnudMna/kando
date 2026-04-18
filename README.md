@@ -74,6 +74,18 @@ scripts\windows\dev.bat
 
 ---
 
+## 🧰 開発用スクリプト
+
+| スクリプト | 説明 |
+|---|---|
+| `./scripts/linux/dev.sh` / `scripts\\windows\\dev.bat` | frontend + backend を同時起動 |
+| `./scripts/linux/test.sh` / `scripts\\windows\\test.bat` | backend/frontend の `lint` → `typecheck` → `test` を順番に実行 |
+| `./scripts/linux/format.sh` / `scripts\\windows\\format.bat` | backend/frontend の `eslint --fix` を実行 |
+
+補足: `format` は Prettier ではなく ESLint の自動修正です。
+
+---
+
 ## 🧪 テスト
 
 ```bash
@@ -83,6 +95,12 @@ scripts\windows\dev.bat
 # Windows
 scripts\windows\test.bat
 ```
+
+---
+
+## 📘 サブプロジェクト README
+
+- frontend: [frontend/README.md](frontend/README.md)
 
 ---
 
