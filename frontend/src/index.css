@@ -829,6 +829,89 @@ body::after {
   font-size: 0.76rem;
 }
 
+.task-comment-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+}
+
+.comment-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.task-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.task-comment-item {
+  border: 1px solid var(--checklist-border);
+  border-radius: 10px;
+  background: var(--checklist-bg);
+  padding: 0.45rem 0.55rem;
+}
+
+.task-comment-item.comment-manual {
+  cursor: grab;
+}
+
+.task-comment-item.comment-manual:active {
+  cursor: grabbing;
+}
+
+.task-comment-item.comment-drag-over {
+  border-top: 2px solid var(--accent-color);
+}
+
+.task-comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.task-comment-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.comment-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+}
+
+.task-comment-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.task-comment-content-btn {
+  width: 100%;
+  margin-top: 0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: color 0.18s ease;
+  word-break: break-word;
+}
+
+.task-comment-content-btn:hover {
+  color: var(--accent-color);
+}
+
 .task-checklists {
   display: flex;
   flex-direction: column;
@@ -1117,6 +1200,10 @@ body::after {
   display: flex;
   flex-direction: column;
   gap: 0.42rem;
+}
+
+.modal-section-comments {
+  order: 999;
 }
 
 .modal-label {

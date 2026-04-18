@@ -43,6 +43,33 @@ async function initDB(): Promise<void> {
         position FLOAT NOT NULL
       );
     `);
+    // タスクコメントテーブルを作成する
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id SERIAL PRIMARY KEY,
+        task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        position FLOAT NOT NULL DEFAULT 0
+      );
+    `);
+    // task_comments に並び替え用の position カラムを追加する（既存 DB へのマイグレーション対応）
+    await client.query(`
+      ALTER TABLE task_comments ADD COLUMN IF NOT EXISTS position FLOAT NOT NULL DEFAULT 0;
+    `);
+    // position が未設定（0）の既存コメントに task ごとの連番位置を割り当てる
+    await client.query(`
+      UPDATE task_comments tc
+      SET position = ordered.rn * 1000
+      FROM (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at ASC, id ASC) AS rn
+        FROM task_comments
+      ) AS ordered
+      WHERE tc.id = ordered.id
+        AND tc.position = 0;
+    `);
     // サブタスクテーブルを作成する
     await client.query(`
       CREATE TABLE IF NOT EXISTS subtasks (
