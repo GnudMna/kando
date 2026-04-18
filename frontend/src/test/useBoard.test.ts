@@ -103,7 +103,7 @@ describe('useBoard', () => {
   });
 
   it('renameRow が rows 内のタイトルを更新すること', async () => {
-    vi.mocked(api.updateRow).mockResolvedValue({ id: 1, title: '行1-改', position: 1000 });
+    vi.mocked(api.updateRow).mockResolvedValue({ id: 1, title: '行1-改', position: 1000, columns: [] });
     const { result } = renderHook(() => useBoard());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -122,7 +122,7 @@ describe('useBoard', () => {
   });
 
   it('addColumn が指定行にカラムを追加すること', async () => {
-    const newCol = { id: 99, row_id: 1, title: '新カラム', position: 3000 };
+    const newCol = { id: 99, row_id: 1, title: '新カラム', position: 3000, tasks: [] };
     vi.mocked(api.createColumn).mockResolvedValue(newCol);
     const { result } = renderHook(() => useBoard());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -134,7 +134,7 @@ describe('useBoard', () => {
   });
 
   it('renameColumn がカラムタイトルを更新すること', async () => {
-    vi.mocked(api.updateColumn).mockResolvedValue({ id: 10, row_id: 1, title: 'カラム1-改', position: 1000 });
+    vi.mocked(api.updateColumn).mockResolvedValue({ id: 10, row_id: 1, title: 'カラム1-改', position: 1000, tasks: [] });
     const { result } = renderHook(() => useBoard());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
