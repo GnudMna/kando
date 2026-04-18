@@ -24,10 +24,34 @@ describe("buildBoardHierarchy", () => {
     ];
 
     const tasks: DbTask[] = [
-      { id: 101, column_id: 11, content: "Task 1", position: 1000 },
-      { id: 102, column_id: 11, content: "Task 2", position: 2000 },
-      { id: 201, column_id: 21, content: "Task 3", position: 1000 },
-      { id: 999, column_id: 999, content: "Orphan Task", position: 1 },
+      {
+        id: 101,
+        column_id: 11,
+        content: "Task 1",
+        due_date: "2026-06-01",
+        position: 1000,
+      },
+      {
+        id: 102,
+        column_id: 11,
+        content: "Task 2",
+        due_date: null,
+        position: 2000,
+      },
+      {
+        id: 201,
+        column_id: 21,
+        content: "Task 3",
+        due_date: "2026-06-15",
+        position: 1000,
+      },
+      {
+        id: 999,
+        column_id: 999,
+        content: "Orphan Task",
+        due_date: null,
+        position: 1,
+      },
     ];
 
     const subtasks: DbSubtask[] = [
@@ -120,6 +144,7 @@ describe("buildBoardHierarchy", () => {
     expect(row1colA.tasks.map((t) => t.id)).toEqual([101, 102]);
 
     const task1 = row1colA.tasks[0];
+    expect(task1.due_date).toBe("2026-06-01");
     expect(task1.checklists.map((c) => c.id)).toEqual([5001]);
     expect(task1.subtasks.map((s) => s.id)).toEqual([1001, 1002]);
     expect(task1.subtasks[0].checklists.map((c) => c.id)).toEqual([5002]);

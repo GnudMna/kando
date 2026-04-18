@@ -1,6 +1,6 @@
 // かんばんボードのメインコンポーネント
 // 行・カラム・タスクのレンダリング、ドラッグ＆ドロップ、各種操作ダイアログを管理する
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useId } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
 import { createPortal } from "react-dom";
@@ -19,9 +19,18 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { ListView } from "./ListView";
 import { useBoard } from "../hooks/useBoard";
 import type { Row, Task } from "../types";
+import { getDueHighlight } from "../utils/dueDate";
 
 const taskDragPortalTarget =
   typeof document !== "undefined" ? document.body : null;
+const DUE_SOON_DAYS_STORAGE_KEY = "kando-due-soon-days";
+const DEFAULT_DUE_SOON_DAYS = 3;
+const MAX_DUE_SOON_DAYS = 30;
+
+function normalizeDueSoonDays(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_DUE_SOON_DAYS;
+  return Math.max(0, Math.min(MAX_DUE_SOON_DAYS, Math.floor(value)));
+}
 
 // 現在編集中のタスクとそのカラム ID を保持する型
 interface EditingTask {
@@ -67,12 +76,24 @@ export function KanbanBoard() {
   } = useBoard();
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [dueSoonDays, setDueSoonDays] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_DUE_SOON_DAYS;
+    const stored = window.localStorage.getItem(DUE_SOON_DAYS_STORAGE_KEY);
+    if (stored === null) return DEFAULT_DUE_SOON_DAYS;
+    return normalizeDueSoonDays(Number(stored));
+  });
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
   // インライン編集中の行・カラムを管理する
   const [editingRow, setEditingRow] = useState<InlineEditState | null>(null);
   const [editingCol, setEditingCol] = useState<InlineEditState | null>(null);
   // 確認ダイアログの表示状態を管理する
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const dueSoonDaysInputId = useId();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(DUE_SOON_DAYS_STORAGE_KEY, String(dueSoonDays));
+  }, [dueSoonDays]);
 
   /**
    * 確認ダイアログを表示するヘルパー。
@@ -313,6 +334,29 @@ export function KanbanBoard() {
         </button>
 
         <div className="board-toolbar-right">
+          <div className="due-soon-setting">
+            <label htmlFor={dueSoonDaysInputId} className="due-soon-label">
+              期限間近の強調
+            </label>
+            <div className="due-soon-input-wrap">
+              <input
+                id={dueSoonDaysInputId}
+                type="number"
+                min={0}
+                max={MAX_DUE_SOON_DAYS}
+                step={1}
+                className="due-soon-input"
+                value={dueSoonDays}
+                onChange={(e) => {
+                  const next = e.currentTarget.valueAsNumber;
+                  if (Number.isNaN(next)) return;
+                  setDueSoonDays(normalizeDueSoonDays(next));
+                }}
+              />
+              <span className="due-soon-unit">日以内</span>
+            </div>
+          </div>
+
           <div className="board-stats" aria-label="ボード統計">
             <span className="stat-pill">
               <strong>{boardStats.rows}</strong> 行
@@ -465,9 +509,17 @@ export function KanbanBoard() {
                                           taskDragProvided,
                                           taskDragSnapshot,
                                         ) => {
+                                          const dueHighlight = getDueHighlight(
+                                            task.due_date,
+                                            dueSoonDays,
+                                          );
+                                          const dueTaskClass =
+                                            dueHighlight.status === "none"
+                                              ? ""
+                                              : ` task-${dueHighlight.status}`;
                                           const taskCardNode = (
                                             <div
-                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}`}
+                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}`}
                                               ref={taskDragProvided.innerRef}
                                               {...taskDragProvided.draggableProps}
                                               {...taskDragProvided.dragHandleProps}
@@ -475,6 +527,7 @@ export function KanbanBoard() {
                                               <TaskCard
                                                 task={task}
                                                 columnId={column.id}
+                                                dueHighlight={dueHighlight}
                                                 onDeleteTask={handleDeleteTask}
                                                 onTaskUpdated={updateTask}
                                                 onEditTask={(t) =>
@@ -532,6 +585,7 @@ export function KanbanBoard() {
       ) : (
         <ListView
           rows={rows}
+          dueSoonDays={dueSoonDays}
           onRowHeaderRender={renderRowHeader}
           onTaskClick={(task, colId) =>
             setEditingTask({ task, colId, isNew: false })

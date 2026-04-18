@@ -20,6 +20,7 @@ import type {
   TempId,
 } from "../types";
 import * as api from "../api/boardApi";
+import { formatDueDate, normalizeDueDateValue } from "../utils/dueDate";
 
 // 一時的な新規レコード用 ID のカウンター
 let _tempId = 0;
@@ -66,9 +67,11 @@ interface Props {
 
 export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // モーダル内のローカル編集状態（保存前は外部に影響しない）
-  const [localTask, setLocalTask] = useState<LocalTask>(
-    () => structuredClone(task) as LocalTask,
-  );
+  const [localTask, setLocalTask] = useState<LocalTask>(() => {
+    const cloned = structuredClone(task) as LocalTask;
+    cloned.due_date = normalizeDueDateValue(cloned.due_date);
+    return cloned;
+  });
   // 削除対象のサブタスク・チェックリストIDを保存しておき、保存時にまとめて削除する
   // 一時IDの項目はサーバーに存在しないため含まれない（常に number）
   const [deletedSubtaskIds, setDeletedSubtaskIds] = useState<number[]>([]);
@@ -116,6 +119,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const modalTitleId = useId();
   const taskContentInputId = useId();
+  const taskDueDateInputId = useId();
 
   /**
    * ローカルの編集内容を API に保存してモーダルを閉じる。
@@ -127,10 +131,15 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     setIsSaving(true);
     try {
       const final: LocalTask = structuredClone(localTask) as LocalTask;
+      final.due_date = normalizeDueDateValue(final.due_date);
+      const taskDueDate = normalizeDueDateValue(task.due_date);
 
-      // タスク内容が変更されていれば更新する
-      if (final.content !== task.content) {
-        await api.updateTask(task.id, final.content);
+      // タスク内容または期限が変更されていれば更新する
+      if (final.content !== task.content || final.due_date !== taskDueDate) {
+        await api.updateTask(task.id, {
+          content: final.content,
+          due_date: final.due_date,
+        });
       }
 
       // 削除対象のサブタスク・チェックリストを並行削除する
@@ -632,6 +641,29 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               autoFocus
               style={{ resize: "vertical" }}
             />
+          </div>
+
+          <div className="modal-section">
+            <label htmlFor={taskDueDateInputId} className="modal-label">
+              期限
+            </label>
+            <input
+              id={taskDueDateInputId}
+              type="date"
+              className="task-content-input due-date-input"
+              value={localTask.due_date ?? ""}
+              onChange={(e) =>
+                setLocalTask((prev) => ({
+                  ...prev,
+                  due_date: e.target.value || null,
+                }))
+              }
+            />
+            <span className="text-muted">
+              {localTask.due_date
+                ? `現在の期限: ${formatDueDate(localTask.due_date)}`
+                : "期限未設定"}
+            </span>
           </div>
 
           <div className="modal-section modal-section-comments">

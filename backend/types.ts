@@ -16,6 +16,7 @@ export interface DbTask {
   id: number;
   column_id: number;
   content: string;
+  due_date: string | null;
   position: number;
 }
 

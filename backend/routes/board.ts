@@ -14,6 +14,9 @@ import type {
 
 const router = Router();
 
+const TASK_SELECT_COLUMNS =
+  "id, column_id, content, due_date::text AS due_date, position";
+
 function pushToGroupMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const bucket = map.get(key);
   if (bucket) {
@@ -114,7 +117,9 @@ router.get("/", async (_req: Request, res: Response, next: NextFunction) => {
     ] = await Promise.all([
       pool.query<DbRow>("SELECT * FROM rows ORDER BY position ASC"),
       pool.query<DbColumn>("SELECT * FROM columns ORDER BY position ASC"),
-      pool.query<DbTask>("SELECT * FROM tasks ORDER BY position ASC"),
+      pool.query<DbTask>(
+        `SELECT ${TASK_SELECT_COLUMNS} FROM tasks ORDER BY position ASC`,
+      ),
       pool.query<DbSubtask>("SELECT * FROM subtasks ORDER BY id ASC"),
       pool.query<DbChecklistItem>(
         "SELECT * FROM checklist_items ORDER BY position ASC",

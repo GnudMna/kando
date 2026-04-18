@@ -98,21 +98,24 @@ export const moveColumn = (id: number, position: number): Promise<Column> =>
 // タスクの操作
 /**
  * 新しいタスクを作成する。
- * @param column_id 所属カラム ID @param content タスク内容 @param position 表示順
+ * @param column_id 所属カラム ID @param content タスク内容 @param position 表示順 @param due_date 期限（YYYY-MM-DD または null）
  */
 export const createTask = (
   column_id: number,
   content: string,
   position: number,
+  due_date: string | null = null,
 ): Promise<Task> =>
   request<Task>(
     `${API_URL}/tasks`,
-    json("POST", { column_id, content, position }),
+    json("POST", { column_id, content, position, due_date }),
   );
 
-/** タスクの内容を更新する。@param id タスク ID @param content 新たな内容 */
-export const updateTask = (id: number, content: string): Promise<Task> =>
-  request<Task>(`${API_URL}/tasks/${id}`, json("PUT", { content }));
+/** タスクの内容または期限を更新する。@param id タスク ID @param patch 更新フィールド */
+export const updateTask = (
+  id: number,
+  patch: { content?: string; due_date?: string | null },
+): Promise<Task> => request<Task>(`${API_URL}/tasks/${id}`, json("PUT", patch));
 
 /**
  * タスクを別のカラムへ移動する。

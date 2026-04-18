@@ -2,9 +2,15 @@
 // かんばんビューの代替表示。全タスクをリスト形式（行→ステータス列で表示）で表示する
 import { Plus, Trash2 } from "lucide-react";
 import type { Row, Task } from "../types";
+import {
+  formatDueDate,
+  getDueHighlight,
+  getDueStatusLabel,
+} from "../utils/dueDate";
 
 interface Props {
   rows: Row[];
+  dueSoonDays: number;
   onRowHeaderRender: (row: Row) => React.ReactNode;
   onTaskClick: (task: Task, colId: number) => void;
   onDeleteTask: (colId: number, taskId: number) => void;
@@ -23,6 +29,7 @@ interface Props {
  */
 export function ListView({
   rows,
+  dueSoonDays,
   onRowHeaderRender,
   onTaskClick,
   onDeleteTask,
@@ -39,35 +46,72 @@ export function ListView({
               <span className="list-view-col list-view-col-status">
                 ステータス
               </span>
+              <span className="list-view-col list-view-col-due">期限</span>
               <span className="list-view-col list-view-col-actions" />
             </div>
 
             {row.columns.flatMap((column) =>
               column.tasks.flatMap((task) => [
-                <div
-                  key={task.id}
-                  className="list-view-row"
-                  onClick={() => onTaskClick(task, column.id)}
-                >
-                  <span className="list-view-col list-view-col-task">
-                    {task.content}
-                  </span>
-                  <span className="list-view-col list-view-col-status">
-                    <span className="status-badge">{column.title}</span>
-                  </span>
-                  <span
-                    className="list-view-col list-view-col-actions"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      className="action-btn"
-                      onClick={() => onDeleteTask(column.id, task.id)}
-                      title="削除"
+                (() => {
+                  const dueHighlight = getDueHighlight(
+                    task.due_date,
+                    dueSoonDays,
+                  );
+                  const dueLabel = getDueStatusLabel(dueHighlight);
+                  const rowDueClass =
+                    dueHighlight.status === "none"
+                      ? ""
+                      : ` task-${dueHighlight.status}`;
+                  const dueDateClass =
+                    dueHighlight.status === "none"
+                      ? ""
+                      : ` list-due-date-${dueHighlight.status}`;
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`list-view-row${rowDueClass}`}
+                      onClick={() => onTaskClick(task, column.id)}
                     >
-                      <Trash2 size={14} />
-                    </button>
-                  </span>
-                </div>,
+                      <span className="list-view-col list-view-col-task">
+                        {task.content}
+                      </span>
+                      <span className="list-view-col list-view-col-status">
+                        <span className="status-badge">{column.title}</span>
+                      </span>
+                      <span className="list-view-col list-view-col-due">
+                        {task.due_date ? (
+                          <span className="list-due-cell">
+                            <span className={`list-due-date${dueDateClass}`}>
+                              {formatDueDate(task.due_date)}
+                            </span>
+                            {dueLabel && (
+                              <span
+                                className={`list-due-state list-due-state-${dueHighlight.status}`}
+                              >
+                                {dueLabel}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </span>
+                      <span
+                        className="list-view-col list-view-col-actions"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="action-btn"
+                          onClick={() => onDeleteTask(column.id, task.id)}
+                          title="削除"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </span>
+                    </div>
+                  );
+                })(),
 
                 ...task.subtasks.flatMap((subtask) => [
                   <div
@@ -80,6 +124,7 @@ export function ListView({
                       {subtask.content}
                     </span>
                     <span className="list-view-col list-view-col-status" />
+                    <span className="list-view-col list-view-col-due" />
                     <span className="list-view-col list-view-col-actions" />
                   </div>,
 
@@ -98,6 +143,7 @@ export function ListView({
                         </span>
                       </span>
                       <span className="list-view-col list-view-col-status" />
+                      <span className="list-view-col list-view-col-due" />
                       <span className="list-view-col list-view-col-actions" />
                     </div>
                   )),
@@ -118,6 +164,7 @@ export function ListView({
                       </span>
                     </span>
                     <span className="list-view-col list-view-col-status" />
+                    <span className="list-view-col list-view-col-due" />
                     <span className="list-view-col list-view-col-actions" />
                   </div>
                 )),

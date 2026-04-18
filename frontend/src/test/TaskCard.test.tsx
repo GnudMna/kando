@@ -11,6 +11,7 @@ const baseTask: Task = {
   id: 1,
   column_id: 10,
   content: "テストタスク",
+  due_date: null,
   position: 1000,
   subtasks: [],
   checklists: [],
@@ -64,6 +65,7 @@ describe("TaskCard", () => {
   const defaultProps = {
     task: baseTask,
     columnId: 10,
+    dueHighlight: { status: "none" as const, daysUntilDue: null },
     onDeleteTask: vi.fn(),
     onTaskUpdated: vi.fn(),
     onEditTask: vi.fn(),
@@ -88,6 +90,27 @@ describe("TaskCard", () => {
     render(<TaskCard {...defaultProps} task={taskWithChecklists} />);
     expect(screen.getByText("チェック項目A")).toBeInTheDocument();
     expect(screen.getByText("チェック項目B")).toBeInTheDocument();
+  });
+
+  it("期限がある場合に期限が表示されること", () => {
+    render(
+      <TaskCard
+        {...defaultProps}
+        task={{ ...baseTask, due_date: "2026-05-21" }}
+      />,
+    );
+    expect(screen.getByText(/2026\/05\/21/)).toBeInTheDocument();
+  });
+
+  it("期限切れ状態のラベルが表示されること", () => {
+    render(
+      <TaskCard
+        {...defaultProps}
+        task={{ ...baseTask, due_date: "2026-05-21" }}
+        dueHighlight={{ status: "overdue", daysUntilDue: -2 }}
+      />,
+    );
+    expect(screen.getByText("2日遅れ")).toBeInTheDocument();
   });
 
   it("チェックリストのトグルで API が呼ばれ onTaskUpdated が実行されること", async () => {

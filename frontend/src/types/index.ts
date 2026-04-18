@@ -40,6 +40,7 @@ export interface Task {
   id: number;
   column_id: number;
   content: string;
+  due_date: string | null;
   position: number;
   subtasks: Subtask[];
   checklists: ChecklistItem[];
