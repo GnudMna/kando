@@ -80,7 +80,9 @@ router.delete(
       return;
     }
     try {
-      const result = await pool.query("DELETE FROM subtasks WHERE id = $1", [id]);
+      const result = await pool.query("DELETE FROM subtasks WHERE id = $1", [
+        id,
+      ]);
       if ((result.rowCount ?? 0) === 0) {
         res.status(404).json({ error: "Subtask not found" });
         return;
