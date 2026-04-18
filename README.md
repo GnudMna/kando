@@ -62,7 +62,8 @@ docker compose up --build
 ```bash
 # Linux / macOS
 ./scripts/linux/dev.sh
-
+```
+```powershell
 # Windows
 scripts\windows\dev.bat
 ```
@@ -80,9 +81,9 @@ scripts\windows\dev.bat
 |---|---|
 | `./scripts/linux/dev.sh` / `scripts\\windows\\dev.bat` | frontend + backend を同時起動 |
 | `./scripts/linux/test.sh` / `scripts\\windows\\test.bat` | backend/frontend の `lint` → `typecheck` → `test` を順番に実行 |
-| `./scripts/linux/format.sh` / `scripts\\windows\\format.bat` | backend/frontend の `eslint --fix` を実行 |
+| `./scripts/linux/format.sh` / `scripts\\windows\\format.bat` | backend/frontend の `eslint --fix` と `prettier --write` を順番に実行 |
 
-補足: `format` は Prettier ではなく ESLint の自動修正です。
+補足: `format` は ESLint 自動修正のあとに Prettier 整形も実行します。
 
 ---
 
@@ -107,6 +108,7 @@ npm --prefix backend run test:integration
 
 ## 📘 サブプロジェクト README
 
+- backend: [backend/README.md](backend/README.md)
 - frontend: [frontend/README.md](frontend/README.md)
 
 ---
