@@ -66,11 +66,10 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
 
   return (
     <>
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div className="task-card-inner">
         <button
           type="button"
-          className="task-content"
-          style={{ fontWeight: '600', cursor: 'pointer', textAlign: 'left', background: 'none', border: 'none', padding: 0 }}
+          className="task-content task-title-btn"
           onClick={() => onEditTask(task)}
           aria-label={`タスク「${task.content}」を編集`}
         >
@@ -110,19 +109,14 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
             {task.subtasks.map((subtask) => (
               <div key={subtask.id} className="subtask-card">
                 <div className="subtask-header">
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                  >
+                  <div className="subtask-title-row">
                     <CornerDownRight size={14} className="text-muted" />
                     <span className="subtask-title">{subtask.content}</span>
                   </div>
                 </div>
 
                 {subtask.checklists.length > 0 && (
-                  <div
-                    className="task-checklists"
-                    style={{ marginLeft: '1rem', marginTop: '0.25rem' }}
-                  >
+                  <div className="task-checklists task-checklists-nested">
                     {subtask.checklists.map((c) => (
                       <div key={c.id} className="checklist-item">
                         <button
@@ -157,10 +151,7 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
           </div>
         )}
 
-        <div
-          className="task-actions"
-          style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}
-        >
+        <div className="task-actions">
           <button
             type="button"
             className="action-btn"
