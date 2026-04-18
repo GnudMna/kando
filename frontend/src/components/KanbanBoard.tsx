@@ -1,20 +1,44 @@
 // かんばんボードのメインコンポーネント
 // 行・カラム・タスクのレンダリング、ドラッグ＆ドロップ、各種操作ダイアログを管理する
-import { useState, useCallback } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import type { DropResult } from '@hello-pangea/dnd';
-import { Plus, Trash2, LayoutTemplate, List, AlertCircle, X } from 'lucide-react';
-import { TaskCard } from './TaskCard';
-import { TaskEditModal } from './TaskEditModal';
-import { ConfirmDialog } from './ConfirmDialog';
-import { ListView } from './ListView';
-import { useBoard } from '../hooks/useBoard';
-import type { Row, Task } from '../types';
+import { useState, useCallback, useMemo, useEffect, useId } from "react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import type { DropResult } from "@hello-pangea/dnd";
+import { createPortal } from "react-dom";
+import {
+  Plus,
+  Trash2,
+  LayoutTemplate,
+  List,
+  Search,
+  AlertCircle,
+  X,
+  GripVertical,
+} from "lucide-react";
+import { TaskCard } from "./TaskCard";
+import { TaskEditModal } from "./TaskEditModal";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { ListView } from "./ListView";
+import { useBoard } from "../hooks/useBoard";
+import type { Row, Task } from "../types";
+import { getDueHighlight } from "../utils/dueDate";
+import { countTasks, filterRowsByTaskQuery } from "../utils/taskSearch";
+
+const taskDragPortalTarget =
+  typeof document !== "undefined" ? document.body : null;
+const DUE_SOON_DAYS_STORAGE_KEY = "kando-due-soon-days";
+const DEFAULT_DUE_SOON_DAYS = 3;
+const MAX_DUE_SOON_DAYS = 30;
+
+function normalizeDueSoonDays(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_DUE_SOON_DAYS;
+  return Math.max(0, Math.min(MAX_DUE_SOON_DAYS, Math.floor(value)));
+}
 
 // 現在編集中のタスクとそのカラム ID を保持する型
 interface EditingTask {
   task: Task;
   colId: number;
+  isNew: boolean;
 }
 
 // インライン編集中の行・カラムの ID とタイトルを保持する型
@@ -50,24 +74,54 @@ export function KanbanBoard() {
     removeTask,
     updateTask,
     moveTask,
+    moveColumn,
   } = useBoard();
 
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dueSoonDays, setDueSoonDays] = useState<number>(() => {
+    if (typeof window === "undefined") return DEFAULT_DUE_SOON_DAYS;
+    const stored = window.localStorage.getItem(DUE_SOON_DAYS_STORAGE_KEY);
+    if (stored === null) return DEFAULT_DUE_SOON_DAYS;
+    return normalizeDueSoonDays(Number(stored));
+  });
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
   // インライン編集中の行・カラムを管理する
   const [editingRow, setEditingRow] = useState<InlineEditState | null>(null);
   const [editingCol, setEditingCol] = useState<InlineEditState | null>(null);
   // 確認ダイアログの表示状態を管理する
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const dueSoonDaysInputId = useId();
+  const taskSearchInputId = useId();
+
+  const filteredRows = useMemo(
+    () => filterRowsByTaskQuery(rows, searchQuery),
+    [rows, searchQuery],
+  );
+  const isSearchActive = searchQuery.trim().length > 0;
+  const activeRows = isSearchActive ? filteredRows : rows;
+  const activeViewMode = isSearchActive ? "list" : viewMode;
+  const matchedTaskCount = useMemo(
+    () => countTasks(filteredRows),
+    [filteredRows],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(DUE_SOON_DAYS_STORAGE_KEY, String(dueSoonDays));
+  }, [dueSoonDays]);
 
   /**
    * 確認ダイアログを表示するヘルパー。
    * @param message - 確認メッセージ
    * @param onConfirm - 確定時のコールバック
    */
-  const confirmAction = useCallback((message: string, onConfirm: () => void) => {
-    setConfirmState({ message, onConfirm });
-  }, []);
+  const confirmAction = useCallback(
+    (message: string, onConfirm: () => void) => {
+      setConfirmState({ message, onConfirm });
+    },
+    [],
+  );
 
   /**
    * 確認ダイアログの「削除する」ボタン押下時のハンドラー。
@@ -85,30 +139,38 @@ export function KanbanBoard() {
    */
   const handleDragEnd = useCallback(
     async (result: DropResult) => {
-      const { destination, source, draggableId } = result;
+      const { destination, source, draggableId, type } = result;
       if (!destination) return;
       if (
         destination.droppableId === source.droppableId &&
         destination.index === source.index
-      ) return;
+      )
+        return;
 
-      const taskId = parseInt(draggableId.replace('task-', ''), 10);
+      if (type === "column") {
+        const colId = parseInt(draggableId.replace("col-", ""), 10);
+        const rowId = parseInt(source.droppableId.replace("row-", ""), 10);
+        await moveColumn(rowId, source.index, destination.index, colId);
+        return;
+      }
+
+      const taskId = parseInt(draggableId.replace("task-", ""), 10);
       await moveTask(
         source.droppableId,
         destination.droppableId,
         source.index,
         destination.index,
-        taskId
+        taskId,
       );
     },
-    [moveTask]
+    [moveTask, moveColumn],
   );
 
   /**
    * 行追加ダイアログを表示して新しい行を作成する。
    */
   const handleAddRow = useCallback(async () => {
-    const title = prompt('行のタイトルを入力してください');
+    const title = prompt("行のタイトルを入力してください");
     if (!title) return;
     await addRow(title);
   }, [addRow]);
@@ -119,11 +181,11 @@ export function KanbanBoard() {
    */
   const handleAddColumn = useCallback(
     async (rowId: number) => {
-      const title = prompt('ステータス名を入力してください');
+      const title = prompt("ステータス名を入力してください");
       if (!title) return;
       await addColumn(rowId, title);
     },
-    [addColumn]
+    [addColumn],
   );
 
   /**
@@ -154,9 +216,9 @@ export function KanbanBoard() {
   const handleAddTask = useCallback(
     async (colId: number, rowId: number) => {
       const newTask = await addTask(colId, rowId);
-      if (newTask) setEditingTask({ task: newTask, colId });
+      if (newTask) setEditingTask({ task: newTask, colId, isNew: true });
     },
-    [addTask]
+    [addTask],
   );
 
   /**
@@ -168,7 +230,42 @@ export function KanbanBoard() {
     async (colId: number, taskId: number) => {
       await removeTask(colId, taskId);
     },
-    [removeTask]
+    [removeTask],
+  );
+
+  const boardStats = useMemo(() => {
+    let totalColumns = 0;
+    let totalTasks = 0;
+
+    for (const row of rows) {
+      totalColumns += row.columns.length;
+      for (const column of row.columns) {
+        totalTasks += column.tasks.length;
+      }
+    }
+
+    return {
+      rows: rows.length,
+      columns: totalColumns,
+      tasks: totalTasks,
+    };
+  }, [rows]);
+
+  const handleCloseTaskModal = useCallback(
+    (reason: "saved" | "dismiss") => {
+      if (!editingTask) return;
+
+      const shouldDeleteUnsavedTask = editingTask.isNew && reason !== "saved";
+      const colId = editingTask.colId;
+      const taskId = editingTask.task.id;
+
+      setEditingTask(null);
+
+      if (shouldDeleteUnsavedTask) {
+        void removeTask(colId, taskId);
+      }
+    },
+    [editingTask, removeTask],
   );
 
   const renderRowHeader = (row: Row) => (
@@ -178,34 +275,44 @@ export function KanbanBoard() {
           autoFocus
           className="board-row-title-input"
           value={editingRow.title}
-          onChange={(e) => setEditingRow({ ...editingRow, title: e.target.value })}
+          onChange={(e) =>
+            setEditingRow({ ...editingRow, title: e.target.value })
+          }
           onBlur={() => void handleSaveRowTitle()}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') void handleSaveRowTitle();
-            if (e.key === 'Escape') setEditingRow(null);
+            if (e.key === "Enter") void handleSaveRowTitle();
+            if (e.key === "Escape") setEditingRow(null);
           }}
         />
       ) : (
-        <span
-          className="board-row-title"
-          style={{ cursor: 'pointer' }}
+        <button
+          type="button"
+          className="board-row-title board-title-button"
           title="クリックして編集"
           onClick={() => setEditingRow({ id: row.id, title: row.title })}
         >
           {row.title}
-        </span>
+        </button>
       )}
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+      <div className="board-row-header-actions">
         <button
-          className="btn"
-          style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }}
+          type="button"
+          className="btn btn-compact"
           onClick={() => void handleAddColumn(row.id)}
         >
           <Plus size={14} /> ステータスを追加
         </button>
-        <button className="action-btn" onClick={() =>
-          confirmAction(`「${row.title}」行を削除しますか？配下のすべてのタスクも削除されます。`, () => void removeRow(row.id))
-        }>
+        <button
+          type="button"
+          className="action-btn"
+          aria-label={`行「${row.title}」を削除`}
+          onClick={() =>
+            confirmAction(
+              `「${row.title}」行を削除しますか？配下のすべてのタスクも削除されます。`,
+              () => void removeRow(row.id),
+            )
+          }
+        >
           <Trash2 size={16} />
         </button>
       </div>
@@ -213,164 +320,350 @@ export function KanbanBoard() {
   );
 
   if (isLoading) {
-    return (
-      <div className="kanban-wrapper" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted, #888)' }}>
-        読み込み中…
-      </div>
-    );
+    return <div className="kanban-wrapper kanban-loading">読み込み中…</div>;
   }
 
   return (
-    <div className="kanban-wrapper" style={{ padding: '2rem' }}>
+    <div className="kanban-wrapper">
       {operationError && (
-        <div
-          role="alert"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            marginBottom: '1rem',
-            padding: '0.75rem 1rem',
-            borderRadius: '6px',
-            background: 'var(--error-bg, #fee2e2)',
-            color: 'var(--error-text, #b91c1c)',
-          }}
-        >
+        <div role="alert" className="board-error">
           <AlertCircle size={16} />
-          <span style={{ flex: 1 }}>{operationError}</span>
+          <span className="board-error-message">{operationError}</span>
           <button
+            type="button"
             onClick={clearError}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}
+            className="board-error-close"
             aria-label="エラーを閉じる"
           >
             <X size={16} />
           </button>
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-        <button className="btn btn-primary" onClick={() => void handleAddRow()}>
+
+      <div className="board-toolbar">
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => void handleAddRow()}
+        >
           <Plus size={16} /> 行を追加
         </button>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            className={`btn ${viewMode === 'kanban' ? 'btn-primary' : ''}`}
-            onClick={() => setViewMode('kanban')}
-          >
-            <LayoutTemplate size={16} /> かんばん
-          </button>
-          <button
-            className={`btn ${viewMode === 'list' ? 'btn-primary' : ''}`}
-            onClick={() => setViewMode('list')}
-          >
-            <List size={16} /> リスト
-          </button>
+
+        <div className="board-toolbar-right">
+          <div className="task-search" role="search">
+            <label htmlFor={taskSearchInputId} className="task-search-label">
+              タスク検索
+            </label>
+            <div className="task-search-input-wrap">
+              <Search size={14} className="task-search-icon" />
+              <input
+                id={taskSearchInputId}
+                type="search"
+                className="task-search-input"
+                placeholder="タスク名・サブタスク・コメントで検索"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.currentTarget.value)}
+              />
+              {isSearchActive && (
+                <button
+                  type="button"
+                  className="task-search-clear"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="検索キーワードをクリア"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="due-soon-setting">
+            <label htmlFor={dueSoonDaysInputId} className="due-soon-label">
+              期限間近の強調
+            </label>
+            <div className="due-soon-input-wrap">
+              <input
+                id={dueSoonDaysInputId}
+                type="number"
+                min={0}
+                max={MAX_DUE_SOON_DAYS}
+                step={1}
+                className="due-soon-input"
+                value={dueSoonDays}
+                onChange={(e) => {
+                  const next = e.currentTarget.valueAsNumber;
+                  if (Number.isNaN(next)) return;
+                  setDueSoonDays(normalizeDueSoonDays(next));
+                }}
+              />
+              <span className="due-soon-unit">日以内</span>
+            </div>
+          </div>
+
+          <div className="board-stats" aria-label="ボード統計">
+            <span className="stat-pill">
+              <strong>{boardStats.rows}</strong> 行
+            </span>
+            <span className="stat-pill">
+              <strong>{boardStats.columns}</strong> 列
+            </span>
+            <span className="stat-pill">
+              <strong>{boardStats.tasks}</strong> タスク
+            </span>
+            {isSearchActive && (
+              <span className="stat-pill">
+                <strong>{matchedTaskCount}</strong> 件ヒット
+              </span>
+            )}
+          </div>
+
+          <div className="view-switch" role="tablist" aria-label="表示モード">
+            <button
+              type="button"
+              className={`btn btn-toggle ${activeViewMode === "kanban" ? "btn-primary" : ""}`}
+              onClick={() => setViewMode("kanban")}
+              aria-pressed={activeViewMode === "kanban"}
+              disabled={isSearchActive}
+              title={
+                isSearchActive
+                  ? "検索中はリスト表示のみ利用できます"
+                  : undefined
+              }
+            >
+              <LayoutTemplate size={16} /> かんばん
+            </button>
+            <button
+              type="button"
+              className={`btn btn-toggle ${activeViewMode === "list" ? "btn-primary" : ""}`}
+              onClick={() => setViewMode("list")}
+              aria-pressed={activeViewMode === "list"}
+            >
+              <List size={16} /> リスト
+            </button>
+          </div>
+
+          {isSearchActive && (
+            <p className="task-search-hint">
+              検索中は並び順の整合性のためリスト表示に切り替わります。
+            </p>
+          )}
         </div>
       </div>
 
-      {viewMode === 'kanban' ? (
+      {rows.length === 0 ? (
+        <div className="board-empty-state">
+          <p className="board-empty-title">まだ行がありません</p>
+          <p className="board-empty-description">
+            「行を追加」から最初のワークフローを作成しましょう。
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void handleAddRow()}
+          >
+            <Plus size={16} /> 最初の行を追加
+          </button>
+        </div>
+      ) : activeRows.length === 0 ? (
+        <div className="board-empty-state">
+          <p className="board-empty-title">該当するタスクがありません</p>
+          <p className="board-empty-description">
+            キーワードを変えるか、検索をクリアしてください。
+          </p>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setSearchQuery("")}
+          >
+            <X size={16} /> 検索をクリア
+          </button>
+        </div>
+      ) : activeViewMode === "kanban" ? (
         <DragDropContext onDragEnd={(r) => void handleDragEnd(r)}>
           <div className="kanban-rows">
-            {rows.map((row) => (
+            {activeRows.map((row) => (
               <div key={row.id} className="board-row">
                 {renderRowHeader(row)}
-                <div className="board-row-columns">
-                  {row.columns.map((column) => (
-                    <div key={column.id} className="column-container">
-                      <div className="column-header">
-                        {editingCol?.id === column.id ? (
-                          <input
-                            autoFocus
-                            className="column-title-input"
-                            value={editingCol.title}
-                            onChange={(e) =>
-                              setEditingCol({ ...editingCol, title: e.target.value })
-                            }
-                            onBlur={() => void handleSaveColTitle()}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void handleSaveColTitle();
-                              if (e.key === 'Escape') setEditingCol(null);
-                            }}
-                          />
-                        ) : (
-                          <div
-                            className="column-title"
-                            style={{ cursor: 'pointer' }}
-                            title="クリックして編集"
-                            onClick={() =>
-                              setEditingCol({ id: column.id, title: column.title })
-                            }
-                          >
-                            {column.title}
-                          </div>
-                        )}
-                        <button
-                          className="action-btn"
-                          onClick={() =>
-                            confirmAction(
-                              `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
-                              () => void removeColumn(column.id)
-                            )
-                          }
+                <Droppable
+                  droppableId={`row-${row.id}`}
+                  type="column"
+                  direction="horizontal"
+                >
+                  {(colsProvided) => (
+                    <div
+                      className="board-row-columns"
+                      ref={colsProvided.innerRef}
+                      {...colsProvided.droppableProps}
+                    >
+                      {row.columns.map((column, colIndex) => (
+                        <Draggable
+                          key={column.id}
+                          draggableId={`col-${column.id}`}
+                          index={colIndex}
                         >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                      <Droppable droppableId={column.id.toString()} type="task">
-                        {(provided) => (
-                          <div
-                            className="column-body"
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                          >
-                            {column.tasks.map((task, index) => (
-                              <Draggable
-                                draggableId={`task-${task.id}`}
-                                index={index}
-                                key={`task-${task.id}`}
-                              >
-                                {(provided) => (
-                                  <div
-                                    className="task-card"
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
+                          {(colProvided) => (
+                            <div
+                              className="column-container"
+                              ref={colProvided.innerRef}
+                              {...colProvided.draggableProps}
+                            >
+                              <div className="column-header">
+                                <div
+                                  {...colProvided.dragHandleProps}
+                                  className="column-drag-handle"
+                                  title="ドラッグして並び替え"
+                                >
+                                  <GripVertical size={14} />
+                                </div>
+                                {editingCol?.id === column.id ? (
+                                  <input
+                                    autoFocus
+                                    className="column-title-input"
+                                    value={editingCol.title}
+                                    onChange={(e) =>
+                                      setEditingCol({
+                                        ...editingCol,
+                                        title: e.target.value,
+                                      })
+                                    }
+                                    onBlur={() => void handleSaveColTitle()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter")
+                                        void handleSaveColTitle();
+                                      if (e.key === "Escape")
+                                        setEditingCol(null);
+                                    }}
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="column-title board-title-button"
+                                    title="クリックして編集"
+                                    onClick={() =>
+                                      setEditingCol({
+                                        id: column.id,
+                                        title: column.title,
+                                      })
+                                    }
                                   >
-                                    <TaskCard
-                                      task={task}
-                                      columnId={column.id}
-                                      onDeleteTask={handleDeleteTask}
-                                      onTaskUpdated={updateTask}
-                                      onEditTask={(t) => setEditingTask({ task: t, colId: column.id })}
-                                    />
+                                    {column.title}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="action-btn"
+                                  aria-label={`列「${column.title}」を削除`}
+                                  onClick={() =>
+                                    confirmAction(
+                                      `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
+                                      () => void removeColumn(column.id),
+                                    )
+                                  }
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                              <Droppable
+                                droppableId={column.id.toString()}
+                                type="task"
+                              >
+                                {(taskProvided) => (
+                                  <div
+                                    className="column-body"
+                                    ref={taskProvided.innerRef}
+                                    {...taskProvided.droppableProps}
+                                  >
+                                    {column.tasks.map((task, index) => (
+                                      <Draggable
+                                        draggableId={`task-${task.id}`}
+                                        index={index}
+                                        key={`task-${task.id}`}
+                                      >
+                                        {(
+                                          taskDragProvided,
+                                          taskDragSnapshot,
+                                        ) => {
+                                          const dueHighlight = getDueHighlight(
+                                            task.due_date,
+                                            dueSoonDays,
+                                          );
+                                          const dueTaskClass =
+                                            dueHighlight.status === "none"
+                                              ? ""
+                                              : ` task-${dueHighlight.status}`;
+                                          const taskCardNode = (
+                                            <div
+                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}`}
+                                              ref={taskDragProvided.innerRef}
+                                              {...taskDragProvided.draggableProps}
+                                              {...taskDragProvided.dragHandleProps}
+                                            >
+                                              <TaskCard
+                                                task={task}
+                                                columnId={column.id}
+                                                dueHighlight={dueHighlight}
+                                                onDeleteTask={handleDeleteTask}
+                                                onTaskUpdated={updateTask}
+                                                onEditTask={(t) =>
+                                                  setEditingTask({
+                                                    task: t,
+                                                    colId: column.id,
+                                                    isNew: false,
+                                                  })
+                                                }
+                                              />
+                                            </div>
+                                          );
+
+                                          if (
+                                            taskDragSnapshot.isDragging &&
+                                            taskDragPortalTarget
+                                          ) {
+                                            return createPortal(
+                                              taskCardNode,
+                                              taskDragPortalTarget,
+                                            );
+                                          }
+
+                                          return taskCardNode;
+                                        }}
+                                      </Draggable>
+                                    ))}
+                                    {taskProvided.placeholder}
                                   </div>
                                 )}
-                              </Draggable>
-                            ))}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                      <div className="column-add-task">
-                        <button
-                          className="btn"
-                          onClick={() => void handleAddTask(column.id, row.id)}
-                          style={{ width: '100%', justifyContent: 'center' }}
-                        >
-                          <Plus size={16} /> タスクを追加
-                        </button>
-                      </div>
+                              </Droppable>
+                              <div className="column-add-task">
+                                <button
+                                  type="button"
+                                  className="btn column-add-task-btn"
+                                  onClick={() =>
+                                    void handleAddTask(column.id, row.id)
+                                  }
+                                >
+                                  <Plus size={16} /> タスクを追加
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {colsProvided.placeholder}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </Droppable>
               </div>
             ))}
           </div>
         </DragDropContext>
       ) : (
         <ListView
-          rows={rows}
+          rows={activeRows}
+          dueSoonDays={dueSoonDays}
           onRowHeaderRender={renderRowHeader}
-          onTaskClick={(task, colId) => setEditingTask({ task, colId })}
+          onTaskClick={(task, colId) =>
+            setEditingTask({ task, colId, isNew: false })
+          }
           onDeleteTask={handleDeleteTask}
           onAddTask={handleAddTask}
         />
@@ -379,10 +672,9 @@ export function KanbanBoard() {
       {editingTask && (
         <TaskEditModal
           task={editingTask.task}
-          onClose={() => setEditingTask(null)}
+          onClose={handleCloseTaskModal}
           onTaskUpdated={(updatedTask) => {
             updateTask(updatedTask);
-            setEditingTask(null);
           }}
         />
       )}

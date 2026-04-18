@@ -1,5 +1,5 @@
 // PostgreSQL接続プールとDBの初期化処理を管理するモジュール
-import { Pool } from 'pg';
+import { Pool } from "pg";
 
 // 環境変数 DATABASE_URL を元にコネクションプールを生成する
 export const pool = new Pool({
@@ -40,8 +40,40 @@ async function initDB(): Promise<void> {
         id SERIAL PRIMARY KEY,
         column_id INTEGER REFERENCES columns(id) ON DELETE CASCADE,
         content TEXT NOT NULL,
+        due_date DATE,
         position FLOAT NOT NULL
       );
+    `);
+    // tasks に期限（due_date）カラムを追加する（既存 DB へのマイグレーション対応）
+    await client.query(`
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date DATE;
+    `);
+    // タスクコメントテーブルを作成する
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id SERIAL PRIMARY KEY,
+        task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        position FLOAT NOT NULL DEFAULT 0
+      );
+    `);
+    // task_comments に並び替え用の position カラムを追加する（既存 DB へのマイグレーション対応）
+    await client.query(`
+      ALTER TABLE task_comments ADD COLUMN IF NOT EXISTS position FLOAT NOT NULL DEFAULT 0;
+    `);
+    // position が未設定（0）の既存コメントに task ごとの連番位置を割り当てる
+    await client.query(`
+      UPDATE task_comments tc
+      SET position = ordered.rn * 1000
+      FROM (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at ASC, id ASC) AS rn
+        FROM task_comments
+      ) AS ordered
+      WHERE tc.id = ordered.id
+        AND tc.position = 0;
     `);
     // サブタスクテーブルを作成する
     await client.query(`
@@ -60,6 +92,14 @@ async function initDB(): Promise<void> {
         content TEXT NOT NULL,
         completed BOOLEAN DEFAULT false
       );
+    `);
+    // checklist_items に並び替え用の position カラムを追加する（既存 DB へのマイグレーション対応）
+    await client.query(`
+      ALTER TABLE checklist_items ADD COLUMN IF NOT EXISTS position FLOAT NOT NULL DEFAULT 0;
+    `);
+    // position が未設定（0）の既存行に連番で位置を割り当てる
+    await client.query(`
+      UPDATE checklist_items SET position = id * 1000 WHERE position = 0;
     `);
     // checklist_items は task_id / subtask_id のどちらか一方のみを保持する
     await client.query(`
@@ -88,26 +128,39 @@ async function initDB(): Promise<void> {
       LIMIT 1;
     `);
     if ((invalidChecklistRefs ?? 0) === 0) {
-      await client.query('ALTER TABLE checklist_items VALIDATE CONSTRAINT checklist_items_parent_xor_chk;');
+      await client.query(
+        "ALTER TABLE checklist_items VALIDATE CONSTRAINT checklist_items_parent_xor_chk;",
+      );
     } else {
-      console.warn('Found invalid checklist_items rows; skipped constraint validation.');
+      console.warn(
+        "Found invalid checklist_items rows; skipped constraint validation.",
+      );
     }
 
     // rowsが空の場合のみ初期データを投入する
-    const { rowCount: existingRows } = await client.query('SELECT 1 FROM rows LIMIT 1');
+    const { rowCount: existingRows } = await client.query(
+      "SELECT 1 FROM rows LIMIT 1",
+    );
     if ((existingRows ?? 0) === 0) {
-      const { rowCount: existingCols } = await client.query('SELECT 1 FROM columns LIMIT 1');
+      const { rowCount: existingCols } = await client.query(
+        "SELECT 1 FROM columns LIMIT 1",
+      );
       if ((existingCols ?? 0) > 0) {
         // 既存columnsをデフォルト行に紐付けるマイグレーション処理
-        console.log('Migrating existing columns into a default row...');
-        const { rows: [defaultRow] } = await client.query(
-          "INSERT INTO rows (title, position) VALUES ('プロジェクト', 1000) RETURNING *"
+        console.log("Migrating existing columns into a default row...");
+        const {
+          rows: [defaultRow],
+        } = await client.query(
+          "INSERT INTO rows (title, position) VALUES ('プロジェクト', 1000) RETURNING *",
         );
-        await client.query('UPDATE columns SET row_id = $1 WHERE row_id IS NULL', [defaultRow.id]);
+        await client.query(
+          "UPDATE columns SET row_id = $1 WHERE row_id IS NULL",
+          [defaultRow.id],
+        );
       } else {
-        console.log('Inserting initial data...');
+        console.log("Inserting initial data...");
         const rowRes = await client.query(
-          "INSERT INTO rows (title, position) VALUES ('プロジェクト1', 1000) RETURNING id;"
+          "INSERT INTO rows (title, position) VALUES ('プロジェクト1', 1000) RETURNING id;",
         );
         const rowId = rowRes.rows[0].id;
 
@@ -117,7 +170,7 @@ async function initDB(): Promise<void> {
            ('進行中', 2000, $1),
            ('完了', 3000, $1)
            RETURNING id;`,
-          [rowId]
+          [rowId],
         );
         const todoId = colRes.rows[0].id;
 
@@ -126,28 +179,28 @@ async function initDB(): Promise<void> {
            ($1, 'Kandoへようこそ!', 1000),
            ($1, '下のボタンから新しいタスクを追加できます', 2000)
            RETURNING id;`,
-          [todoId]
+          [todoId],
         );
         const firstTaskId = tRes.rows[0].id;
 
         const subRes = await client.query(
           `INSERT INTO subtasks (task_id, content) VALUES ($1, 'サブタスクのサンプル') RETURNING id;`,
-          [firstTaskId]
+          [firstTaskId],
         );
         const subId = subRes.rows[0].id;
 
         await client.query(
           `INSERT INTO checklist_items (task_id, content) VALUES ($1, 'これはタスク直下のチェックリストです')`,
-          [firstTaskId]
+          [firstTaskId],
         );
         await client.query(
           `INSERT INTO checklist_items (subtask_id, content) VALUES ($1, 'これはサブタスク内のチェックリストです')`,
-          [subId]
+          [subId],
         );
       }
     }
   } catch (err) {
-    console.error('Error initializing db:', err);
+    console.error("Error initializing db:", err);
     throw err;
   } finally {
     // 接続をプールに返却する
@@ -162,7 +215,10 @@ async function initDB(): Promise<void> {
  * @param retries - リトライ上限回数（デフォルト: 10）
  * @param delayMs - リトライ間隔（ミリ秒、デフォルト: 3000）
  */
-export async function initDBWithRetry(retries = 10, delayMs = 3000): Promise<void> {
+export async function initDBWithRetry(
+  retries = 10,
+  delayMs = 3000,
+): Promise<void> {
   let lastError: unknown = null;
   for (let i = 0; i < retries; i++) {
     try {
@@ -172,10 +228,12 @@ export async function initDBWithRetry(retries = 10, delayMs = 3000): Promise<voi
       lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       console.error(`DB init attempt ${i + 1}/${retries} failed: ${message}`);
-      if (i < retries - 1) await new Promise<void>((r) => setTimeout(r, delayMs));
+      if (i < retries - 1)
+        await new Promise<void>((r) => setTimeout(r, delayMs));
     }
   }
-  const suffix = lastError instanceof Error ? ` Last error: ${lastError.message}` : '';
+  const suffix =
+    lastError instanceof Error ? ` Last error: ${lastError.message}` : "";
   const finalMessage = `DB init failed after all retries.${suffix}`;
   console.error(finalMessage);
   throw new Error(finalMessage);

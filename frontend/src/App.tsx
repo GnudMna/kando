@@ -1,14 +1,54 @@
 // アプリケーションのルートコンポーネント
 // ヘッダーとメインコンテンツ（かんばんボード）を配置する
-import { KanbanBoard } from './components/KanbanBoard';
+import { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
+import { KanbanBoard } from "./components/KanbanBoard";
+
+type ThemeMode = "dark" | "light";
+
+const THEME_STORAGE_KEY = "kando-theme";
 
 function App() {
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return "dark";
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = themeMode;
+    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+  }, [themeMode]);
+
+  const isDarkMode = themeMode === "dark";
+
   return (
-    <div className="App">
+    <div className="App app-shell">
       <header className="app-header">
-        <h1 className="app-title">Kando</h1>
+        <div className="app-header-inner">
+          <div className="app-brand">
+            <p className="app-kicker">Project Flow Studio</p>
+            <h1 className="app-title">Kando</h1>
+            <p className="app-subtitle">
+              ドラッグ&ドロップで、やることを軽やかに整理。
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn theme-toggle"
+            onClick={() =>
+              setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))
+            }
+            aria-label={
+              isDarkMode ? "ライトモードに切り替え" : "ダークモードに切り替え"
+            }
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+            {isDarkMode ? "ライトモード" : "ダークモード"}
+          </button>
+        </div>
       </header>
-      <main>
+      <main className="app-main">
         <KanbanBoard />
       </main>
     </div>

@@ -1,7 +1,7 @@
 #!/bin/bash
 # ========================================================================
 # Script Name : format.sh
-# Description : Linux用のフォーマット整形スクリプト
+# Description : Linux用の ESLint 自動修正スクリプト
 # Usage       : ./format.sh
 # ========================================================================
 
@@ -9,25 +9,43 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/../common/cd-project-root.sh"
 
-echo "コードのフォーマットを整形しています..."
+echo "ESLint の自動修正と Prettier によるコード整形を実行しています..."
 echo
 
-# バックエンドのフォーマット整形
-echo "バックエンドのフォーマット整形中..."
-npm --prefix backend run lint -- --fix
+# バックエンドの ESLint 自動修正
+echo "バックエンドの ESLint 自動修正を実行中..."
+npm --prefix backend run lint:fix
 if [ $? -ne 0 ]; then
-    echo "バックエンドのフォーマット整形に失敗しました"
+    echo "バックエンドの ESLint 自動修正に失敗しました"
     exit 1
 fi
 echo
 
-# フロントエンドのフォーマット整形
-echo "フロントエンドのフォーマット整形中..."
-npm --prefix frontend run lint -- --fix
+# フロントエンドの ESLint 自動修正
+echo "フロントエンドの ESLint 自動修正を実行中..."
+npm --prefix frontend run lint:fix
 if [ $? -ne 0 ]; then
-    echo "フロントエンドのフォーマット整形に失敗しました"
+    echo "フロントエンドの ESLint 自動修正に失敗しました"
     exit 1
 fi
 echo
 
-echo "フォーマット整形が完了しました"
+# バックエンドの Prettier によるコード整形
+echo "バックエンドの Prettier によるコード整形を実行中..."
+npm --prefix backend run format
+if [ $? -ne 0 ]; then
+    echo "バックエンドの Prettier によるコード整形に失敗しました"
+    exit 1
+fi
+echo
+
+# フロントエンドの Prettier によるコード整形
+echo "フロントエンドの Prettier によるコード整形を実行中..."
+npm --prefix frontend run format
+if [ $? -ne 0 ]; then
+    echo "フロントエンドの Prettier によるコード整形に失敗しました"
+    exit 1
+fi
+echo
+
+echo "ESLint 自動修正と Prettier によるコード整形が完了しました"

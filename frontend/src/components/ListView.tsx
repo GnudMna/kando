@@ -1,10 +1,16 @@
 // リストビューコンポーネント
 // かんばんビューの代替表示。全タスクをリスト形式（行→ステータス列で表示）で表示する
-import { Plus, Trash2 } from 'lucide-react';
-import type { Row, Task } from '../types';
+import { Plus, Trash2 } from "lucide-react";
+import type { Row, Task } from "../types";
+import {
+  formatDueDate,
+  getDueHighlight,
+  getDueStatusLabel,
+} from "../utils/dueDate";
 
 interface Props {
   rows: Row[];
+  dueSoonDays: number;
   onRowHeaderRender: (row: Row) => React.ReactNode;
   onTaskClick: (task: Task, colId: number) => void;
   onDeleteTask: (colId: number, taskId: number) => void;
@@ -23,6 +29,7 @@ interface Props {
  */
 export function ListView({
   rows,
+  dueSoonDays,
   onRowHeaderRender,
   onTaskClick,
   onDeleteTask,
@@ -36,34 +43,75 @@ export function ListView({
           <div className="list-view-body">
             <div className="list-view-header-row">
               <span className="list-view-col list-view-col-task">タスク</span>
-              <span className="list-view-col list-view-col-status">ステータス</span>
+              <span className="list-view-col list-view-col-status">
+                ステータス
+              </span>
+              <span className="list-view-col list-view-col-due">期限</span>
               <span className="list-view-col list-view-col-actions" />
             </div>
 
             {row.columns.flatMap((column) =>
               column.tasks.flatMap((task) => [
-                <div
-                  key={task.id}
-                  className="list-view-row"
-                  onClick={() => onTaskClick(task, column.id)}
-                >
-                  <span className="list-view-col list-view-col-task">{task.content}</span>
-                  <span className="list-view-col list-view-col-status">
-                    <span className="status-badge">{column.title}</span>
-                  </span>
-                  <span
-                    className="list-view-col list-view-col-actions"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      className="action-btn"
-                      onClick={() => onDeleteTask(column.id, task.id)}
-                      title="削除"
+                (() => {
+                  const dueHighlight = getDueHighlight(
+                    task.due_date,
+                    dueSoonDays,
+                  );
+                  const dueLabel = getDueStatusLabel(dueHighlight);
+                  const rowDueClass =
+                    dueHighlight.status === "none"
+                      ? ""
+                      : ` task-${dueHighlight.status}`;
+                  const dueDateClass =
+                    dueHighlight.status === "none"
+                      ? ""
+                      : ` list-due-date-${dueHighlight.status}`;
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`list-view-row${rowDueClass}`}
+                      onClick={() => onTaskClick(task, column.id)}
                     >
-                      <Trash2 size={14} />
-                    </button>
-                  </span>
-                </div>,
+                      <span className="list-view-col list-view-col-task">
+                        {task.content}
+                      </span>
+                      <span className="list-view-col list-view-col-status">
+                        <span className="status-badge">{column.title}</span>
+                      </span>
+                      <span className="list-view-col list-view-col-due">
+                        {task.due_date ? (
+                          <span className="list-due-cell">
+                            <span className={`list-due-date${dueDateClass}`}>
+                              {formatDueDate(task.due_date)}
+                            </span>
+                            {dueLabel && (
+                              <span
+                                className={`list-due-state list-due-state-${dueHighlight.status}`}
+                              >
+                                {dueLabel}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </span>
+                      <span
+                        className="list-view-col list-view-col-actions"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="action-btn"
+                          onClick={() => onDeleteTask(column.id, task.id)}
+                          title="削除"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </span>
+                    </div>
+                  );
+                })(),
 
                 ...task.subtasks.flatMap((subtask) => [
                   <div
@@ -76,6 +124,7 @@ export function ListView({
                       {subtask.content}
                     </span>
                     <span className="list-view-col list-view-col-status" />
+                    <span className="list-view-col list-view-col-due" />
                     <span className="list-view-col list-view-col-actions" />
                   </div>,
 
@@ -85,18 +134,16 @@ export function ListView({
                       className="list-view-row list-view-subtask-row"
                       onClick={() => onTaskClick(task, column.id)}
                     >
-                      <span
-                        className="list-view-col list-view-col-task"
-                        style={{ paddingLeft: '3rem' }}
-                      >
+                      <span className="list-view-col list-view-col-task list-view-col-task-deep">
                         <span className="list-subtask-indent">↳</span>
                         <span
-                          className={`list-checklist-item${item.completed ? ' list-checklist-checked' : ''}`}
+                          className={`list-checklist-item${item.completed ? " list-checklist-checked" : ""}`}
                         >
-                          {item.completed ? '☑' : '☐'} {item.content}
+                          {item.completed ? "☑" : "☐"} {item.content}
                         </span>
                       </span>
                       <span className="list-view-col list-view-col-status" />
+                      <span className="list-view-col list-view-col-due" />
                       <span className="list-view-col list-view-col-actions" />
                     </div>
                   )),
@@ -111,16 +158,17 @@ export function ListView({
                     <span className="list-view-col list-view-col-task">
                       <span className="list-subtask-indent">↳</span>
                       <span
-                        className={`list-checklist-item${item.completed ? ' list-checklist-checked' : ''}`}
+                        className={`list-checklist-item${item.completed ? " list-checklist-checked" : ""}`}
                       >
-                        {item.completed ? '☑' : '☐'} {item.content}
+                        {item.completed ? "☑" : "☐"} {item.content}
                       </span>
                     </span>
                     <span className="list-view-col list-view-col-status" />
+                    <span className="list-view-col list-view-col-due" />
                     <span className="list-view-col list-view-col-actions" />
                   </div>
                 )),
-              ])
+              ]),
             )}
 
             {row.columns.every((c) => c.tasks.length === 0) && (
@@ -130,6 +178,7 @@ export function ListView({
             {row.columns.length > 0 && (
               <div className="list-view-add-row">
                 <button
+                  type="button"
                   className="text-btn text-muted"
                   onClick={() => onAddTask(row.columns[0].id, row.id)}
                 >

@@ -1,6 +1,6 @@
 // グローバルエラーハンドラーミドルウェア
 // すべてのルートで捕捉されなかったエラーをここで処理する
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 
 /**
  * Express のグローバルエラーハンドラーミドルウェア。
@@ -15,10 +15,12 @@ export function errorHandler(
   err: Error,
   _req: Request,
   res: Response,
-  _next: NextFunction
+  _next: NextFunction,
 ): void {
   console.error(err);
   // 本番環境では詳細なエラーメッセージを返さず、汎用メッセージを返す
-  const isProduction = process.env.NODE_ENV === 'production';
-  res.status(500).json({ error: isProduction ? 'Internal server error' : err.message });
+  const isProduction = process.env.NODE_ENV === "production";
+  res
+    .status(500)
+    .json({ error: isProduction ? "Internal server error" : err.message });
 }
