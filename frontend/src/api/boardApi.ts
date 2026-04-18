@@ -36,6 +36,12 @@ export interface TaskSnapshotPayload {
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
 
+export interface FetchBoardOptions {
+  row_id?: number;
+  limit?: number;
+  offset?: number;
+}
+
 /**
  * 指定の URL に fetch リクエストを送信する汎用ラッパー。
  * @param url - リクエスト先 URL
@@ -67,8 +73,23 @@ function json(method: string, body: unknown): RequestInit {
 }
 
 /** ボード全体のデータ（行 → カラム → タスク の階層構造）を取得する */
-export const fetchBoard = (): Promise<Row[]> =>
-  request<Row[]>(`${API_URL}/board`);
+export const fetchBoard = (options?: FetchBoardOptions): Promise<Row[]> => {
+  const params = new URLSearchParams();
+
+  if (options?.row_id !== undefined) {
+    params.set("row_id", String(options.row_id));
+  }
+  if (options?.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+  if (options?.offset !== undefined) {
+    params.set("offset", String(options.offset));
+  }
+
+  const query = params.toString();
+  const url = query ? `${API_URL}/board?${query}` : `${API_URL}/board`;
+  return request<Row[]>(url);
+};
 
 // 行（プロジェクト）の操作
 /** 新しい行を作成する。@param title タイトル @param position 表示順 */

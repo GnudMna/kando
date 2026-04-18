@@ -112,6 +112,29 @@ async function runMigrations(): Promise<void> {
       END $$;
     `);
 
+    // ボード取得のスケーラビリティ向上のため、親参照と並び順の複合インデックスを作成する
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_rows_position ON rows (position)",
+    );
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_columns_row_id_position ON columns (row_id, position)",
+    );
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_tasks_column_id_position ON tasks (column_id, position)",
+    );
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_subtasks_task_id_id ON subtasks (task_id, id)",
+    );
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_checklist_items_task_id_position ON checklist_items (task_id, position)",
+    );
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_checklist_items_subtask_id_position ON checklist_items (subtask_id, position)",
+    );
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_task_comments_task_id_position_created ON task_comments (task_id, position, created_at, id)",
+    );
+
     // 既存データが有効な場合は制約を validate して完全適用する
     const { rowCount: invalidChecklistRefs } = await client.query(`
       SELECT 1
