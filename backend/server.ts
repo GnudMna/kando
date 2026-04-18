@@ -3,7 +3,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { initDBWithRetry, pool } from "./db.js";
+import { pool, waitForDbWithRetry } from "./db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import boardRouter from "./routes/board.js";
@@ -66,14 +66,14 @@ const PORT = process.env.PORT ?? 3001;
 
 async function startServer(): Promise<void> {
   try {
-    // DB 初期化が完了するまで API の待ち受けを開始しない
-    await initDBWithRetry();
+    // DB 接続可能になるまで待機し、待ち受け開始前の起動失敗を避ける
+    await waitForDbWithRetry();
     app.listen(PORT, () => {
       console.log(`Backend listening on port ${PORT}`);
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`FATAL: Unable to initialize database: ${message}`);
+    console.error(`FATAL: Unable to connect database: ${message}`);
     process.exit(1);
   }
 }

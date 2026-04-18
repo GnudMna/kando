@@ -79,7 +79,7 @@ scripts\windows\dev.bat
 
 | スクリプト | 説明 |
 |---|---|
-| `./scripts/linux/dev.sh` / `scripts\\windows\\dev.bat` | frontend + backend を同時起動 |
+| `./scripts/linux/dev.sh` / `scripts\\windows\\dev.bat` | backend の `migrate:dev` 実行後、frontend + backend を同時起動 |
 | `./scripts/linux/test.sh` / `scripts\\windows\\test.bat` | backend/frontend の `lint` → `typecheck` → `test` を順番に実行 |
 | `./scripts/linux/format.sh` / `scripts\\windows\\format.bat` | backend/frontend の `eslint --fix` と `prettier --write` を順番に実行 |
 

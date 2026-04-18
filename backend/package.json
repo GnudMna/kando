@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node dist/server.js",
+    "migrate": "node dist/migrate.js",
+    "migrate:dev": "tsx migrate.ts",
     "build": "tsc",
     "dev": "tsx watch server.ts",
     "lint": "eslint .",
