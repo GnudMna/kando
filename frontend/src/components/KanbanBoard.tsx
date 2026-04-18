@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
-import { Plus, Trash2, LayoutTemplate, List, AlertCircle, X } from 'lucide-react';
+import { Plus, Trash2, LayoutTemplate, List, AlertCircle, X, GripVertical } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { TaskEditModal } from './TaskEditModal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -50,6 +50,7 @@ export function KanbanBoard() {
     removeTask,
     updateTask,
     moveTask,
+    moveColumn,
   } = useBoard();
 
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
@@ -85,12 +86,19 @@ export function KanbanBoard() {
    */
   const handleDragEnd = useCallback(
     async (result: DropResult) => {
-      const { destination, source, draggableId } = result;
+      const { destination, source, draggableId, type } = result;
       if (!destination) return;
       if (
         destination.droppableId === source.droppableId &&
         destination.index === source.index
       ) return;
+
+      if (type === 'column') {
+        const colId = parseInt(draggableId.replace('col-', ''), 10);
+        const rowId = parseInt(source.droppableId.replace('row-', ''), 10);
+        await moveColumn(rowId, source.index, destination.index, colId);
+        return;
+      }
 
       const taskId = parseInt(draggableId.replace('task-', ''), 10);
       await moveTask(
@@ -101,7 +109,7 @@ export function KanbanBoard() {
         taskId
       );
     },
-    [moveTask]
+    [moveTask, moveColumn]
   );
 
   /**
@@ -273,95 +281,119 @@ export function KanbanBoard() {
             {rows.map((row) => (
               <div key={row.id} className="board-row">
                 {renderRowHeader(row)}
-                <div className="board-row-columns">
-                  {row.columns.map((column) => (
-                    <div key={column.id} className="column-container">
-                      <div className="column-header">
-                        {editingCol?.id === column.id ? (
-                          <input
-                            autoFocus
-                            className="column-title-input"
-                            value={editingCol.title}
-                            onChange={(e) =>
-                              setEditingCol({ ...editingCol, title: e.target.value })
-                            }
-                            onBlur={() => void handleSaveColTitle()}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void handleSaveColTitle();
-                              if (e.key === 'Escape') setEditingCol(null);
-                            }}
-                          />
-                        ) : (
-                          <div
-                            className="column-title"
-                            style={{ cursor: 'pointer' }}
-                            title="クリックして編集"
-                            onClick={() =>
-                              setEditingCol({ id: column.id, title: column.title })
-                            }
-                          >
-                            {column.title}
-                          </div>
-                        )}
-                        <button
-                          className="action-btn"
-                          onClick={() =>
-                            confirmAction(
-                              `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
-                              () => void removeColumn(column.id)
-                            )
-                          }
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                      <Droppable droppableId={column.id.toString()} type="task">
-                        {(provided) => (
-                          <div
-                            className="column-body"
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                          >
-                            {column.tasks.map((task, index) => (
-                              <Draggable
-                                draggableId={`task-${task.id}`}
-                                index={index}
-                                key={`task-${task.id}`}
-                              >
-                                {(provided) => (
+                <Droppable droppableId={`row-${row.id}`} type="column" direction="horizontal">
+                  {(colsProvided) => (
+                    <div
+                      className="board-row-columns"
+                      ref={colsProvided.innerRef}
+                      {...colsProvided.droppableProps}
+                    >
+                      {row.columns.map((column, colIndex) => (
+                        <Draggable key={column.id} draggableId={`col-${column.id}`} index={colIndex}>
+                          {(colProvided) => (
+                            <div
+                              className="column-container"
+                              ref={colProvided.innerRef}
+                              {...colProvided.draggableProps}
+                            >
+                              <div className="column-header">
+                                <div
+                                  {...colProvided.dragHandleProps}
+                                  style={{ cursor: 'grab', display: 'flex', alignItems: 'center', padding: '0 2px', color: 'var(--text-muted, #888)' }}
+                                  title="ドラッグして並び替え"
+                                >
+                                  <GripVertical size={14} />
+                                </div>
+                                {editingCol?.id === column.id ? (
+                                  <input
+                                    autoFocus
+                                    className="column-title-input"
+                                    value={editingCol.title}
+                                    onChange={(e) =>
+                                      setEditingCol({ ...editingCol, title: e.target.value })
+                                    }
+                                    onBlur={() => void handleSaveColTitle()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') void handleSaveColTitle();
+                                      if (e.key === 'Escape') setEditingCol(null);
+                                    }}
+                                  />
+                                ) : (
                                   <div
-                                    className="task-card"
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
+                                    className="column-title"
+                                    style={{ cursor: 'pointer' }}
+                                    title="クリックして編集"
+                                    onClick={() =>
+                                      setEditingCol({ id: column.id, title: column.title })
+                                    }
                                   >
-                                    <TaskCard
-                                      task={task}
-                                      columnId={column.id}
-                                      onDeleteTask={handleDeleteTask}
-                                      onTaskUpdated={updateTask}
-                                      onEditTask={(t) => setEditingTask({ task: t, colId: column.id })}
-                                    />
+                                    {column.title}
                                   </div>
                                 )}
-                              </Draggable>
-                            ))}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                      <div className="column-add-task">
-                        <button
-                          className="btn"
-                          onClick={() => void handleAddTask(column.id, row.id)}
-                          style={{ width: '100%', justifyContent: 'center' }}
-                        >
-                          <Plus size={16} /> タスクを追加
-                        </button>
-                      </div>
+                                <button
+                                  className="action-btn"
+                                  onClick={() =>
+                                    confirmAction(
+                                      `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
+                                      () => void removeColumn(column.id)
+                                    )
+                                  }
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                              <Droppable droppableId={column.id.toString()} type="task">
+                                {(taskProvided) => (
+                                  <div
+                                    className="column-body"
+                                    ref={taskProvided.innerRef}
+                                    {...taskProvided.droppableProps}
+                                  >
+                                    {column.tasks.map((task, index) => (
+                                      <Draggable
+                                        draggableId={`task-${task.id}`}
+                                        index={index}
+                                        key={`task-${task.id}`}
+                                      >
+                                        {(taskDragProvided) => (
+                                          <div
+                                            className="task-card"
+                                            ref={taskDragProvided.innerRef}
+                                            {...taskDragProvided.draggableProps}
+                                            {...taskDragProvided.dragHandleProps}
+                                          >
+                                            <TaskCard
+                                              task={task}
+                                              columnId={column.id}
+                                              onDeleteTask={handleDeleteTask}
+                                              onTaskUpdated={updateTask}
+                                              onEditTask={(t) => setEditingTask({ task: t, colId: column.id })}
+                                            />
+                                          </div>
+                                        )}
+                                      </Draggable>
+                                    ))}
+                                    {taskProvided.placeholder}
+                                  </div>
+                                )}
+                              </Droppable>
+                              <div className="column-add-task">
+                                <button
+                                  className="btn"
+                                  onClick={() => void handleAddTask(column.id, row.id)}
+                                  style={{ width: '100%', justifyContent: 'center' }}
+                                >
+                                  <Plus size={16} /> タスクを追加
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {colsProvided.placeholder}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </Droppable>
               </div>
             ))}
           </div>
