@@ -12,6 +12,7 @@ import columnsRouter from "./routes/columns.js";
 import tasksRouter from "./routes/tasks.js";
 import subtasksRouter from "./routes/subtasks.js";
 import checklistItemsRouter from "./routes/checklistItems.js";
+import taskCommentsRouter from "./routes/taskComments.js";
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use("/api/columns", columnsRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/subtasks", subtasksRouter);
 app.use("/api/checklist-items", checklistItemsRouter);
+app.use("/api/task-comments", taskCommentsRouter);
 
 // グローバルエラーハンドラーを登録する（最後に配置する必要がある）
 app.use(errorHandler);

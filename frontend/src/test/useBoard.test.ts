@@ -14,6 +14,7 @@ const taskA: Task = {
   position: 1000,
   subtasks: [],
   checklists: [],
+  comments: [],
 };
 
 const sampleRows: Row[] = [
@@ -220,6 +221,7 @@ describe("useBoard", () => {
       position: 2000,
       subtasks: [],
       checklists: [],
+      comments: [],
     };
     vi.mocked(api.fetchBoard).mockResolvedValue([
       {

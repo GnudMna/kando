@@ -44,6 +44,7 @@ export function useBoard() {
 
   // マウント時に一度だけボードデータを読み込む
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadBoard();
   }, [loadBoard]);
 

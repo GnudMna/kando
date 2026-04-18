@@ -16,6 +16,15 @@ export interface ChecklistItem {
   position: number;
 }
 
+// タスクコメント
+export interface TaskComment {
+  id: number;
+  task_id: number;
+  content: string;
+  created_at: string;
+  position: number;
+}
+
 // サブタスク（タスク配下の子タスク、API レスポンス・永続化済みデータ）
 // 配下にチェックリストを持つ
 export interface Subtask {
@@ -34,6 +43,7 @@ export interface Task {
   position: number;
   subtasks: Subtask[];
   checklists: ChecklistItem[];
+  comments: TaskComment[];
 }
 
 // カラム（ステータス列）
@@ -66,12 +76,20 @@ export interface LocalChecklistItem extends Omit<
   subtask_id: number | TempId | null;
 }
 
+export interface LocalTaskComment extends Omit<TaskComment, "id"> {
+  id: number | TempId;
+}
+
 export interface LocalSubtask extends Omit<Subtask, "id" | "checklists"> {
   id: number | TempId;
   checklists: LocalChecklistItem[];
 }
 
-export interface LocalTask extends Omit<Task, "subtasks" | "checklists"> {
+export interface LocalTask extends Omit<
+  Task,
+  "subtasks" | "checklists" | "comments"
+> {
   subtasks: LocalSubtask[];
   checklists: LocalChecklistItem[];
+  comments: LocalTaskComment[];
 }

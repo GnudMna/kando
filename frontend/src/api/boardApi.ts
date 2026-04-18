@@ -1,6 +1,13 @@
 // バックエンド API との通信を担う関数群
 // VITE_API_URL 環境変数でベース URL を切り替え可能
-import type { Row, Column, Task, Subtask, ChecklistItem } from "../types";
+import type {
+  Row,
+  Column,
+  Task,
+  Subtask,
+  ChecklistItem,
+  TaskComment,
+} from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
 
@@ -124,6 +131,28 @@ export const moveTask = (
 /** タスクを削除する（サブタスク・チェックリストも連鎖削除）。@param id タスク ID */
 export const deleteTask = (id: number): Promise<void> =>
   request<void>(`${API_URL}/tasks/${id}`, { method: "DELETE" });
+
+// タスクコメントの操作
+/** 新しいタスクコメントを作成する。@param task_id 親タスク ID @param content コメント内容 */
+export const createTaskComment = (
+  task_id: number,
+  content: string,
+): Promise<TaskComment> =>
+  request<TaskComment>(
+    `${API_URL}/task-comments`,
+    json("POST", { task_id, content }),
+  );
+
+/** タスクコメントを更新する。@param id コメント ID @param patch 更新フィールド */
+export const updateTaskComment = (
+  id: number,
+  patch: { content?: string; position?: number },
+): Promise<TaskComment> =>
+  request<TaskComment>(`${API_URL}/task-comments/${id}`, json("PUT", patch));
+
+/** タスクコメントを削除する。@param id コメント ID */
+export const deleteTaskComment = (id: number): Promise<void> =>
+  request<void>(`${API_URL}/task-comments/${id}`, { method: "DELETE" });
 
 // サブタスクの操作
 /** 新しいサブタスクを作成する。@param task_id 親タスク ID @param content 内容 */

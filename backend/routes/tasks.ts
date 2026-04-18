@@ -35,8 +35,13 @@ router.post(
         "INSERT INTO tasks (column_id, content, position) VALUES ($1, $2, $3) RETURNING *",
         [column_id, content, position],
       );
-      // 新規作成時はサブタスク・チェックリストが空の状態で返す
-      res.json({ ...result.rows[0], subtasks: [], checklists: [] });
+      // 新規作成時は子要素が空の状態で返す
+      res.json({
+        ...result.rows[0],
+        subtasks: [],
+        checklists: [],
+        comments: [],
+      });
     } catch (err) {
       next(err);
     }

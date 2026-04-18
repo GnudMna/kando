@@ -2,7 +2,13 @@
 // かんばんボード上でタスクの内容・チェックリスト・サブタスクを表示し
 // チェック状態の切り替えや削除確認ダイアログを提供する
 import { useState, memo } from "react";
-import { Trash2, CheckSquare, Square, CornerDownRight } from "lucide-react";
+import {
+  Trash2,
+  CheckSquare,
+  Square,
+  CornerDownRight,
+  MessageSquare,
+} from "lucide-react";
 import type { Task } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";
 import * as api from "../api/boardApi";
@@ -88,6 +94,13 @@ export const TaskCard = memo(function TaskCard({
         >
           {task.content}
         </button>
+
+        {task.comments.length > 0 && (
+          <div className="task-comment-summary text-muted">
+            <MessageSquare size={13} />
+            <span>{task.comments.length} 件のコメント</span>
+          </div>
+        )}
 
         {task.checklists.length > 0 && (
           <div className="task-checklists">

@@ -19,6 +19,14 @@ export interface DbTask {
   position: number;
 }
 
+export interface DbTaskComment {
+  id: number;
+  task_id: number;
+  content: string;
+  created_at: string;
+  position: number;
+}
+
 export interface DbSubtask {
   id: number;
   task_id: number;
@@ -39,6 +47,8 @@ export interface DbChecklistItem {
 // API レスポンス型（ネストされたデータ込み）
 export interface ChecklistItem extends DbChecklistItem {}
 
+export interface TaskComment extends DbTaskComment {}
+
 // サブタスクは配下のチェックリストを含む
 export interface Subtask extends DbSubtask {
   checklists: ChecklistItem[];
@@ -48,6 +58,7 @@ export interface Subtask extends DbSubtask {
 export interface Task extends DbTask {
   subtasks: Subtask[];
   checklists: ChecklistItem[];
+  comments: TaskComment[];
 }
 
 // カラムはタスクの一覧を含む

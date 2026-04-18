@@ -1,6 +1,6 @@
 // タスク編集モーダルコンポーネント
 // タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
-import { useId, useState, useRef } from "react";
+import { useId, useState, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -16,6 +16,7 @@ import type {
   LocalTask,
   LocalSubtask,
   LocalChecklistItem,
+  LocalTaskComment,
   TempId,
 } from "../types";
 import * as api from "../api/boardApi";
@@ -39,6 +40,24 @@ function isTemp(id: number | TempId): id is TempId {
   return typeof id === "string";
 }
 
+const POSITION_GAP = 1000;
+
+type CommentSortMode = "oldest" | "newest" | "manual";
+
+function formatCommentTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "時刻不明";
+  }
+  return date.toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 interface Props {
   task: Task;
   onClose: (reason: "saved" | "dismiss") => void;
@@ -54,6 +73,22 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // 一時IDの項目はサーバーに存在しないため含まれない（常に number）
   const [deletedSubtaskIds, setDeletedSubtaskIds] = useState<number[]>([]);
   const [deletedChecklistIds, setDeletedChecklistIds] = useState<number[]>([]);
+  const [deletedCommentIds, setDeletedCommentIds] = useState<number[]>([]);
+  // コメント表示順の切替（古い順 / 最新順 / 手動）
+  const [commentSortMode, setCommentSortMode] =
+    useState<CommentSortMode>("newest");
+  const commentDragFromIndex = useRef<number | null>(null);
+  const [commentDragOverIndex, setCommentDragOverIndex] = useState<
+    number | null
+  >(null);
+  // コメントのインライン編集状態
+  const [editingCommentId, setEditingCommentId] = useState<
+    number | TempId | null
+  >(null);
+  const [editingCommentContent, setEditingCommentContent] = useState("");
+  // コメント追加フォームの表示状態と入力値
+  const [newCommentContent, setNewCommentContent] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
   // サブタスクのインライン編集状態
   const [editingSubtaskId, setEditingSubtaskId] = useState<
     number | TempId | null
@@ -102,6 +137,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
       await Promise.all([
         ...deletedSubtaskIds.map((id) => api.deleteSubtask(id)),
         ...deletedChecklistIds.map((id) => api.deleteChecklistItem(id)),
+        ...deletedCommentIds.map((id) => api.deleteTaskComment(id)),
       ]);
 
       // サブタスクを保存する（一時IDのものは新規作成、既存は内容変更時のみ更新）
@@ -190,6 +226,47 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               await api.updateChecklistItem(c.id as number, patch);
             }
           }
+        }
+      }
+
+      // タスクコメントを保存する（新規作成・内容更新）
+      for (let i = 0; i < final.comments.length; i++) {
+        const comment = final.comments[i];
+        const expectedPosition = (i + 1) * POSITION_GAP;
+
+        if (isTemp(comment.id)) {
+          const created = await api.createTaskComment(task.id, comment.content);
+          if (created.position !== expectedPosition) {
+            await api.updateTaskComment(created.id, {
+              position: expectedPosition,
+            });
+            created.position = expectedPosition;
+          }
+          final.comments[i] = {
+            ...comment,
+            id: created.id,
+            task_id: created.task_id,
+            created_at: created.created_at,
+            position: created.position,
+          };
+          continue;
+        }
+
+        const orig = task.comments.find((c) => c.id === comment.id);
+        const patch: { content?: string; position?: number } = {};
+        if (orig && orig.content !== comment.content) {
+          patch.content = comment.content;
+        }
+        if (orig && orig.position !== expectedPosition) {
+          patch.position = expectedPosition;
+        }
+        if (Object.keys(patch).length > 0) {
+          const updated = await api.updateTaskComment(comment.id, patch);
+          final.comments[i] = {
+            ...comment,
+            created_at: updated.created_at,
+            position: updated.position,
+          };
         }
       }
 
@@ -402,6 +479,120 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     });
   };
 
+  /**
+   * 新しいコメントをローカル state に追加する。
+   * 保存は saveAndClose 呼び出し時にまとめて行う。
+   */
+  const addComment = () => {
+    const content = newCommentContent.trim();
+    if (!content) return;
+
+    const newComment: LocalTaskComment = {
+      id: tempId(),
+      task_id: task.id,
+      content,
+      created_at: new Date().toISOString(),
+      position: (localTask.comments.length + 1) * POSITION_GAP,
+    };
+    setLocalTask((prev) => ({
+      ...prev,
+      comments: [...prev.comments, newComment],
+    }));
+    setNewCommentContent("");
+    setAddingComment(false);
+  };
+
+  /**
+   * コメント編集を開始する。
+   * @param commentId - 編集対象のコメント ID
+   * @param content - 現在のコメント内容
+   */
+  const beginCommentEdit = (commentId: number | TempId, content: string) => {
+    setEditingCommentId(commentId);
+    setEditingCommentContent(content);
+  };
+
+  /**
+   * コメント編集を確定してローカル state を更新する。
+   * @param commentId - 編集対象のコメント ID
+   */
+  const saveCommentEdit = (commentId: number | TempId) => {
+    const content = editingCommentContent.trim();
+    if (!content) {
+      setEditingCommentId(null);
+      setEditingCommentContent("");
+      return;
+    }
+    setLocalTask((prev) => ({
+      ...prev,
+      comments: prev.comments.map((comment) =>
+        comment.id === commentId ? { ...comment, content } : comment,
+      ),
+    }));
+    setEditingCommentId(null);
+    setEditingCommentContent("");
+  };
+
+  /**
+   * コメント編集をキャンセルする。
+   */
+  const cancelCommentEdit = () => {
+    setEditingCommentId(null);
+    setEditingCommentContent("");
+  };
+
+  /**
+   * コメントをローカル state から削除する。
+   * DB 保存済みの場合は deletedCommentIds に追加し、saveAndClose 時にまとめて削除する。
+   * @param commentId - 削除対象のコメント ID
+   */
+  const removeComment = (commentId: number | TempId) => {
+    if (!isTemp(commentId))
+      setDeletedCommentIds((prev) => [...prev, commentId]);
+    setLocalTask((prev) => ({
+      ...prev,
+      comments: prev.comments.filter((comment) => comment.id !== commentId),
+    }));
+    if (editingCommentId === commentId) {
+      cancelCommentEdit();
+    }
+  };
+
+  const visibleComments = useMemo(() => {
+    const withIndex = localTask.comments.map((comment, index) => ({
+      comment,
+      index,
+    }));
+
+    if (commentSortMode === "manual") {
+      return withIndex;
+    }
+
+    const direction = commentSortMode === "newest" ? -1 : 1;
+    return [...withIndex].sort((a, b) => {
+      const rawA = new Date(a.comment.created_at).getTime();
+      const rawB = new Date(b.comment.created_at).getTime();
+      const timeA = Number.isFinite(rawA) ? rawA : 0;
+      const timeB = Number.isFinite(rawB) ? rawB : 0;
+
+      if (timeA !== timeB) {
+        return (timeA - timeB) * direction;
+      }
+      return a.index - b.index;
+    });
+  }, [localTask.comments, commentSortMode]);
+
+  const moveCommentInManualMode = (fromIndex: number, toIndex: number) => {
+    if (commentSortMode !== "manual" || fromIndex === toIndex) return;
+
+    setLocalTask((prev) => {
+      const comments = [...prev.comments];
+      const [moved] = comments.splice(fromIndex, 1);
+      comments.splice(toIndex, 0, moved);
+      return { ...prev, comments };
+    });
+  };
+
   return createPortal(
     <div className="modal-overlay">
       <div
@@ -441,6 +632,235 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               autoFocus
               style={{ resize: "vertical" }}
             />
+          </div>
+
+          <div className="modal-section modal-section-comments">
+            <label className="modal-label">コメント</label>
+
+            <div
+              className="comment-sort-controls"
+              role="group"
+              aria-label="コメント表示順を選択"
+            >
+              <button
+                type="button"
+                className={`btn btn-compact ${commentSortMode === "oldest" ? "btn-primary" : ""}`}
+                onClick={() => setCommentSortMode("oldest")}
+                aria-pressed={commentSortMode === "oldest"}
+              >
+                古い順
+              </button>
+              <button
+                type="button"
+                className={`btn btn-compact ${commentSortMode === "newest" ? "btn-primary" : ""}`}
+                onClick={() => setCommentSortMode("newest")}
+                aria-pressed={commentSortMode === "newest"}
+              >
+                最新順
+              </button>
+              <button
+                type="button"
+                className={`btn btn-compact ${commentSortMode === "manual" ? "btn-primary" : ""}`}
+                onClick={() => setCommentSortMode("manual")}
+                aria-pressed={commentSortMode === "manual"}
+              >
+                手動順
+              </button>
+            </div>
+
+            {commentSortMode === "manual" && (
+              <span className="text-muted">
+                手動順ではコメントをドラッグして並び替えできます
+              </span>
+            )}
+
+            {visibleComments.length === 0 ? (
+              <span className="text-muted">コメントはまだありません</span>
+            ) : (
+              <div className="task-comments">
+                {visibleComments.map(({ comment, index }, visibleIndex) => (
+                  <div
+                    key={comment.id}
+                    className={[
+                      "task-comment-item",
+                      commentSortMode === "manual" ? "comment-manual" : "",
+                      commentDragOverIndex === visibleIndex
+                        ? "comment-drag-over"
+                        : "",
+                    ]
+                      .join(" ")
+                      .trim()}
+                    draggable={commentSortMode === "manual"}
+                    onDragStart={(e) => {
+                      if (commentSortMode !== "manual") return;
+                      e.dataTransfer.effectAllowed = "move";
+                      commentDragFromIndex.current = index;
+                    }}
+                    onDragOver={(e) => {
+                      if (commentSortMode !== "manual") return;
+                      e.preventDefault();
+                      setCommentDragOverIndex(visibleIndex);
+                    }}
+                    onDrop={(e) => {
+                      if (commentSortMode !== "manual") return;
+                      e.preventDefault();
+                      if (commentDragFromIndex.current === null) return;
+                      moveCommentInManualMode(
+                        commentDragFromIndex.current,
+                        index,
+                      );
+                      commentDragFromIndex.current = null;
+                      setCommentDragOverIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      commentDragFromIndex.current = null;
+                      setCommentDragOverIndex(null);
+                    }}
+                  >
+                    <div className="task-comment-header">
+                      <div className="task-comment-meta">
+                        {commentSortMode === "manual" && (
+                          <span
+                            className="comment-drag-handle"
+                            aria-hidden="true"
+                          >
+                            <GripVertical size={12} />
+                          </span>
+                        )}
+                        <span className="task-comment-time">
+                          {formatCommentTimestamp(comment.created_at)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="checklist-del modal-del-btn"
+                        onClick={() => removeComment(comment.id)}
+                        aria-label={`コメント「${comment.content}」を削除`}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+
+                    {editingCommentId === comment.id ? (
+                      <div
+                        className="add-sub-form"
+                        style={{ marginTop: "0.2rem" }}
+                      >
+                        <textarea
+                          className="task-content-input"
+                          style={{ resize: "vertical" }}
+                          rows={3}
+                          autoFocus
+                          value={editingCommentContent}
+                          onChange={(e) =>
+                            setEditingCommentContent(e.target.value)
+                          }
+                          onKeyDown={(e) => {
+                            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                              saveCommentEdit(comment.id);
+                            }
+                            if (e.key === "Escape") {
+                              cancelCommentEdit();
+                            }
+                          }}
+                        />
+                        <div className="form-actions">
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                            }}
+                            onClick={() => saveCommentEdit(comment.id)}
+                          >
+                            保存
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                            }}
+                            onClick={cancelCommentEdit}
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="task-comment-content-btn"
+                        onClick={() =>
+                          beginCommentEdit(comment.id, comment.content)
+                        }
+                        title="クリックして編集"
+                      >
+                        {comment.content}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {addingComment ? (
+              <div className="add-sub-form" style={{ marginTop: "0.5rem" }}>
+                <textarea
+                  autoFocus
+                  rows={3}
+                  placeholder="コメントを入力..."
+                  className="task-content-input"
+                  style={{ resize: "vertical" }}
+                  value={newCommentContent}
+                  onChange={(e) => setNewCommentContent(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                      addComment();
+                    }
+                    if (e.key === "Escape") {
+                      setAddingComment(false);
+                      setNewCommentContent("");
+                    }
+                  }}
+                />
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                    onClick={addComment}
+                  >
+                    追加
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                    onClick={() => {
+                      setAddingComment(false);
+                      setNewCommentContent("");
+                    }}
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="text-btn text-muted"
+                style={{ marginTop: "0.5rem" }}
+                onClick={() => {
+                  setAddingComment(true);
+                  setNewCommentContent("");
+                }}
+              >
+                <Plus size={12} /> コメントを追加
+              </button>
+            )}
           </div>
 
           <div className="modal-section">

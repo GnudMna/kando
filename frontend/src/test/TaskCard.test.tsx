@@ -14,6 +14,7 @@ const baseTask: Task = {
   position: 1000,
   subtasks: [],
   checklists: [],
+  comments: [],
 };
 
 const taskWithChecklists: Task = {

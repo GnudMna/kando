@@ -6,6 +6,7 @@ import type {
   DbTask,
   DbSubtask,
   DbChecklistItem,
+  DbTaskComment,
 } from "../types";
 
 describe("buildBoardHierarchy", () => {
@@ -42,6 +43,7 @@ describe("buildBoardHierarchy", () => {
         subtask_id: null,
         content: "Task 1 checklist",
         completed: false,
+        position: 1000,
       },
       {
         id: 5002,
@@ -49,6 +51,7 @@ describe("buildBoardHierarchy", () => {
         subtask_id: 1001,
         content: "Subtask 1-1 checklist",
         completed: true,
+        position: 1000,
       },
       {
         id: 5003,
@@ -56,6 +59,7 @@ describe("buildBoardHierarchy", () => {
         subtask_id: null,
         content: "Task 3 checklist",
         completed: false,
+        position: 1000,
       },
       {
         id: 5999,
@@ -63,6 +67,38 @@ describe("buildBoardHierarchy", () => {
         subtask_id: null,
         content: "Invalid checklist",
         completed: false,
+        position: 9999,
+      },
+    ];
+
+    const taskComments: DbTaskComment[] = [
+      {
+        id: 7001,
+        task_id: 101,
+        content: "Task 1 comment A",
+        created_at: "2026-01-01T00:00:00.000Z",
+        position: 1000,
+      },
+      {
+        id: 7002,
+        task_id: 101,
+        content: "Task 1 comment B",
+        created_at: "2026-01-02T00:00:00.000Z",
+        position: 2000,
+      },
+      {
+        id: 7003,
+        task_id: 201,
+        content: "Task 3 comment",
+        created_at: "2026-01-03T00:00:00.000Z",
+        position: 1000,
+      },
+      {
+        id: 7999,
+        task_id: 999,
+        content: "Orphan task comment",
+        created_at: "2026-01-04T00:00:00.000Z",
+        position: 1000,
       },
     ];
 
@@ -72,6 +108,7 @@ describe("buildBoardHierarchy", () => {
       tasks,
       subtasks,
       checklistItems,
+      taskComments,
     );
 
     expect(board).toHaveLength(2);
@@ -86,12 +123,16 @@ describe("buildBoardHierarchy", () => {
     expect(task1.checklists.map((c) => c.id)).toEqual([5001]);
     expect(task1.subtasks.map((s) => s.id)).toEqual([1001, 1002]);
     expect(task1.subtasks[0].checklists.map((c) => c.id)).toEqual([5002]);
+    expect(task1.comments.map((c) => c.id)).toEqual([7001, 7002]);
 
     expect(board[1].id).toBe(2);
     expect(board[1].columns.map((c) => c.id)).toEqual([21]);
     expect(board[1].columns[0].tasks.map((t) => t.id)).toEqual([201]);
     expect(board[1].columns[0].tasks[0].checklists.map((c) => c.id)).toEqual([
       5003,
+    ]);
+    expect(board[1].columns[0].tasks[0].comments.map((c) => c.id)).toEqual([
+      7003,
     ]);
   });
 });
