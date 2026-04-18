@@ -199,7 +199,10 @@ router.delete(
       return;
     }
     try {
-      const result = await pool.query("DELETE FROM checklist_items WHERE id = $1", [id]);
+      const result = await pool.query(
+        "DELETE FROM checklist_items WHERE id = $1",
+        [id],
+      );
       if ((result.rowCount ?? 0) === 0) {
         res.status(404).json({ error: "Checklist item not found" });
         return;
