@@ -12,6 +12,8 @@ export const pool = new Pool({
  * 指定回数だけリトライを行う。全リトライ失敗時はエラーを投げる。
  * @param retries - リトライ上限回数（デフォルト: 10）
  * @param delayMs - リトライ間隔（ミリ秒、デフォルト: 3000）
+ * @returns 接続確認完了時に解決される Promise
+ * @throws Error 全リトライで接続に失敗した場合
  */
 export async function waitForDbWithRetry(
   retries = 10,

@@ -17,6 +17,7 @@ interface Props {
  * @param message - 確認メッセージ
  * @param onConfirm - 削除確定時のコールバック
  * @param onCancel - キャンセル時のコールバック
+ * @returns 確認ダイアログの JSX 要素
  */
 export function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
   const titleId = useId();

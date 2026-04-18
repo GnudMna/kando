@@ -24,6 +24,10 @@ type MockedClient = {
 
 const mockedPool = pool as unknown as MockedPool;
 
+/**
+ * `pool.connect()` 用のモッククライアントを作成して接続結果に設定する。
+ * @returns クエリ/リリースを検証できるモッククライアント
+ */
 function setupConnectedClient(): MockedClient {
   const client: MockedClient = {
     query: vi.fn(),
@@ -33,6 +37,10 @@ function setupConnectedClient(): MockedClient {
   return client;
 }
 
+/**
+ * task-comments ルーター統合テスト用の Express アプリを生成する。
+ * @returns task-comments API をマウントした Express アプリ
+ */
 function createApp() {
   const app = express();
   app.use(express.json());

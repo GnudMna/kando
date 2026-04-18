@@ -42,6 +42,7 @@ type TaskSnapshotPayload = {
   comments: TaskSnapshotCommentInput[];
 };
 
+/** HTTP ステータス付きで呼び出し元へ返す業務エラー。 */
 class HttpError extends Error {
   constructor(
     public readonly status: number,
@@ -51,6 +52,13 @@ class HttpError extends Error {
   }
 }
 
+/**
+ * 期限日を `YYYY-MM-DD` の厳密形式で検証する。
+ * 未指定/`null` はそのまま返し、明示指定時のみバリデーションする。
+ * @param rawDueDate - 受信した期限日
+ * @returns 検証済み期限日。未指定/`null` は入力値を維持
+ * @throws Error `YYYY-MM-DD` 形式ではない場合
+ */
 function normalizeDueDate(
   rawDueDate: string | null | undefined,
 ): string | null | undefined {
@@ -74,6 +82,11 @@ function normalizeDueDate(
   return rawDueDate;
 }
 
+/**
+ * 配列/`null` を除外したプレーンオブジェクトへ安全に絞り込む。
+ * @param value - 判定対象値
+ * @returns プレーンオブジェクト。対象外は `null`
+ */
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
@@ -81,6 +94,13 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+/**
+ * 任意 ID フィールドを正の整数として検証し、未指定時は `undefined` を返す。
+ * @param value - 入力値
+ * @param fieldPath - エラーメッセージに出すフィールドパス
+ * @returns 検証済み ID。未指定時は `undefined`
+ * @throws HttpError 値が正の整数でない場合
+ */
 function parseOptionalId(
   value: unknown,
   fieldPath: string,
@@ -92,6 +112,14 @@ function parseOptionalId(
   return value;
 }
 
+/**
+ * 必須文字列フィールドを検証し、空文字・長過ぎる値を拒否する。
+ * @param value - 入力値
+ * @param fieldPath - エラーメッセージに出すフィールドパス
+ * @param maxLength - 許容最大文字数
+ * @returns 検証済み文字列
+ * @throws HttpError 値が要件を満たさない場合
+ */
 function parseRequiredString(
   value: unknown,
   fieldPath: string,
@@ -112,6 +140,13 @@ function parseRequiredString(
   return value;
 }
 
+/**
+ * タスク直下/サブタスク配下で共通利用するチェックリスト入力を検証する。
+ * @param value - 生の入力値
+ * @param fieldPath - エラーメッセージに出すフィールドパス
+ * @returns 検証済みチェックリスト入力
+ * @throws HttpError 値が要件を満たさない場合
+ */
 function parseChecklistInput(
   value: unknown,
   fieldPath: string,
@@ -138,6 +173,13 @@ function parseChecklistInput(
   };
 }
 
+/**
+ * サブタスク入力を検証し、配下チェックリストも再帰的に検証する。
+ * @param value - 生の入力値
+ * @param fieldPath - エラーメッセージに出すフィールドパス
+ * @returns 検証済みサブタスク入力
+ * @throws HttpError 値が要件を満たさない場合
+ */
 function parseSubtaskInput(
   value: unknown,
   fieldPath: string,
@@ -168,6 +210,13 @@ function parseSubtaskInput(
   };
 }
 
+/**
+ * コメント入力（任意 ID + 必須 content）を検証する。
+ * @param value - 生の入力値
+ * @param fieldPath - エラーメッセージに出すフィールドパス
+ * @returns 検証済みコメント入力
+ * @throws HttpError 値が要件を満たさない場合
+ */
 function parseCommentInput(
   value: unknown,
   fieldPath: string,
@@ -190,6 +239,13 @@ function parseCommentInput(
   };
 }
 
+/**
+ * `id` 指定を持つ配列で重複 ID を禁止し、更新対象の曖昧さを排除する。
+ * @param values - 検証対象配列
+ * @param fieldPath - エラーメッセージに出すフィールドパス
+ * @returns なし
+ * @throws HttpError 重複 ID が見つかった場合
+ */
 function ensureNoDuplicateIds(
   values: Array<{ id?: number }>,
   fieldPath: string,
@@ -204,6 +260,13 @@ function ensureNoDuplicateIds(
   }
 }
 
+/**
+ * タスク編集モーダルのスナップショット保存用ペイロードを検証して正規化する。
+ * 型不整合や必須項目不足があれば `HttpError(400)` を投げる。
+ * @param raw - 生のリクエストボディ
+ * @returns 検証済みスナップショット
+ * @throws HttpError 入力が不正な場合
+ */
 function parseTaskSnapshotPayload(raw: unknown): TaskSnapshotPayload {
   const body = asRecord(raw);
   if (!body) {
@@ -257,10 +320,21 @@ function parseTaskSnapshotPayload(raw: unknown): TaskSnapshotPayload {
   };
 }
 
+/**
+ * 並び順を 1000 刻みで採番する。
+ * @param index - 0 始まりの配列インデックス
+ * @returns 1,000 刻みの position 値
+ */
 function calcPosition(index: number): number {
   return (index + 1) * 1000;
 }
 
+/**
+ * 既存 ID 群から keep 対象を除いた削除対象 ID を返す。
+ * @param existingIds - DB 上に存在する ID 集合
+ * @param keepIds - 残す ID 集合
+ * @returns 削除対象 ID 配列
+ */
 function idsToDelete(existingIds: Set<number>, keepIds: Set<number>): number[] {
   const ids: number[] = [];
   for (const id of existingIds) {
@@ -271,6 +345,13 @@ function idsToDelete(existingIds: Set<number>, keepIds: Set<number>): number[] {
   return ids;
 }
 
+/**
+ * Map<K, V[]> のキーごと配列へ値を追記する共通ヘルパー。
+ * @param map - 追記対象のグループ化 Map
+ * @param key - グループキー
+ * @param value - 追加する値
+ * @returns なし
+ */
 function pushToGroupMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const bucket = map.get(key);
   if (bucket) {
@@ -280,6 +361,15 @@ function pushToGroupMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   map.set(key, [value]);
 }
 
+/**
+ * タスク直下のチェックリストを「更新・追加・削除」で同期する。
+ * 指定されなかった既存 ID は削除対象とみなす。
+ * @param client - トランザクション内の DB クライアント
+ * @param taskId - 親タスク ID
+ * @param checklists - 目標状態のチェックリスト配列
+ * @returns 同期完了時に解決される Promise
+ * @throws HttpError 既存に存在しない ID が指定された場合
+ */
 async function syncTaskChecklists(
   client: PoolClient,
   taskId: number,
@@ -329,6 +419,15 @@ async function syncTaskChecklists(
   }
 }
 
+/**
+ * サブタスク配下チェックリストを同期する。
+ * 既存データは `FOR UPDATE` でロックし、同時編集時の競合を抑える。
+ * @param client - トランザクション内の DB クライアント
+ * @param subtaskId - 親サブタスク ID
+ * @param checklists - 目標状態のチェックリスト配列
+ * @returns 同期完了時に解決される Promise
+ * @throws HttpError 既存に存在しない ID が指定された場合
+ */
 async function syncSubtaskChecklists(
   client: PoolClient,
   subtaskId: number,
@@ -378,6 +477,15 @@ async function syncSubtaskChecklists(
   }
 }
 
+/**
+ * タスクコメントをスナップショット内容に合わせて同期する。
+ * `position` は受信順で再計算し、UI 上の順序を維持する。
+ * @param client - トランザクション内の DB クライアント
+ * @param taskId - 親タスク ID
+ * @param comments - 目標状態のコメント配列
+ * @returns 同期完了時に解決される Promise
+ * @throws HttpError 既存に存在しない ID が指定された場合
+ */
 async function syncTaskComments(
   client: PoolClient,
   taskId: number,
@@ -426,6 +534,13 @@ async function syncTaskComments(
   }
 }
 
+/**
+ * 1件のタスクと関連子要素（サブタスク・チェックリスト・コメント）を再取得し、
+ * API レスポンスのスナップショット形式へ組み立てて返す。
+ * @param client - トランザクション内の DB クライアント
+ * @param taskId - 取得対象タスク ID
+ * @returns スナップショット形式タスク。未存在なら `null`
+ */
 async function fetchTaskSnapshot(
   client: PoolClient,
   taskId: number,
@@ -502,6 +617,13 @@ router.post(
     },
     position: { type: "number", required: true, positive: true },
   }),
+  /**
+   * タスクを作成する。
+   * @param req - `column_id` `content` `due_date` `position` を含むリクエスト
+   * @param res - 作成したタスクを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { column_id, content, due_date, position } = req.body as {
       column_id: number;
@@ -553,6 +675,13 @@ router.put(
       maxLength: 10,
     },
   }),
+  /**
+   * タスク内容または期限を更新する。
+   * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
+   * @param res - 更新後タスクを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -629,6 +758,13 @@ router.put(
 // タスク編集モーダルの内容を単一トランザクションで一括保存する: PUT /api/tasks/:id/snapshot
 router.put(
   "/:id/snapshot",
+  /**
+   * タスク編集モーダルのスナップショットを一括保存する。
+   * @param req - パスパラメータ `id` とスナップショット本文を含むリクエスト
+   * @param res - 保存後タスクを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 保存処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -778,6 +914,13 @@ router.put(
     },
     position: { type: "number", required: true, positive: true },
   }),
+  /**
+   * タスクを別カラムへ移動する。
+   * @param req - パスパラメータ `id` と本文 `column_id` `position` を含むリクエスト
+   * @param res - 更新後タスクを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 移動処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -807,6 +950,13 @@ router.put(
 // タスクを削除する（サブタスク・チェックリストも CASCADE で削除される）: DELETE /api/tasks/:id
 router.delete(
   "/:id",
+  /**
+   * タスクを削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {

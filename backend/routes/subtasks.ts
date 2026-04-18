@@ -18,6 +18,13 @@ router.post(
       maxLength: 2000,
     },
   }),
+  /**
+   * サブタスクを作成する。
+   * @param req - `task_id` と `content` を含むリクエスト
+   * @param res - 作成したサブタスクを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { task_id, content } = req.body as {
       task_id: number;
@@ -47,6 +54,13 @@ router.put(
       maxLength: 2000,
     },
   }),
+  /**
+   * サブタスク内容を更新する。
+   * @param req - パスパラメータ `id` と本文 `content` を含むリクエスト
+   * @param res - 更新後サブタスクを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -73,6 +87,13 @@ router.put(
 // サブタスクを削除する（配下のチェックリストも CASCADE で削除される）: DELETE /api/subtasks/:id
 router.delete(
   "/:id",
+  /**
+   * サブタスクを削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {

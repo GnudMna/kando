@@ -1,3 +1,5 @@
+// dueDate ユーティリティのユニットテスト
+// 期限判定・ラベル生成・日付正規化/整形の仕様を検証する
 import { describe, expect, it } from "vitest";
 import {
   formatDueDate,
@@ -7,6 +9,7 @@ import {
 } from "../utils/dueDate";
 
 describe("dueDate utils", () => {
+  // 日付差分計算が安定するよう固定日時を利用する
   const now = new Date(2026, 3, 18, 9, 0, 0);
 
   it("期限なしの場合は強調しない", () => {

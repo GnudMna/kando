@@ -14,6 +14,9 @@ type ChecklistParentValidationResult =
 /**
  * checklist_items の親参照（task_id / subtask_id）を検証する。
  * どちらか一方のみ指定されることを必須とする。
+ * @param taskIdRaw - リクエストボディの `task_id`
+ * @param subtaskIdRaw - リクエストボディの `subtask_id`
+ * @returns 正常時は親 ID を含む結果、異常時はエラーメッセージを含む結果
  */
 export function validateChecklistParentRefs(
   taskIdRaw: unknown,
@@ -49,6 +52,13 @@ router.post(
   validateBody({
     content: { type: "string", required: true, notEmpty: true, maxLength: 500 },
   }),
+  /**
+   * チェックリスト項目を作成する。
+   * @param req - 本文 `content` と親参照（`task_id` または `subtask_id`）を含むリクエスト
+   * @param res - 作成した項目を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { content } = req.body as { content: string };
     const body = req.body as Record<string, unknown>;
@@ -123,6 +133,13 @@ router.put(
     completed: { type: "boolean" },
     position: { type: "number", finite: true },
   }),
+  /**
+   * チェックリスト項目を更新する。
+   * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
+   * @param res - 更新後項目を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -192,6 +209,13 @@ router.put(
 // チェックリスト項目を削除する: DELETE /api/checklist-items/:id
 router.delete(
   "/:id",
+  /**
+   * チェックリスト項目を削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {

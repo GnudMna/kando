@@ -10,6 +10,7 @@ import { Request, Response, NextFunction } from "express";
  * @param _req - Express リクエスト（使用しない）
  * @param res - Express レスポンス
  * @param _next - 次のミドルウェア（使用しない）
+ * @returns なし
  */
 export function errorHandler(
   err: Error,
