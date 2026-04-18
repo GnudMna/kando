@@ -9,6 +9,7 @@ import {
   Trash2,
   LayoutTemplate,
   List,
+  Search,
   AlertCircle,
   X,
   GripVertical,
@@ -20,6 +21,7 @@ import { ListView } from "./ListView";
 import { useBoard } from "../hooks/useBoard";
 import type { Row, Task } from "../types";
 import { getDueHighlight } from "../utils/dueDate";
+import { countTasks, filterRowsByTaskQuery } from "../utils/taskSearch";
 
 const taskDragPortalTarget =
   typeof document !== "undefined" ? document.body : null;
@@ -76,6 +78,7 @@ export function KanbanBoard() {
   } = useBoard();
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [searchQuery, setSearchQuery] = useState("");
   const [dueSoonDays, setDueSoonDays] = useState<number>(() => {
     if (typeof window === "undefined") return DEFAULT_DUE_SOON_DAYS;
     const stored = window.localStorage.getItem(DUE_SOON_DAYS_STORAGE_KEY);
@@ -89,6 +92,19 @@ export function KanbanBoard() {
   // 確認ダイアログの表示状態を管理する
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const dueSoonDaysInputId = useId();
+  const taskSearchInputId = useId();
+
+  const filteredRows = useMemo(
+    () => filterRowsByTaskQuery(rows, searchQuery),
+    [rows, searchQuery],
+  );
+  const isSearchActive = searchQuery.trim().length > 0;
+  const activeRows = isSearchActive ? filteredRows : rows;
+  const activeViewMode = isSearchActive ? "list" : viewMode;
+  const matchedTaskCount = useMemo(
+    () => countTasks(filteredRows),
+    [filteredRows],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -334,6 +350,33 @@ export function KanbanBoard() {
         </button>
 
         <div className="board-toolbar-right">
+          <div className="task-search" role="search">
+            <label htmlFor={taskSearchInputId} className="task-search-label">
+              タスク検索
+            </label>
+            <div className="task-search-input-wrap">
+              <Search size={14} className="task-search-icon" />
+              <input
+                id={taskSearchInputId}
+                type="search"
+                className="task-search-input"
+                placeholder="タスク名・サブタスク・コメントで検索"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.currentTarget.value)}
+              />
+              {isSearchActive && (
+                <button
+                  type="button"
+                  className="task-search-clear"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="検索キーワードをクリア"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="due-soon-setting">
             <label htmlFor={dueSoonDaysInputId} className="due-soon-label">
               期限間近の強調
@@ -367,26 +410,43 @@ export function KanbanBoard() {
             <span className="stat-pill">
               <strong>{boardStats.tasks}</strong> タスク
             </span>
+            {isSearchActive && (
+              <span className="stat-pill">
+                <strong>{matchedTaskCount}</strong> 件ヒット
+              </span>
+            )}
           </div>
 
           <div className="view-switch" role="tablist" aria-label="表示モード">
             <button
               type="button"
-              className={`btn btn-toggle ${viewMode === "kanban" ? "btn-primary" : ""}`}
+              className={`btn btn-toggle ${activeViewMode === "kanban" ? "btn-primary" : ""}`}
               onClick={() => setViewMode("kanban")}
-              aria-pressed={viewMode === "kanban"}
+              aria-pressed={activeViewMode === "kanban"}
+              disabled={isSearchActive}
+              title={
+                isSearchActive
+                  ? "検索中はリスト表示のみ利用できます"
+                  : undefined
+              }
             >
               <LayoutTemplate size={16} /> かんばん
             </button>
             <button
               type="button"
-              className={`btn btn-toggle ${viewMode === "list" ? "btn-primary" : ""}`}
+              className={`btn btn-toggle ${activeViewMode === "list" ? "btn-primary" : ""}`}
               onClick={() => setViewMode("list")}
-              aria-pressed={viewMode === "list"}
+              aria-pressed={activeViewMode === "list"}
             >
               <List size={16} /> リスト
             </button>
           </div>
+
+          {isSearchActive && (
+            <p className="task-search-hint">
+              検索中は並び順の整合性のためリスト表示に切り替わります。
+            </p>
+          )}
         </div>
       </div>
 
@@ -404,10 +464,24 @@ export function KanbanBoard() {
             <Plus size={16} /> 最初の行を追加
           </button>
         </div>
-      ) : viewMode === "kanban" ? (
+      ) : activeRows.length === 0 ? (
+        <div className="board-empty-state">
+          <p className="board-empty-title">該当するタスクがありません</p>
+          <p className="board-empty-description">
+            キーワードを変えるか、検索をクリアしてください。
+          </p>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setSearchQuery("")}
+          >
+            <X size={16} /> 検索をクリア
+          </button>
+        </div>
+      ) : activeViewMode === "kanban" ? (
         <DragDropContext onDragEnd={(r) => void handleDragEnd(r)}>
           <div className="kanban-rows">
-            {rows.map((row) => (
+            {activeRows.map((row) => (
               <div key={row.id} className="board-row">
                 {renderRowHeader(row)}
                 <Droppable
@@ -584,7 +658,7 @@ export function KanbanBoard() {
         </DragDropContext>
       ) : (
         <ListView
-          rows={rows}
+          rows={activeRows}
           dueSoonDays={dueSoonDays}
           onRowHeaderRender={renderRowHeader}
           onTaskClick={(task, colId) =>
