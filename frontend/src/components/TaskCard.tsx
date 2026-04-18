@@ -67,22 +67,25 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
   return (
     <>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <div
+        <button
+          type="button"
           className="task-content"
-          style={{ fontWeight: '600', cursor: 'pointer' }}
+          style={{ fontWeight: '600', cursor: 'pointer', textAlign: 'left', background: 'none', border: 'none', padding: 0 }}
           onClick={() => onEditTask(task)}
-          title="クリックして編集"
+          aria-label={`タスク「${task.content}」を編集`}
         >
           {task.content}
-        </div>
+        </button>
 
         {task.checklists.length > 0 && (
           <div className="task-checklists">
             {task.checklists.map((c) => (
               <div key={c.id} className="checklist-item">
                 <button
+                  type="button"
                   className="checklist-toggle"
                   onClick={() => void toggleChecklist(c, 'task')}
+                  aria-label={`チェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
                 >
                   {c.completed ? (
                     <CheckSquare size={14} className="accent" />
@@ -123,10 +126,12 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
                     {subtask.checklists.map((c) => (
                       <div key={c.id} className="checklist-item">
                         <button
+                          type="button"
                           className="checklist-toggle"
                           onClick={() =>
                             void toggleChecklist(c, 'subtask', subtask.id)
                           }
+                          aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
                         >
                           {c.completed ? (
                             <CheckSquare size={14} className="accent" />
@@ -157,12 +162,13 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
           style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}
         >
           <button
+            type="button"
             className="action-btn"
             onClick={(e) => {
               e.stopPropagation();
               setConfirmDelete(true);
             }}
-            title="タスク削除"
+            aria-label={`タスク「${task.content}」を削除`}
           >
             <Trash2 size={14} />
           </button>

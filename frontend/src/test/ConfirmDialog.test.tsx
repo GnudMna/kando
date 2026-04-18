@@ -12,6 +12,7 @@ describe('ConfirmDialog', () => {
         onCancel={() => {}}
       />
     );
+    expect(screen.getByRole('dialog', { name: '削除の確認' })).toBeInTheDocument();
     expect(screen.getByText('本当に削除しますか？')).toBeInTheDocument();
   });
 
@@ -43,16 +44,14 @@ describe('ConfirmDialog', () => {
 
   it('オーバーレイクリックで onCancel が呼ばれること', () => {
     const onCancel = vi.fn();
-    const { container } = render(
+    render(
       <ConfirmDialog
         message="削除しますか？"
         onConfirm={() => {}}
         onCancel={onCancel}
       />
     );
-    // オーバーレイ（modal-overlay クラス）をクリックする
-    const overlay = container.ownerDocument.querySelector('.modal-overlay');
-    if (overlay) fireEvent.click(overlay);
+    fireEvent.click(screen.getByTestId('confirm-dialog-overlay'));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

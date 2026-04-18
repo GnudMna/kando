@@ -211,9 +211,16 @@ export function KanbanBoard() {
         >
           <Plus size={14} /> ステータスを追加
         </button>
-        <button className="action-btn" onClick={() =>
-          confirmAction(`「${row.title}」行を削除しますか？配下のすべてのタスクも削除されます。`, () => void removeRow(row.id))
-        }>
+        <button
+          className="action-btn"
+          aria-label={`行「${row.title}」を削除`}
+          onClick={() =>
+            confirmAction(
+              `「${row.title}」行を削除しますか？配下のすべてのタスクも削除されます。`,
+              () => void removeRow(row.id)
+            )
+          }
+        >
           <Trash2 size={16} />
         </button>
       </div>
@@ -332,6 +339,7 @@ export function KanbanBoard() {
                                 )}
                                 <button
                                   className="action-btn"
+                                  aria-label={`列「${column.title}」を削除`}
                                   onClick={() =>
                                     confirmAction(
                                       `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
