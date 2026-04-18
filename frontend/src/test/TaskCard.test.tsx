@@ -82,8 +82,9 @@ describe('TaskCard', () => {
     );
 
     // 未完了のチェックリストボタンをクリック
-    const toggleButtons = screen.getAllByRole('button', { name: '' });
-    fireEvent.click(toggleButtons[0]);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'チェックリスト「チェック項目A」を完了にする' })
+    );
 
     await waitFor(() => {
       expect(api.updateChecklistItem).toHaveBeenCalledWith(101, { completed: true });
@@ -107,8 +108,9 @@ describe('TaskCard', () => {
         onTaskUpdated={onTaskUpdated}
       />
     );
-    const toggleButtons = screen.getAllByRole('button', { name: '' });
-    fireEvent.click(toggleButtons[0]);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'チェックリスト「チェック項目A」を完了にする' })
+    );
 
     await waitFor(() => {
       expect(onTaskUpdated).not.toHaveBeenCalled();
@@ -117,7 +119,7 @@ describe('TaskCard', () => {
 
   it('削除ボタンをクリックすると確認ダイアログが表示されること', () => {
     render(<TaskCard {...defaultProps} />);
-    const deleteBtn = screen.getByTitle('タスク削除');
+    const deleteBtn = screen.getByRole('button', { name: 'タスク「テストタスク」を削除' });
     fireEvent.click(deleteBtn);
     expect(screen.getByText('「テストタスク」を削除しますか？')).toBeInTheDocument();
     expect(screen.getByText('削除する')).toBeInTheDocument();
@@ -125,14 +127,14 @@ describe('TaskCard', () => {
 
   it('確認ダイアログで削除を確定すると onDeleteTask が呼ばれること', () => {
     render(<TaskCard {...defaultProps} />);
-    fireEvent.click(screen.getByTitle('タスク削除'));
+    fireEvent.click(screen.getByRole('button', { name: 'タスク「テストタスク」を削除' }));
     fireEvent.click(screen.getByText('削除する'));
     expect(defaultProps.onDeleteTask).toHaveBeenCalledWith(10, 1);
   });
 
   it('確認ダイアログでキャンセルすると onDeleteTask が呼ばれないこと', () => {
     render(<TaskCard {...defaultProps} />);
-    fireEvent.click(screen.getByTitle('タスク削除'));
+    fireEvent.click(screen.getByRole('button', { name: 'タスク「テストタスク」を削除' }));
     fireEvent.click(screen.getByText('キャンセル'));
     expect(defaultProps.onDeleteTask).not.toHaveBeenCalled();
   });
@@ -156,8 +158,11 @@ describe('TaskCard', () => {
       />
     );
 
-    const toggleButtons = screen.getAllByRole('button', { name: '' });
-    fireEvent.click(toggleButtons[0]);
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'サブタスク「サブタスク1」のチェックリスト「サブチェック」を完了にする',
+      })
+    );
 
     await waitFor(() => {
       expect(api.updateChecklistItem).toHaveBeenCalledWith(301, { completed: true });

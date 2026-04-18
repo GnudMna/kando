@@ -1,6 +1,6 @@
 // タスク編集モーダルコンポーネント
 // タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Plus, CheckSquare, Square, CornerDownRight } from 'lucide-react';
 import type { Task, LocalTask, LocalSubtask, LocalChecklistItem, TempId } from '../types';
@@ -52,6 +52,8 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // 保存中エラーとローディング状態
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const modalTitleId = useId();
+  const taskContentInputId = useId();
 
   /**
    * ローカルの編集内容を API に保存してモーダルを閉じる。
@@ -282,18 +284,25 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
   return createPortal(
     <div className="modal-overlay">
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={modalTitleId}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">タスクを編集</h3>
-          <button className="action-btn" onClick={onClose}>
+          <h3 id={modalTitleId} className="modal-title">タスクを編集</h3>
+          <button type="button" className="action-btn" onClick={onClose} aria-label="編集モーダルを閉じる">
             <X size={18} />
           </button>
         </div>
 
         <div className="modal-body">
           <div className="modal-section">
-            <label className="modal-label">タスク内容</label>
+            <label htmlFor={taskContentInputId} className="modal-label">タスク内容</label>
             <textarea
+              id={taskContentInputId}
               className="task-content-input"
               value={localTask.content}
               onChange={(e) =>
@@ -311,8 +320,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               {localTask.checklists.map((c) => (
                 <div key={c.id} className="checklist-item">
                   <button
+                    type="button"
                     className="checklist-toggle"
                     onClick={() => toggleChecklist(c.id, 'task')}
+                    aria-label={`チェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
                   >
                     {c.completed ? (
                       <CheckSquare size={14} className="accent" />
@@ -328,8 +339,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                     {c.content}
                   </span>
                   <button
+                    type="button"
                     className="checklist-del modal-del-btn"
                     onClick={() => removeChecklist(c.id, 'task')}
+                    aria-label={`チェックリスト「${c.content}」を削除`}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -348,6 +361,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               />
             ) : (
               <button
+                type="button"
                 className="text-btn text-muted"
                 style={{ marginTop: '0.5rem' }}
                 onClick={() => {
@@ -406,8 +420,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                     )}
                   </div>
                   <button
+                    type="button"
                     className="action-btn"
                     onClick={() => removeSubtask(subtask.id)}
+                    aria-label={`サブタスク「${subtask.content}」を削除`}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -420,8 +436,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   {subtask.checklists.map((c) => (
                     <div key={c.id} className="checklist-item">
                       <button
+                        type="button"
                         className="checklist-toggle"
                         onClick={() => toggleChecklist(c.id, 'subtask', subtask.id)}
+                        aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
                       >
                         {c.completed ? (
                           <CheckSquare size={14} className="accent" />
@@ -439,8 +457,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                         {c.content}
                       </span>
                       <button
+                        type="button"
                         className="checklist-del modal-del-btn"
                         onClick={() => removeChecklist(c.id, 'subtask', subtask.id)}
+                        aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を削除`}
                       >
                         <Trash2 size={12} />
                       </button>
@@ -462,6 +482,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   </div>
                 ) : (
                   <button
+                    type="button"
                     className="text-btn text-muted"
                     style={{ marginLeft: '1.25rem', marginTop: '0.25rem' }}
                     onClick={() => {
@@ -494,6 +515,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                 />
                 <div className="form-actions">
                   <button
+                    type="button"
                     className="btn btn-primary"
                     style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                     onClick={addSubtask}
@@ -501,6 +523,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                     追加
                   </button>
                   <button
+                    type="button"
                     className="btn"
                     style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                     onClick={() => {
@@ -514,6 +537,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               </div>
             ) : (
               <button
+                type="button"
                 className="text-btn text-muted"
                 style={{ marginTop: '0.5rem' }}
                 onClick={() => setAddingSubtask(true)}
@@ -530,7 +554,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               {saveError}
             </span>
           )}
-          <button className="btn btn-primary" onClick={() => void saveAndClose()} disabled={isSaving}>
+          <button type="button" className="btn btn-primary" onClick={() => void saveAndClose()} disabled={isSaving}>
             {isSaving ? '保存中...' : '保存して閉じる'}
           </button>
         </div>
@@ -572,6 +596,7 @@ function ChecklistInput({ value, onChange, onAdd, onCancel }: ChecklistInputProp
       />
       <div className="form-actions">
         <button
+          type="button"
           className="btn btn-primary"
           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
           onClick={onAdd}
@@ -579,6 +604,7 @@ function ChecklistInput({ value, onChange, onAdd, onCancel }: ChecklistInputProp
           追加
         </button>
         <button
+          type="button"
           className="btn"
           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
           onClick={onCancel}
