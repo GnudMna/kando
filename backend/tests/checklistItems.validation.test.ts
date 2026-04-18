@@ -1,3 +1,5 @@
+// checklist_items の親参照検証ロジックのユニットテスト
+// task_id / subtask_id の排他制約と整数バリデーションを確認する
 import { describe, it, expect } from "vitest";
 import { validateChecklistParentRefs } from "../routes/checklistItems";
 

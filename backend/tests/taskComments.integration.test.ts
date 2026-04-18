@@ -17,9 +17,30 @@ type MockedPool = {
   query: MockFn;
   connect: MockFn;
 };
+type MockedClient = {
+  query: MockFn;
+  release: MockFn;
+};
 
 const mockedPool = pool as unknown as MockedPool;
 
+/**
+ * `pool.connect()` 用のモッククライアントを作成して接続結果に設定する。
+ * @returns クエリ/リリースを検証できるモッククライアント
+ */
+function setupConnectedClient(): MockedClient {
+  const client: MockedClient = {
+    query: vi.fn(),
+    release: vi.fn(),
+  };
+  mockedPool.connect.mockResolvedValueOnce(client);
+  return client;
+}
+
+/**
+ * task-comments ルーター統合テスト用の Express アプリを生成する。
+ * @returns task-comments API をマウントした Express アプリ
+ */
 function createApp() {
   const app = express();
   app.use(express.json());
@@ -41,20 +62,27 @@ describe("task-comments router integration", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: "'task_id' is required" });
     expect(mockedPool.query).not.toHaveBeenCalled();
+    expect(mockedPool.connect).not.toHaveBeenCalled();
   });
 
   it("POST /api/task-comments は有効入力なら作成して 200 を返す", async () => {
-    mockedPool.query.mockResolvedValueOnce({
-      rows: [
-        {
-          id: 1,
-          task_id: 10,
-          content: "最初のコメント",
-          created_at: "2026-04-18T00:00:00.000Z",
-          position: 1000,
-        },
-      ],
-    });
+    const client = setupConnectedClient();
+    client.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 10 }] })
+      .mockResolvedValueOnce({ rows: [{ next_position: 1000 }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 1,
+            task_id: 10,
+            content: "最初のコメント",
+            created_at: "2026-04-18T00:00:00.000Z",
+            position: 1000,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
 
     const res = await request(createApp())
       .post("/api/task-comments")
@@ -69,9 +97,25 @@ describe("task-comments router integration", () => {
       position: 1000,
     });
 
-    const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
-    expect(sql).toContain("INSERT INTO task_comments");
-    expect(params).toEqual([10, "最初のコメント"]);
+    expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
+      [10],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM task_comments WHERE task_id = $1",
+      [10],
+    );
+    const [insertSql, insertParams] = client.query.mock.calls[3] as [
+      string,
+      unknown[],
+    ];
+    expect(insertSql).toContain("INSERT INTO task_comments");
+    expect(insertParams).toEqual([10, "最初のコメント", 1000]);
+    expect(client.query).toHaveBeenNthCalledWith(5, "COMMIT");
+    expect(client.release).toHaveBeenCalledTimes(1);
   });
 
   it("PUT /api/task-comments/:id は更新対象が存在しない場合 404 を返す", async () => {
@@ -156,7 +200,7 @@ describe("task-comments router integration", () => {
   });
 
   it("DELETE /api/task-comments/:id は削除して success を返す", async () => {
-    mockedPool.query.mockResolvedValueOnce({ rows: [] });
+    mockedPool.query.mockResolvedValueOnce({ rowCount: 1, rows: [] });
 
     const res = await request(createApp()).delete("/api/task-comments/3");
 
@@ -165,6 +209,19 @@ describe("task-comments router integration", () => {
     expect(mockedPool.query).toHaveBeenCalledWith(
       "DELETE FROM task_comments WHERE id = $1",
       [3],
+    );
+  });
+
+  it("DELETE /api/task-comments/:id は対象が存在しない場合 404 を返す", async () => {
+    mockedPool.query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const res = await request(createApp()).delete("/api/task-comments/999");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Comment not found" });
+    expect(mockedPool.query).toHaveBeenCalledWith(
+      "DELETE FROM task_comments WHERE id = $1",
+      [999],
     );
   });
 });

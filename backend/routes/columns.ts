@@ -14,6 +14,13 @@ router.post(
     position: { type: "number", required: true, positive: true },
     row_id: { type: "number", required: true, integer: true, positive: true },
   }),
+  /**
+   * カラムを作成する。
+   * @param req - `title` `position` `row_id` を含むリクエスト
+   * @param res - 作成したカラムを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { title, position, row_id } = req.body as {
       title: string;
@@ -38,6 +45,13 @@ router.put(
   validateBody({
     title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
   }),
+  /**
+   * カラムタイトルを更新する。
+   * @param req - パスパラメータ `id` と本文 `title` を含むリクエスト
+   * @param res - 更新後カラムを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -67,6 +81,13 @@ router.put(
   validateBody({
     position: { type: "number", required: true, positive: true },
   }),
+  /**
+   * カラムの表示順を更新する。
+   * @param req - パスパラメータ `id` と本文 `position` を含むリクエスト
+   * @param res - 更新後カラムを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -93,6 +114,13 @@ router.put(
 // カラムを削除する（配下のタスクも CASCADE で削除される）: DELETE /api/columns/:id
 router.delete(
   "/:id",
+  /**
+   * カラムを削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -100,7 +128,13 @@ router.delete(
       return;
     }
     try {
-      await pool.query("DELETE FROM columns WHERE id = $1", [id]);
+      const result = await pool.query("DELETE FROM columns WHERE id = $1", [
+        id,
+      ]);
+      if ((result.rowCount ?? 0) === 0) {
+        res.status(404).json({ error: "Column not found" });
+        return;
+      }
       res.json({ success: true });
     } catch (err) {
       next(err);

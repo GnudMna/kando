@@ -4,15 +4,16 @@ Kando のバックエンド API（Express + TypeScript + PostgreSQL）です。
 
 ## 役割
 
-- かんばんボード全体データの取得 (`/api/board`)
+- ボード階層（rows -> columns -> tasks -> subtasks/checklists/comments）の取得
 - 行・カラム・タスク・サブタスク・チェックリスト・コメントの CRUD
-- アプリ起動時の DB 初期化（テーブル作成・既存スキーマ補完・初期データ投入）
+- タスク編集内容の一括保存（`PUT /api/tasks/:id/snapshot`）
+- マイグレーションによるスキーマ更新と初期データ投入
 
 ## 必要環境
 
 - Node.js 20+
 - npm 10+
-- PostgreSQL（Docker Compose 利用時は PostgreSQL 18）
+- PostgreSQL
 
 ## セットアップ
 
@@ -20,29 +21,14 @@ Kando のバックエンド API（Express + TypeScript + PostgreSQL）です。
 npm install
 ```
 
-## 開発起動
-
-```bash
-npm run dev
-```
-
-デフォルト URL: http://localhost:3001
-
-## 本番起動
-
-```bash
-npm run build
-npm run start
-```
-
 ## 環境変数
 
-| 変数名 | 必須 | 説明 | 既定値 |
-| --- | --- | --- | --- |
-| `DATABASE_URL` | はい | PostgreSQL 接続文字列 | なし |
-| `PORT` | いいえ | API サーバー待ち受けポート | `3001` |
-| `NODE_ENV` | いいえ | 実行環境（`production` で挙動が変化） | `development` |
-| `CORS_ORIGIN` | 条件付き | CORS 許可オリジン。`NODE_ENV=production` の場合は必須 | `*`（production 以外） |
+| 変数名         | 必須     | 説明                                                | 既定値                 |
+| -------------- | -------- | --------------------------------------------------- | ---------------------- |
+| `DATABASE_URL` | はい     | PostgreSQL 接続文字列                               | なし                   |
+| `PORT`         | いいえ   | API 待ち受けポート                                  | `3001`                 |
+| `NODE_ENV`     | いいえ   | 実行環境 (`production` で挙動変更)                  | `development`          |
+| `CORS_ORIGIN`  | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須） | `*`（production 以外） |
 
 `.env` 例:
 
@@ -53,95 +39,159 @@ NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
 ```
 
-## API エンドポイント
+## 起動方法
 
-ベースパスは `/api` です。
+### 開発
+
+```bash
+npm run migrate:dev
+npm run dev
+```
+
+### 本番
+
+```bash
+npm run build
+npm run migrate
+npm run start
+```
+
+## マイグレーション
+
+```bash
+# TypeScript を直接実行
+npm run migrate:dev
+
+# ビルド済み dist/migrate.js を実行
+npm run migrate
+```
+
+このマイグレーションは以下を実施します。
+
+- テーブル作成（rows, columns, tasks, subtasks, checklist_items, task_comments）
+- 既存 DB 向け `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+- 一覧取得最適化のインデックス作成
+- 初回起動時の初期データ投入
+
+## API エンドポイント
 
 ### ヘルスチェック
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `GET` | `/health` | DB 接続を含むヘルスチェック |
+| メソッド | パス          | 説明                        |
+| -------- | ------------- | --------------------------- |
+| `GET`    | `/api/health` | DB 接続を含むヘルスチェック |
 
 ### ボード取得
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `GET` | `/board` | rows -> columns -> tasks -> subtasks/checklists/comments の階層で返却 |
+| メソッド | パス         | 説明                   |
+| -------- | ------------ | ---------------------- |
+| `GET`    | `/api/board` | 行単位で階層構造を返却 |
+
+クエリパラメータ（任意）:
+
+- `row_id`: 正の整数
+- `limit`: `1` 〜 `100`
+- `offset`: `0` 以上の整数
 
 ### rows
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `POST` | `/rows` | 行を作成 |
-| `POST` | `/rows/with-default-columns` | 行 + デフォルト3カラム（未着手/進行中/完了）を作成 |
-| `PUT` | `/rows/:id` | 行タイトルを更新 |
-| `DELETE` | `/rows/:id` | 行を削除（配下を CASCADE 削除） |
+| メソッド | パス                             | 説明                     |
+| -------- | -------------------------------- | ------------------------ |
+| `POST`   | `/api/rows`                      | 行を作成                 |
+| `POST`   | `/api/rows/with-default-columns` | 行 + デフォルト3列を作成 |
+| `PUT`    | `/api/rows/:id`                  | 行タイトル更新           |
+| `DELETE` | `/api/rows/:id`                  | 行削除（配下は CASCADE） |
 
 ### columns
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `POST` | `/columns` | カラムを作成 |
-| `PUT` | `/columns/:id` | カラムタイトルを更新 |
-| `PUT` | `/columns/:id/move` | カラムの並び順（position）を更新 |
-| `DELETE` | `/columns/:id` | カラムを削除（配下タスクを CASCADE 削除） |
+| メソッド | パス                    | 説明                               |
+| -------- | ----------------------- | ---------------------------------- |
+| `POST`   | `/api/columns`          | カラム作成                         |
+| `PUT`    | `/api/columns/:id`      | カラムタイトル更新                 |
+| `PUT`    | `/api/columns/:id/move` | カラム並び順更新                   |
+| `DELETE` | `/api/columns/:id`      | カラム削除（配下タスクは CASCADE） |
 
 ### tasks
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `POST` | `/tasks` | タスクを作成 |
-| `PUT` | `/tasks/:id` | タスク本文・期限を更新 |
-| `PUT` | `/tasks/:id/move` | タスクの所属カラム・並び順を更新 |
-| `DELETE` | `/tasks/:id` | タスクを削除（配下を CASCADE 削除） |
+| メソッド | パス                      | 説明                         |
+| -------- | ------------------------- | ---------------------------- |
+| `POST`   | `/api/tasks`              | タスク作成                   |
+| `PUT`    | `/api/tasks/:id`          | タスク本文・期限更新         |
+| `PUT`    | `/api/tasks/:id/snapshot` | タスク詳細を一括保存         |
+| `PUT`    | `/api/tasks/:id/move`     | 所属カラム・並び順更新       |
+| `DELETE` | `/api/tasks/:id`          | タスク削除（配下は CASCADE） |
 
 補足:
 
-- `due_date` は `YYYY-MM-DD` 形式で受け付けます。
+- `due_date` は `YYYY-MM-DD` 形式（`null` で解除可）
 
 ### subtasks
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `POST` | `/subtasks` | サブタスクを作成 |
-| `PUT` | `/subtasks/:id` | サブタスク本文を更新 |
-| `DELETE` | `/subtasks/:id` | サブタスクを削除（配下チェックリストを CASCADE 削除） |
+| メソッド | パス                | 説明                                           |
+| -------- | ------------------- | ---------------------------------------------- |
+| `POST`   | `/api/subtasks`     | サブタスク作成                                 |
+| `PUT`    | `/api/subtasks/:id` | サブタスク本文更新                             |
+| `DELETE` | `/api/subtasks/:id` | サブタスク削除（配下チェックリストは CASCADE） |
 
 ### checklist-items
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `POST` | `/checklist-items` | チェックリスト項目を作成 |
-| `PUT` | `/checklist-items/:id` | 項目本文・完了状態・並び順を更新 |
-| `DELETE` | `/checklist-items/:id` | 項目を削除 |
+| メソッド | パス                       | 説明                           |
+| -------- | -------------------------- | ------------------------------ |
+| `POST`   | `/api/checklist-items`     | チェックリスト項目作成         |
+| `PUT`    | `/api/checklist-items/:id` | 項目本文・完了状態・並び順更新 |
+| `DELETE` | `/api/checklist-items/:id` | 項目削除                       |
 
 補足:
 
-- `task_id` と `subtask_id` はどちらか一方のみ指定可能です。
+- `task_id` と `subtask_id` は **どちらか一方のみ** 指定可能
 
 ### task-comments
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| `POST` | `/task-comments` | コメントを作成 |
-| `PUT` | `/task-comments/:id` | コメント本文・並び順を更新 |
-| `DELETE` | `/task-comments/:id` | コメントを削除 |
+| メソッド | パス                     | 説明                     |
+| -------- | ------------------------ | ------------------------ |
+| `POST`   | `/api/task-comments`     | コメント作成             |
+| `PUT`    | `/api/task-comments/:id` | コメント本文・並び順更新 |
+| `DELETE` | `/api/task-comments/:id` | コメント削除             |
+
+## タスクスナップショット保存 API
+
+`PUT /api/tasks/:id/snapshot` は、編集モーダル全体を 1 回で保存するための API です。
+タスク本体、サブタスク、チェックリスト、コメントを単一トランザクションで同期します。
+
+リクエスト例:
+
+```json
+{
+  "content": "タスク本文",
+  "due_date": "2026-12-01",
+  "checklists": [{ "id": 21, "content": "項目", "completed": false }],
+  "subtasks": [
+    {
+      "id": 11,
+      "content": "サブタスク",
+      "checklists": [{ "content": "新規サブ項目", "completed": false }]
+    }
+  ],
+  "comments": [{ "content": "新しいコメント" }]
+}
+```
 
 ## npm scripts
 
-| コマンド | 説明 |
-| --- | --- |
-| `npm run dev` | 開発サーバー起動（`tsx watch server.ts`） |
-| `npm run build` | TypeScript をビルドして `dist/` を生成 |
-| `npm run start` | `dist/server.js` を起動 |
-| `npm run lint` | ESLint 実行 |
-| `npm run lint:fix` | ESLint 自動修正 |
-| `npm run format` | Prettier 整形 |
-| `npm run typecheck` | TypeScript 型チェック |
-| `npm run test` | バックエンドテスト一式を実行 |
-| `npm run test:integration` | 統合テストのみ実行 |
-| `npm run test:watch` | Vitest watch モード |
+| コマンド                   | 説明                                      |
+| -------------------------- | ----------------------------------------- |
+| `npm run migrate:dev`      | マイグレーションを TypeScript で実行      |
+| `npm run migrate`          | ビルド済みマイグレーションを実行          |
+| `npm run dev`              | 開発サーバー起動（`tsx watch server.ts`） |
+| `npm run build`            | TypeScript ビルド (`dist/` 生成)          |
+| `npm run start`            | 本番サーバー起動 (`dist/server.js`)       |
+| `npm run lint`             | ESLint 実行                               |
+| `npm run lint:fix`         | ESLint 自動修正                           |
+| `npm run format`           | Prettier 整形                             |
+| `npm run typecheck`        | TypeScript 型チェック                     |
+| `npm run test`             | テスト実行                                |
+| `npm run test:integration` | 統合テスト実行                            |
+| `npm run test:watch`       | Vitest watch                              |
 
 ## テスト
 
@@ -149,7 +199,7 @@ CORS_ORIGIN=http://localhost:5173
 npm run test
 ```
 
-統合テストだけ実行する場合:
+統合テストのみ:
 
 ```bash
 npm run test:integration
@@ -160,9 +210,10 @@ npm run test:integration
 ```text
 backend/
 ├── middleware/   # エラーハンドリング / ロギング / バリデーション
-├── routes/       # API ルート定義
+├── routes/       # API ルーティング
 ├── tests/        # Vitest テスト
-├── db.ts         # DB 接続と初期化
+├── db.ts         # DB 接続と接続待機
+├── migrate.ts    # マイグレーション
 ├── server.ts     # Express エントリーポイント
-└── types.ts      # DB/レスポンス型定義
+└── types.ts      # 型定義
 ```

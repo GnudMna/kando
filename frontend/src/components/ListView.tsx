@@ -22,10 +22,12 @@ interface Props {
  * 全タスクを行 → ステータス列の半平リスト形式で表示する。
  * サブタスクとチェックリストもインデント付きで列挙する。
  * @param rows - ボード全体の行データ
+ * @param dueSoonDays - 期限間近として扱う日数しきい値
  * @param onRowHeaderRender - 行ヘッダーのレンダリング関数
  * @param onTaskClick - タスククリック時のコールバック
  * @param onDeleteTask - タスク削除コールバック
  * @param onAddTask - タスク追加コールバック
+ * @returns リストビューの JSX 要素
  */
 export function ListView({
   rows,

@@ -1,3 +1,5 @@
+// taskSearch ユーティリティのユニットテスト
+// タスク一致判定・階層フィルタ・件数集計の挙動を検証する
 import { describe, it, expect } from "vitest";
 import type { Row, Task } from "../types";
 import {
@@ -6,6 +8,7 @@ import {
   taskMatchesQuery,
 } from "../utils/taskSearch";
 
+// ネスト構造（サブタスク/チェックリスト/コメント）を含む検索対象タスク
 const baseTask: Task = {
   id: 1,
   column_id: 10,
@@ -50,6 +53,7 @@ const baseTask: Task = {
   ],
 };
 
+// 期限日を持つ別タスク
 const secondTask: Task = {
   id: 2,
   column_id: 11,
@@ -61,6 +65,7 @@ const secondTask: Task = {
   comments: [],
 };
 
+// 複数行・複数カラムを含むテスト用ボード
 const rows: Row[] = [
   {
     id: 1,

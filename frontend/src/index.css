@@ -935,6 +935,7 @@ body::after {
   color: var(--text-primary);
   line-height: 1.35;
   word-break: break-word;
+  white-space: pre-wrap;
   font-size: 0.85rem;
 }
 
@@ -1300,9 +1301,8 @@ body::after {
   min-width: 0;
   color: var(--text-primary);
   font-size: 0.85rem;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .list-view-col-status {

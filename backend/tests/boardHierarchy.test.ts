@@ -1,3 +1,5 @@
+// buildBoardHierarchy の純粋関数テスト
+// フラットな DB レコード群から期待するネスト構造へ変換できることを検証する
 import { describe, it, expect } from "vitest";
 import { buildBoardHierarchy } from "../routes/board";
 import type {

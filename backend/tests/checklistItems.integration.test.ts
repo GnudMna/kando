@@ -17,9 +17,30 @@ type MockedPool = {
   query: MockFn;
   connect: MockFn;
 };
+type MockedClient = {
+  query: MockFn;
+  release: MockFn;
+};
 
 const mockedPool = pool as unknown as MockedPool;
 
+/**
+ * `pool.connect()` で返すモッククライアントを用意し、1回分だけ接続を差し込む。
+ * @returns クエリ/リリースを検証できるモッククライアント
+ */
+function setupConnectedClient(): MockedClient {
+  const client: MockedClient = {
+    query: vi.fn(),
+    release: vi.fn(),
+  };
+  mockedPool.connect.mockResolvedValueOnce(client);
+  return client;
+}
+
+/**
+ * checklist-items ルーター統合テスト用の Express アプリを生成する。
+ * @returns checklist-items API をマウントした Express アプリ
+ */
 function createApp() {
   const app = express();
   app.use(express.json());
@@ -43,6 +64,7 @@ describe("checklist-items router integration", () => {
       error: "Exactly one of 'task_id' or 'subtask_id' is required",
     });
     expect(mockedPool.query).not.toHaveBeenCalled();
+    expect(mockedPool.connect).not.toHaveBeenCalled();
   });
 
   it("POST /api/checklist-items は参照先が未指定なら 400 を返す", async () => {
@@ -55,20 +77,28 @@ describe("checklist-items router integration", () => {
       error: "Exactly one of 'task_id' or 'subtask_id' is required",
     });
     expect(mockedPool.query).not.toHaveBeenCalled();
+    expect(mockedPool.connect).not.toHaveBeenCalled();
   });
 
   it("POST /api/checklist-items は有効入力なら作成して 200 を返す", async () => {
-    mockedPool.query.mockResolvedValueOnce({
-      rows: [
-        {
-          id: 10,
-          task_id: 1,
-          subtask_id: null,
-          content: "項目",
-          completed: false,
-        },
-      ],
-    });
+    const client = setupConnectedClient();
+    client.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [{ next_position: 1000 }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 10,
+            task_id: 1,
+            subtask_id: null,
+            content: "項目",
+            completed: false,
+            position: 1000,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
 
     const res = await request(createApp())
       .post("/api/checklist-items")
@@ -81,11 +111,83 @@ describe("checklist-items router integration", () => {
       subtask_id: null,
       content: "項目",
       completed: false,
+      position: 1000,
     });
 
-    const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
-    expect(sql).toContain("INSERT INTO checklist_items");
-    expect(params).toEqual([1, null, "項目"]);
+    expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
+      [1],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE task_id = $1",
+      [1],
+    );
+    const [insertSql, insertParams] = client.query.mock.calls[3] as [
+      string,
+      unknown[],
+    ];
+    expect(insertSql).toContain("INSERT INTO checklist_items");
+    expect(insertParams).toEqual([1, null, "項目", 1000]);
+    expect(client.query).toHaveBeenNthCalledWith(5, "COMMIT");
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("POST /api/checklist-items は subtask_id 指定時もロックして採番する", async () => {
+    const client = setupConnectedClient();
+    client.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 20 }] })
+      .mockResolvedValueOnce({ rows: [{ next_position: 2000 }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 11,
+            task_id: null,
+            subtask_id: 20,
+            content: "サブタスク項目",
+            completed: false,
+            position: 2000,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(createApp())
+      .post("/api/checklist-items")
+      .send({ subtask_id: 20, content: "サブタスク項目" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      id: 11,
+      task_id: null,
+      subtask_id: 20,
+      content: "サブタスク項目",
+      completed: false,
+      position: 2000,
+    });
+
+    expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      "SELECT id FROM subtasks WHERE id = $1 FOR UPDATE",
+      [20],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE subtask_id = $1",
+      [20],
+    );
+    const [insertSql, insertParams] = client.query.mock.calls[3] as [
+      string,
+      unknown[],
+    ];
+    expect(insertSql).toContain("INSERT INTO checklist_items");
+    expect(insertParams).toEqual([null, 20, "サブタスク項目", 2000]);
+    expect(client.query).toHaveBeenNthCalledWith(5, "COMMIT");
+    expect(client.release).toHaveBeenCalledTimes(1);
   });
 
   it("PUT /api/checklist-items/:id は更新対象が空なら 400 を返す", async () => {

@@ -25,6 +25,10 @@ type MockedPool = {
 
 const mockedPool = pool as unknown as MockedPool;
 
+/**
+ * rows ルーター統合テスト用の Express アプリを生成する。
+ * @returns rows API をマウントした Express アプリ
+ */
 function createApp() {
   const app = express();
   app.use(express.json());

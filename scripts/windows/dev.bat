@@ -34,6 +34,16 @@ if not exist "frontend\node_modules" (
 )
 echo.
 
+REM バックエンドの DB マイグレーションを実行
+echo バックエンドの DB マイグレーションを実行しています...
+call npm --prefix backend run migrate:dev
+if errorlevel 1 (
+    echo バックエンドの DB マイグレーションに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
 REM バックエンドを開発モードで起動
 echo バックエンドAPIを起動しています (Port 3001)...
 start "Kando Backend" cmd /k "cd /d %PROJECT_ROOT%\backend && npm run dev"

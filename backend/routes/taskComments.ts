@@ -18,23 +18,47 @@ router.post(
       maxLength: 2000,
     },
   }),
+  /**
+   * タスクコメントを作成する。
+   * @param req - `task_id` と `content` を含むリクエスト
+   * @param res - 作成したコメントを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { task_id, content } = req.body as {
       task_id: number;
       content: string;
     };
+    const client = await pool.connect();
     try {
-      const result = await pool.query<DbTaskComment>(
-        `INSERT INTO task_comments (task_id, content, position)
-         SELECT $1, $2, COALESCE(MAX(position), 0) + 1000
-         FROM task_comments
-         WHERE task_id = $1
-         RETURNING *`,
-        [task_id, content],
+      await client.query("BEGIN");
+      // 同一 task への同時追加を直列化して position の重複採番を防ぐ。
+      await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [
+        task_id,
+      ]);
+      const nextPositionResult = await client.query<{ next_position: number }>(
+        "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM task_comments WHERE task_id = $1",
+        [task_id],
       );
+      const nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+
+      const result = await client.query<DbTaskComment>(
+        "INSERT INTO task_comments (task_id, content, position) VALUES ($1, $2, $3) RETURNING *",
+        [task_id, content, nextPosition],
+      );
+
+      await client.query("COMMIT");
       res.json(result.rows[0]);
     } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback failed:", rollbackErr);
+      }
       next(err);
+    } finally {
+      client.release();
     }
   },
 );
@@ -54,6 +78,13 @@ router.put(
       positive: true,
     },
   }),
+  /**
+   * タスクコメントを更新する。
+   * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
+   * @param res - 更新後コメントを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -112,6 +143,13 @@ router.put(
 // コメントを削除する: DELETE /api/task-comments/:id
 router.delete(
   "/:id",
+  /**
+   * タスクコメントを削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -119,7 +157,14 @@ router.delete(
       return;
     }
     try {
-      await pool.query("DELETE FROM task_comments WHERE id = $1", [id]);
+      const result = await pool.query(
+        "DELETE FROM task_comments WHERE id = $1",
+        [id],
+      );
+      if ((result.rowCount ?? 0) === 0) {
+        res.status(404).json({ error: "Comment not found" });
+        return;
+      }
       res.json({ success: true });
     } catch (err) {
       next(err);

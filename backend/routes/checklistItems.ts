@@ -14,6 +14,9 @@ type ChecklistParentValidationResult =
 /**
  * checklist_items の親参照（task_id / subtask_id）を検証する。
  * どちらか一方のみ指定されることを必須とする。
+ * @param taskIdRaw - リクエストボディの `task_id`
+ * @param subtaskIdRaw - リクエストボディの `subtask_id`
+ * @returns 正常時は親 ID を含む結果、異常時はエラーメッセージを含む結果
  */
 export function validateChecklistParentRefs(
   taskIdRaw: unknown,
@@ -49,6 +52,13 @@ router.post(
   validateBody({
     content: { type: "string", required: true, notEmpty: true, maxLength: 500 },
   }),
+  /**
+   * チェックリスト項目を作成する。
+   * @param req - 本文 `content` と親参照（`task_id` または `subtask_id`）を含むリクエスト
+   * @param res - 作成した項目を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { content } = req.body as { content: string };
     const body = req.body as Record<string, unknown>;
@@ -61,19 +71,56 @@ router.post(
       return;
     }
 
+    const client = await pool.connect();
     try {
-      const result = await pool.query<DbChecklistItem>(
-        `INSERT INTO checklist_items (task_id, subtask_id, content, position)
-         SELECT $1, $2, $3, COALESCE(MAX(position), 0) + 1000
-         FROM checklist_items
-         WHERE ($1::integer IS NOT NULL AND task_id = $1)
-            OR ($2::integer IS NOT NULL AND subtask_id = $2)
-         RETURNING *`,
-        [parentRefs.taskId, parentRefs.subtaskId, content],
+      await client.query("BEGIN");
+
+      // 同一親への同時追加を直列化して position の重複採番を防ぐ。
+      let nextPosition = 1000;
+      if (parentRefs.taskId !== null) {
+        await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [
+          parentRefs.taskId,
+        ]);
+        const nextPositionResult = await client.query<{
+          next_position: number;
+        }>(
+          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE task_id = $1",
+          [parentRefs.taskId],
+        );
+        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+      } else {
+        const subtaskId = parentRefs.subtaskId;
+        if (subtaskId === null) {
+          throw new Error("Invalid checklist parent refs");
+        }
+        await client.query("SELECT id FROM subtasks WHERE id = $1 FOR UPDATE", [
+          subtaskId,
+        ]);
+        const nextPositionResult = await client.query<{
+          next_position: number;
+        }>(
+          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE subtask_id = $1",
+          [subtaskId],
+        );
+        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+      }
+
+      const result = await client.query<DbChecklistItem>(
+        "INSERT INTO checklist_items (task_id, subtask_id, content, position) VALUES ($1, $2, $3, $4) RETURNING *",
+        [parentRefs.taskId, parentRefs.subtaskId, content, nextPosition],
       );
+
+      await client.query("COMMIT");
       res.json(result.rows[0]);
     } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback failed:", rollbackErr);
+      }
       next(err);
+    } finally {
+      client.release();
     }
   },
 );
@@ -86,6 +133,13 @@ router.put(
     completed: { type: "boolean" },
     position: { type: "number", finite: true },
   }),
+  /**
+   * チェックリスト項目を更新する。
+   * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
+   * @param res - 更新後項目を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -155,6 +209,13 @@ router.put(
 // チェックリスト項目を削除する: DELETE /api/checklist-items/:id
 router.delete(
   "/:id",
+  /**
+   * チェックリスト項目を削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -162,7 +223,14 @@ router.delete(
       return;
     }
     try {
-      await pool.query("DELETE FROM checklist_items WHERE id = $1", [id]);
+      const result = await pool.query(
+        "DELETE FROM checklist_items WHERE id = $1",
+        [id],
+      );
+      if ((result.rowCount ?? 0) === 0) {
+        res.status(404).json({ error: "Checklist item not found" });
+        return;
+      }
       res.json({ success: true });
     } catch (err) {
       next(err);

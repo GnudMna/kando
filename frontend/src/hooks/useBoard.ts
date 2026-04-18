@@ -7,6 +7,44 @@ import * as api from "../api/boardApi";
 // タスク・カラム・行の position 間隔。新規追加時はこの値を加算する
 const POSITION_GAP = 1000;
 
+type ColumnLocation = {
+  rowIndex: number;
+  columnIndex: number;
+};
+
+type BoardIndexes = {
+  rowIndexById: Map<number, number>;
+  columnLocationByDroppableId: Map<string, ColumnLocation>;
+};
+
+/**
+ * 行配列から検索用インデックスを構築する。
+ * @param rows - ボード行配列
+ * @returns 行 ID とドロップ領域 ID を高速参照するためのインデックス
+ */
+function buildBoardIndexes(rows: Row[]): BoardIndexes {
+  const rowIndexById = new Map<number, number>();
+  const columnLocationByDroppableId = new Map<string, ColumnLocation>();
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex];
+    rowIndexById.set(row.id, rowIndex);
+
+    for (let columnIndex = 0; columnIndex < row.columns.length; columnIndex++) {
+      const column = row.columns[columnIndex];
+      columnLocationByDroppableId.set(column.id.toString(), {
+        rowIndex,
+        columnIndex,
+      });
+    }
+  }
+
+  return {
+    rowIndexById,
+    columnLocationByDroppableId,
+  };
+}
+
 /**
  * かんばんボードの状態管理カスタムフック。
  * rows の CRUD およびタスク移動のロジックを提供する。
@@ -17,10 +55,16 @@ export function useBoard() {
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [operationError, setOperationError] = useState<string | null>(null);
-  // 最新の rows を ref で保持し、コールバックの deps から rows を除去する
+  // 最新の rows と派生インデックスを ref で保持し、コールバックの deps から rows を除去する
   const rowsRef = useRef<Row[]>([]);
+  const boardIndexesRef = useRef<BoardIndexes>({
+    rowIndexById: new Map<number, number>(),
+    columnLocationByDroppableId: new Map<string, ColumnLocation>(),
+  });
+
   useEffect(() => {
     rowsRef.current = rows;
+    boardIndexesRef.current = buildBoardIndexes(rows);
   }, [rows]);
 
   const clearError = useCallback(() => setOperationError(null), []);
@@ -28,6 +72,7 @@ export function useBoard() {
   /**
    * API からボードデータを取得して rows を更新する。
    * 失敗時はコンソールエラーのみ出力し UI は維持する。
+   * @returns 読み込み完了時に解決される Promise
    */
   const loadBoard = useCallback(async () => {
     setIsLoading(true);
@@ -51,6 +96,7 @@ export function useBoard() {
   /**
    * 新しい行を作成する。行とデフォルト3カラムをバックエンドで一括作成する。
    * @param title - 行のタイトル
+   * @returns 作成処理完了時に解決される Promise
    */
   const addRow = useCallback(async (title: string) => {
     try {
@@ -71,6 +117,7 @@ export function useBoard() {
    * 行のタイトルを変更する。
    * @param rowId - 対象行 ID
    * @param title - 新たなタイトル
+   * @returns 更新完了時に解決される Promise
    */
   const renameRow = useCallback(async (rowId: number, title: string) => {
     try {
@@ -87,6 +134,7 @@ export function useBoard() {
   /**
    * 行を削除する（配下のカラム・タスクも連鎖削除）。
    * @param rowId - 削除対象の行 ID
+   * @returns 削除完了時に解決される Promise
    */
   const removeRow = useCallback(async (rowId: number) => {
     try {
@@ -103,6 +151,7 @@ export function useBoard() {
    * position は既存カラムの最大 position + 1000 となる。
    * @param rowId - カラムを追加する行 ID
    * @param title - 新たなカラムタイトル
+   * @returns 追加完了時に解決される Promise
    */
   const addColumn = useCallback(async (rowId: number, title: string) => {
     try {
@@ -130,6 +179,7 @@ export function useBoard() {
    * カラムのタイトルを変更する。
    * @param colId - 対象カラム ID
    * @param title - 新たなタイトル
+   * @returns 更新完了時に解決される Promise
    */
   const renameColumn = useCallback(async (colId: number, title: string) => {
     try {
@@ -149,6 +199,7 @@ export function useBoard() {
   /**
    * カラムを削除する（配下タスクも連鎖削除）。
    * @param colId - 削除対象のカラム ID
+   * @returns 削除完了時に解決される Promise
    */
   const removeColumn = useCallback(async (colId: number) => {
     try {
@@ -209,6 +260,7 @@ export function useBoard() {
    * タスクを削除して state からも取り除く。
    * @param colId - タスクが属するカラム ID
    * @param taskId - 削除するタスク ID
+   * @returns 削除完了時に解決される Promise
    */
   const removeTask = useCallback(async (colId: number, taskId: number) => {
     try {
@@ -233,6 +285,7 @@ export function useBoard() {
    * state 内の特定タスクを更新済みデータに置き換える。
    * API 呼び出しは呼び出し側が完了後に呼び出すこと。
    * @param updatedTask - 更新済み Task オブジェクト
+   * @returns なし
    */
   const updateTask = useCallback((updatedTask: Task) => {
     setRows((prev) =>
@@ -255,6 +308,7 @@ export function useBoard() {
    * @param srcIndex - 移動元カラムインデックス
    * @param dstIndex - 移動先カラムインデックス
    * @param colId - 移動するカラム ID
+   * @returns 移動処理完了時に解決される Promise
    */
   const moveColumn = useCallback(
     async (
@@ -264,14 +318,25 @@ export function useBoard() {
       colId: number,
     ) => {
       const rows = rowsRef.current;
-      const rowIdx = rows.findIndex((r) => r.id === rowId);
-      if (rowIdx === -1) return;
+      const rowIdx = boardIndexesRef.current.rowIndexById.get(rowId);
+      if (rowIdx === undefined) return;
+
+      const row = rows[rowIdx];
+      if (!row) return;
+      if (
+        srcIndex < 0 ||
+        srcIndex >= row.columns.length ||
+        dstIndex < 0 ||
+        dstIndex >= row.columns.length
+      ) {
+        return;
+      }
 
       const prevRows = rows;
-      const newRows = structuredClone(rows) as Row[];
-      const cols = newRows[rowIdx].columns;
+      const cols = [...row.columns];
 
       const [movedCol] = cols.splice(srcIndex, 1);
+      if (!movedCol) return;
       cols.splice(dstIndex, 0, movedCol);
 
       const prev = cols[dstIndex - 1];
@@ -287,7 +352,9 @@ export function useBoard() {
         newPosition = POSITION_GAP;
       }
       cols[dstIndex] = { ...movedCol, position: newPosition };
-      newRows[rowIdx].columns = cols;
+
+      const newRows = [...rows];
+      newRows[rowIdx] = { ...row, columns: cols };
       setRows(newRows);
 
       try {
@@ -309,6 +376,7 @@ export function useBoard() {
    * @param srcIndex - 移動元のタスクリスト内インデックス
    * @param dstIndex - 移動先のタスクリスト内インデックス
    * @param taskId - 移動するタスク ID
+   * @returns 移動処理完了時に解決される Promise
    */
   const moveTask = useCallback(
     async (
@@ -318,32 +386,42 @@ export function useBoard() {
       dstIndex: number,
       taskId: number,
     ) => {
-      // カラム ID 文字列から rows 内の位置（行インデックス・列インデックス）を探す
       const rows = rowsRef.current;
-      const findCol = (id: string) => {
-        for (const row of rows) {
-          const idx = row.columns.findIndex((c) => c.id.toString() === id);
-          if (idx !== -1) return { ri: rows.indexOf(row), ci: idx };
-        }
-        return null;
-      };
-
-      const srcInfo = findCol(srcDroppableId);
-      const dstInfo = findCol(dstDroppableId);
+      const indexMap = boardIndexesRef.current.columnLocationByDroppableId;
+      const srcInfo = indexMap.get(srcDroppableId);
+      const dstInfo = indexMap.get(dstDroppableId);
       if (!srcInfo || !dstInfo) return;
+
+      const srcRow = rows[srcInfo.rowIndex];
+      const dstRow = rows[dstInfo.rowIndex];
+      if (!srcRow || !dstRow) return;
+
+      const srcCol = srcRow.columns[srcInfo.columnIndex];
+      const dstCol = dstRow.columns[dstInfo.columnIndex];
+      if (!srcCol || !dstCol) return;
+
+      const isSameCol = srcDroppableId === dstDroppableId;
+      const maxDstIndex = isSameCol
+        ? srcCol.tasks.length - 1
+        : dstCol.tasks.length;
+      if (
+        srcIndex < 0 ||
+        srcIndex >= srcCol.tasks.length ||
+        dstIndex < 0 ||
+        dstIndex > maxDstIndex
+      ) {
+        return;
+      }
 
       // 楽観的更新用に現在の state を退避しておく
       const prevRows = rows;
-      const newRows = structuredClone(rows) as Row[];
-      const srcTasks = newRows[srcInfo.ri].columns[srcInfo.ci].tasks;
-      const isSameCol = srcDroppableId === dstDroppableId;
-      const dstTasks = isSameCol
-        ? srcTasks
-        : newRows[dstInfo.ri].columns[dstInfo.ci].tasks;
-      const destColId = newRows[dstInfo.ri].columns[dstInfo.ci].id;
+      const srcTasks = [...srcCol.tasks];
+      const dstTasks = isSameCol ? srcTasks : [...dstCol.tasks];
+      const destColId = dstCol.id;
 
       // 移動元から取り出して移動先に挿入する
       const [movedTask] = srcTasks.splice(srcIndex, 1);
+      if (!movedTask) return;
       dstTasks.splice(dstIndex, 0, movedTask);
 
       // 移動後の隣タスクの position から中間値を計算する（他のタスクは変更しない）
@@ -365,10 +443,53 @@ export function useBoard() {
         position: newPosition,
       };
 
-      newRows[dstInfo.ri].columns[dstInfo.ci].tasks = dstTasks;
-      if (!isSameCol) {
-        newRows[srcInfo.ri].columns[srcInfo.ci].tasks = srcTasks;
+      const newRows = [...rows];
+      if (isSameCol) {
+        const nextColumns = [...srcRow.columns];
+        nextColumns[srcInfo.columnIndex] = {
+          ...srcCol,
+          tasks: dstTasks,
+        };
+        newRows[srcInfo.rowIndex] = {
+          ...srcRow,
+          columns: nextColumns,
+        };
+      } else if (srcInfo.rowIndex === dstInfo.rowIndex) {
+        const nextColumns = [...srcRow.columns];
+        nextColumns[srcInfo.columnIndex] = {
+          ...srcCol,
+          tasks: srcTasks,
+        };
+        nextColumns[dstInfo.columnIndex] = {
+          ...dstCol,
+          tasks: dstTasks,
+        };
+        newRows[srcInfo.rowIndex] = {
+          ...srcRow,
+          columns: nextColumns,
+        };
+      } else {
+        const nextSrcColumns = [...srcRow.columns];
+        nextSrcColumns[srcInfo.columnIndex] = {
+          ...srcCol,
+          tasks: srcTasks,
+        };
+        newRows[srcInfo.rowIndex] = {
+          ...srcRow,
+          columns: nextSrcColumns,
+        };
+
+        const nextDstColumns = [...dstRow.columns];
+        nextDstColumns[dstInfo.columnIndex] = {
+          ...dstCol,
+          tasks: dstTasks,
+        };
+        newRows[dstInfo.rowIndex] = {
+          ...dstRow,
+          columns: nextDstColumns,
+        };
       }
+
       setRows(newRows);
 
       try {

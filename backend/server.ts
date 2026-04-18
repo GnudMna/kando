@@ -3,7 +3,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { initDBWithRetry, pool } from "./db.js";
+import { pool, waitForDbWithRetry } from "./db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import boardRouter from "./routes/board.js";
@@ -39,16 +39,25 @@ app.use(express.json({ limit: "100kb" }));
 app.use(requestLogger);
 
 // ヘルスチェックエンドポイント（ロードバランサー・コンテナオーケストレーター向け）
-app.get("/api/health", async (_req, res) => {
-  try {
-    await pool.query("SELECT 1");
-    res.json({ status: "ok" });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`Health check failed: ${message}`);
-    res.status(503).json({ status: "error" });
-  }
-});
+app.get(
+  "/api/health",
+  /**
+   * API の稼働状態と DB 疎通を確認する。
+   * @param _req - Express リクエスト（使用しない）
+   * @param res - ヘルスチェック結果を返すレスポンス
+   * @returns 応答完了時に解決される Promise
+   */
+  async (_req, res) => {
+    try {
+      await pool.query("SELECT 1");
+      res.json({ status: "ok" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Health check failed: ${message}`);
+      res.status(503).json({ status: "error" });
+    }
+  },
+);
 
 // 各リソースのAPIルートを登録する
 app.use("/api/board", boardRouter);
@@ -64,16 +73,20 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT ?? 3001;
 
+/**
+ * DB 接続確認後に HTTP サーバーを起動する。
+ * @returns 起動処理完了時に解決される Promise
+ */
 async function startServer(): Promise<void> {
   try {
-    // DB 初期化が完了するまで API の待ち受けを開始しない
-    await initDBWithRetry();
+    // DB 接続可能になるまで待機し、待ち受け開始前の起動失敗を避ける
+    await waitForDbWithRetry();
     app.listen(PORT, () => {
       console.log(`Backend listening on port ${PORT}`);
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`FATAL: Unable to initialize database: ${message}`);
+    console.error(`FATAL: Unable to connect database: ${message}`);
     process.exit(1);
   }
 }
