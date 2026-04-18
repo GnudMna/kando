@@ -40,8 +40,13 @@ async function initDB(): Promise<void> {
         id SERIAL PRIMARY KEY,
         column_id INTEGER REFERENCES columns(id) ON DELETE CASCADE,
         content TEXT NOT NULL,
+        due_date DATE,
         position FLOAT NOT NULL
       );
+    `);
+    // tasks に期限（due_date）カラムを追加する（既存 DB へのマイグレーション対応）
+    await client.query(`
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date DATE;
     `);
     // タスクコメントテーブルを作成する
     await client.query(`

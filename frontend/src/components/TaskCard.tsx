@@ -8,14 +8,21 @@ import {
   Square,
   CornerDownRight,
   MessageSquare,
+  CalendarDays,
 } from "lucide-react";
 import type { Task } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";
 import * as api from "../api/boardApi";
+import {
+  formatDueDate,
+  getDueStatusLabel,
+  type DueHighlightResult,
+} from "../utils/dueDate";
 
 interface Props {
   task: Task;
   columnId: number;
+  dueHighlight: DueHighlightResult;
   onDeleteTask: (colId: number, taskId: number) => void;
   onTaskUpdated: (task: Task) => void;
   onEditTask: (task: Task) => void;
@@ -34,11 +41,17 @@ interface Props {
 export const TaskCard = memo(function TaskCard({
   task,
   columnId,
+  dueHighlight,
   onDeleteTask,
   onTaskUpdated,
   onEditTask,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const dueLabel = getDueStatusLabel(dueHighlight);
+  const dueClass =
+    dueHighlight.status === "none"
+      ? ""
+      : ` task-due-date-${dueHighlight.status}`;
 
   /**
    * チェックリスト項目の完了状態を切り替えて API に保存する。
@@ -94,6 +107,20 @@ export const TaskCard = memo(function TaskCard({
         >
           {task.content}
         </button>
+
+        {task.due_date && (
+          <div className={`task-due-date text-muted${dueClass}`}>
+            <CalendarDays size={13} />
+            <span>{formatDueDate(task.due_date)}</span>
+            {dueLabel && (
+              <span
+                className={`task-due-state task-due-state-${dueHighlight.status}`}
+              >
+                {dueLabel}
+              </span>
+            )}
+          </div>
+        )}
 
         {task.comments.length > 0 && (
           <div className="task-comment-summary text-muted">
