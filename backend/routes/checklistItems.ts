@@ -58,7 +58,12 @@ router.post(
 
     try {
       const result = await pool.query<DbChecklistItem>(
-        'INSERT INTO checklist_items (task_id, subtask_id, content) VALUES ($1, $2, $3) RETURNING *',
+        `INSERT INTO checklist_items (task_id, subtask_id, content, position)
+         SELECT $1, $2, $3, COALESCE(MAX(position), 0) + 1000
+         FROM checklist_items
+         WHERE ($1::integer IS NOT NULL AND task_id = $1)
+            OR ($2::integer IS NOT NULL AND subtask_id = $2)
+         RETURNING *`,
         [parentRefs.taskId, parentRefs.subtaskId, content]
       );
       res.json(result.rows[0]);
@@ -68,19 +73,21 @@ router.post(
   }
 );
 
-// チェックリスト項目の内容・完了状態を更新する: PUT /api/checklist-items/:id
+// チェックリスト項目の内容・完了状態・並び順を更新する: PUT /api/checklist-items/:id
 router.put(
   '/:id',
   validateBody({
     content: { type: 'string', notEmpty: true, maxLength: 500 },
     completed: { type: 'boolean' },
+    position: { type: 'number', finite: true },
   }),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) { res.status(400).json({ error: 'Invalid ID' }); return; }
-    const { completed, content } = req.body as {
+    const { completed, content, position } = req.body as {
       completed?: boolean | null;
       content?: string | null;
+      position?: number | null;
     };
 
     if (content === null) {
@@ -89,6 +96,10 @@ router.put(
     }
     if (completed === null) {
       res.status(400).json({ error: "'completed' must be a boolean" });
+      return;
+    }
+    if (position === null) {
+      res.status(400).json({ error: "'position' must be a number" });
       return;
     }
 
@@ -104,6 +115,10 @@ router.put(
     if (content !== undefined) {
       fields.push(`content = $${idx++}`);
       vals.push(content);
+    }
+    if (position !== undefined) {
+      fields.push(`position = $${idx++}`);
+      vals.push(position);
     }
 
     // 更新フィールドが1つもない場合はエラー

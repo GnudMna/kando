@@ -61,6 +61,14 @@ async function initDB(): Promise<void> {
         completed BOOLEAN DEFAULT false
       );
     `);
+    // checklist_items に並び替え用の position カラムを追加する（既存 DB へのマイグレーション対応）
+    await client.query(`
+      ALTER TABLE checklist_items ADD COLUMN IF NOT EXISTS position FLOAT NOT NULL DEFAULT 0;
+    `);
+    // position が未設定（0）の既存行に連番で位置を割り当てる
+    await client.query(`
+      UPDATE checklist_items SET position = id * 1000 WHERE position = 0;
+    `);
     // checklist_items は task_id / subtask_id のどちらか一方のみを保持する
     await client.query(`
       DO $$

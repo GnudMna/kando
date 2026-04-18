@@ -13,6 +13,7 @@ export interface ChecklistItem {
   subtask_id: number | null;
   content: string;
   completed: boolean;
+  position: number;
 }
 
 // サブタスク（タスク配下の子タスク、API レスポンス・永続化済みデータ）

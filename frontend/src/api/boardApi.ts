@@ -143,11 +143,11 @@ export const createChecklistItem = (
 /**
  * チェックリスト項目の content または completed を更新する。
  * @param id 項目 ID
- * @param patch 更新するフィールド（completed または content）
+ * @param patch 更新するフィールド（completed、content、または position）
  */
 export const updateChecklistItem = (
   id: number,
-  patch: { completed?: boolean; content?: string }
+  patch: { completed?: boolean; content?: string; position?: number }
 ): Promise<ChecklistItem> =>
   request<ChecklistItem>(`${API_URL}/checklist-items/${id}`, json('PUT', patch));
 

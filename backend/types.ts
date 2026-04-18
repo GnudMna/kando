@@ -33,6 +33,7 @@ export interface DbChecklistItem {
   subtask_id: number | null;
   content: string;
   completed: boolean;
+  position: number;
 }
 
 // API レスポンス型（ネストされたデータ込み）

@@ -88,7 +88,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       pool.query<DbColumn>('SELECT * FROM columns ORDER BY position ASC'),
       pool.query<DbTask>('SELECT * FROM tasks ORDER BY position ASC'),
       pool.query<DbSubtask>('SELECT * FROM subtasks ORDER BY id ASC'),
-      pool.query<DbChecklistItem>('SELECT * FROM checklist_items ORDER BY id ASC'),
+      pool.query<DbChecklistItem>('SELECT * FROM checklist_items ORDER BY position ASC'),
     ]);
 
     // Map を使って線形時間で階層構造を構築する

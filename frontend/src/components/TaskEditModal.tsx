@@ -1,8 +1,8 @@
 // タスク編集モーダルコンポーネント
 // タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
-import { useId, useState } from 'react';
+import { useId, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Trash2, Plus, CheckSquare, Square, CornerDownRight } from 'lucide-react';
+import { X, Trash2, Plus, CheckSquare, Square, CornerDownRight, GripVertical } from 'lucide-react';
 import type { Task, LocalTask, LocalSubtask, LocalChecklistItem, TempId } from '../types';
 import * as api from '../api/boardApi';
 
@@ -48,6 +48,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   const [addingSubtask, setAddingSubtask] = useState(false);
   // チェックリスト追加フォームの表示状態（'task' | subtaskId | null）
   const [addingChecklist, setAddingChecklist] = useState<'task' | number | TempId | null>(null);
+  // チェックリストドラッグ状態：親キー（'task' または subtaskId）とインデックス
+  const dragState = useRef<{ parentKey: 'task' | number | TempId; index: number } | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<{ parentKey: 'task' | number | TempId; index: number } | null>(null);
   const [newChecklistContent, setNewChecklistContent] = useState('');
   // 保存中エラーとローディング状態
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -94,13 +97,22 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
       // タスク直下のチェックリストを保存する
       for (let i = 0; i < final.checklists.length; i++) {
         const c = final.checklists[i];
+        const expectedPosition = (i + 1) * 1000;
         if (isTemp(c.id)) {
           const created = await api.createChecklistItem(c.content, task.id, null);
-          final.checklists[i] = { ...c, id: created.id };
+          // 作成後に position を確定値に更新する
+          if (created.position !== expectedPosition) {
+            await api.updateChecklistItem(created.id, { position: expectedPosition });
+            created.position = expectedPosition;
+          }
+          final.checklists[i] = { ...c, id: created.id, position: created.position };
         } else {
           const orig = task.checklists.find((oc) => oc.id === c.id);
-          if (orig && orig.completed !== c.completed) {
-            await api.updateChecklistItem(c.id as number, { completed: c.completed });
+          const patch: { completed?: boolean; position?: number } = {};
+          if (orig && orig.completed !== c.completed) patch.completed = c.completed;
+          if (orig && orig.position !== expectedPosition) patch.position = expectedPosition;
+          if (Object.keys(patch).length > 0) {
+            await api.updateChecklistItem(c.id as number, patch);
           }
         }
       }
@@ -113,13 +125,21 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
         const origSub = task.subtasks.find((s) => s.id === subId) ?? null;
         for (let j = 0; j < sub.checklists.length; j++) {
           const c = sub.checklists[j];
+          const expectedPosition = (j + 1) * 1000;
           if (isTemp(c.id)) {
             const created = await api.createChecklistItem(c.content, null, subId);
-            final.subtasks[i].checklists[j] = { ...c, id: created.id };
+            if (created.position !== expectedPosition) {
+              await api.updateChecklistItem(created.id, { position: expectedPosition });
+              created.position = expectedPosition;
+            }
+            final.subtasks[i].checklists[j] = { ...c, id: created.id, position: created.position };
           } else if (origSub) {
             const origC = origSub.checklists.find((oc) => oc.id === c.id);
-            if (origC && origC.completed !== c.completed) {
-              await api.updateChecklistItem(c.id as number, { completed: c.completed });
+            const patch: { completed?: boolean; position?: number } = {};
+            if (origC && origC.completed !== c.completed) patch.completed = c.completed;
+            if (origC && origC.position !== expectedPosition) patch.position = expectedPosition;
+            if (Object.keys(patch).length > 0) {
+              await api.updateChecklistItem(c.id as number, patch);
             }
           }
         }
@@ -215,6 +235,38 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     });
     setNewChecklistContent('');
     setAddingChecklist(null);
+  };
+
+  /**
+   * ドラッグ&ドロップでチェックリスト項目を並び替える。
+   * @param parentKey - 'task' またはサブタスク ID
+   * @param fromIndex - ドラッグ元インデックス
+   * @param toIndex - ドロップ先インデックス
+   */
+  const moveChecklistItem = (
+    parentKey: 'task' | number | TempId,
+    fromIndex: number,
+    toIndex: number
+  ) => {
+    if (fromIndex === toIndex) return;
+    setLocalTask((prev) => {
+      if (parentKey === 'task') {
+        const checklists = [...prev.checklists];
+        const [item] = checklists.splice(fromIndex, 1);
+        checklists.splice(toIndex, 0, item);
+        return { ...prev, checklists };
+      }
+      return {
+        ...prev,
+        subtasks: prev.subtasks.map((s) => {
+          if (s.id !== parentKey) return s;
+          const checklists = [...s.checklists];
+          const [item] = checklists.splice(fromIndex, 1);
+          checklists.splice(toIndex, 0, item);
+          return { ...s, checklists };
+        }),
+      };
+    });
   };
 
   /**
@@ -317,8 +369,38 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
           <div className="modal-section">
             <label className="modal-label">チェックリスト</label>
             <div className="task-checklists">
-              {localTask.checklists.map((c) => (
-                <div key={c.id} className="checklist-item">
+              {localTask.checklists.map((c, i) => (
+                <div
+                  key={c.id}
+                  className={[
+                    'checklist-item',
+                    dragOverKey?.parentKey === 'task' && dragOverKey.index === i ? 'checklist-drag-over' : '',
+                  ].join(' ').trim()}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    dragState.current = { parentKey: 'task', index: i };
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverKey({ parentKey: 'task', index: i });
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragState.current?.parentKey === 'task') {
+                      moveChecklistItem('task', dragState.current.index, i);
+                    }
+                    dragState.current = null;
+                    setDragOverKey(null);
+                  }}
+                  onDragEnd={() => {
+                    dragState.current = null;
+                    setDragOverKey(null);
+                  }}
+                >
+                  <span className="checklist-drag-handle" aria-hidden="true">
+                    <GripVertical size={12} />
+                  </span>
                   <button
                     type="button"
                     className="checklist-toggle"
@@ -433,8 +515,38 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   className="task-checklists"
                   style={{ marginLeft: '1.25rem', marginTop: '0.25rem' }}
                 >
-                  {subtask.checklists.map((c) => (
-                    <div key={c.id} className="checklist-item">
+                  {subtask.checklists.map((c, j) => (
+                    <div
+                      key={c.id}
+                      className={[
+                        'checklist-item',
+                        dragOverKey?.parentKey === subtask.id && dragOverKey.index === j ? 'checklist-drag-over' : '',
+                      ].join(' ').trim()}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        dragState.current = { parentKey: subtask.id, index: j };
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverKey({ parentKey: subtask.id, index: j });
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragState.current?.parentKey === subtask.id) {
+                          moveChecklistItem(subtask.id, dragState.current.index, j);
+                        }
+                        dragState.current = null;
+                        setDragOverKey(null);
+                      }}
+                      onDragEnd={() => {
+                        dragState.current = null;
+                        setDragOverKey(null);
+                      }}
+                    >
+                      <span className="checklist-drag-handle" aria-hidden="true">
+                        <GripVertical size={12} />
+                      </span>
                       <button
                         type="button"
                         className="checklist-toggle"
