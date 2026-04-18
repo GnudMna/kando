@@ -34,9 +34,11 @@ interface Props {
  * チェック状態の即時切り替えおよび削除確認ダイアログを提供する。
  * @param task - 表示するタスクデータ
  * @param columnId - タスクが属するカラム ID
+ * @param dueHighlight - 期限強調状態
  * @param onDeleteTask - タスク削除コールバック
  * @param onTaskUpdated - タスク更新時のコールバック
  * @param onEditTask - タスク編集開始時のコールバック
+ * @returns タスクカードの JSX 要素
  */
 export const TaskCard = memo(function TaskCard({
   task,
@@ -59,6 +61,7 @@ export const TaskCard = memo(function TaskCard({
    * @param item - 対象チェックリスト項目（id と completed が必要）
    * @param type - 'タスク直下' なら 'task'、'サブタスク配下' なら 'subtask'
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
+   * @returns 更新処理完了時に解決される Promise
    */
   const toggleChecklist = async (
     item: { id: number; completed: boolean },

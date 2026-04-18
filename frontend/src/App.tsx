@@ -8,6 +8,10 @@ type ThemeMode = "dark" | "light";
 
 const THEME_STORAGE_KEY = "kando-theme";
 
+/**
+ * アプリケーションのルートレイアウトを描画する。
+ * @returns ルートアプリの JSX 要素
+ */
 function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "dark";

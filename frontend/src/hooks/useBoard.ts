@@ -17,6 +17,11 @@ type BoardIndexes = {
   columnLocationByDroppableId: Map<string, ColumnLocation>;
 };
 
+/**
+ * 行配列から検索用インデックスを構築する。
+ * @param rows - ボード行配列
+ * @returns 行 ID とドロップ領域 ID を高速参照するためのインデックス
+ */
 function buildBoardIndexes(rows: Row[]): BoardIndexes {
   const rowIndexById = new Map<number, number>();
   const columnLocationByDroppableId = new Map<string, ColumnLocation>();
@@ -67,6 +72,7 @@ export function useBoard() {
   /**
    * API からボードデータを取得して rows を更新する。
    * 失敗時はコンソールエラーのみ出力し UI は維持する。
+   * @returns 読み込み完了時に解決される Promise
    */
   const loadBoard = useCallback(async () => {
     setIsLoading(true);
@@ -90,6 +96,7 @@ export function useBoard() {
   /**
    * 新しい行を作成する。行とデフォルト3カラムをバックエンドで一括作成する。
    * @param title - 行のタイトル
+   * @returns 作成処理完了時に解決される Promise
    */
   const addRow = useCallback(async (title: string) => {
     try {
@@ -110,6 +117,7 @@ export function useBoard() {
    * 行のタイトルを変更する。
    * @param rowId - 対象行 ID
    * @param title - 新たなタイトル
+   * @returns 更新完了時に解決される Promise
    */
   const renameRow = useCallback(async (rowId: number, title: string) => {
     try {
@@ -126,6 +134,7 @@ export function useBoard() {
   /**
    * 行を削除する（配下のカラム・タスクも連鎖削除）。
    * @param rowId - 削除対象の行 ID
+   * @returns 削除完了時に解決される Promise
    */
   const removeRow = useCallback(async (rowId: number) => {
     try {
@@ -142,6 +151,7 @@ export function useBoard() {
    * position は既存カラムの最大 position + 1000 となる。
    * @param rowId - カラムを追加する行 ID
    * @param title - 新たなカラムタイトル
+   * @returns 追加完了時に解決される Promise
    */
   const addColumn = useCallback(async (rowId: number, title: string) => {
     try {
@@ -169,6 +179,7 @@ export function useBoard() {
    * カラムのタイトルを変更する。
    * @param colId - 対象カラム ID
    * @param title - 新たなタイトル
+   * @returns 更新完了時に解決される Promise
    */
   const renameColumn = useCallback(async (colId: number, title: string) => {
     try {
@@ -188,6 +199,7 @@ export function useBoard() {
   /**
    * カラムを削除する（配下タスクも連鎖削除）。
    * @param colId - 削除対象のカラム ID
+   * @returns 削除完了時に解決される Promise
    */
   const removeColumn = useCallback(async (colId: number) => {
     try {
@@ -248,6 +260,7 @@ export function useBoard() {
    * タスクを削除して state からも取り除く。
    * @param colId - タスクが属するカラム ID
    * @param taskId - 削除するタスク ID
+   * @returns 削除完了時に解決される Promise
    */
   const removeTask = useCallback(async (colId: number, taskId: number) => {
     try {
@@ -272,6 +285,7 @@ export function useBoard() {
    * state 内の特定タスクを更新済みデータに置き換える。
    * API 呼び出しは呼び出し側が完了後に呼び出すこと。
    * @param updatedTask - 更新済み Task オブジェクト
+   * @returns なし
    */
   const updateTask = useCallback((updatedTask: Task) => {
     setRows((prev) =>
@@ -294,6 +308,7 @@ export function useBoard() {
    * @param srcIndex - 移動元カラムインデックス
    * @param dstIndex - 移動先カラムインデックス
    * @param colId - 移動するカラム ID
+   * @returns 移動処理完了時に解決される Promise
    */
   const moveColumn = useCallback(
     async (
@@ -361,6 +376,7 @@ export function useBoard() {
    * @param srcIndex - 移動元のタスクリスト内インデックス
    * @param dstIndex - 移動先のタスクリスト内インデックス
    * @param taskId - 移動するタスク ID
+   * @returns 移動処理完了時に解決される Promise
    */
   const moveTask = useCallback(
     async (

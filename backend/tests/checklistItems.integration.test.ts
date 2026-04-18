@@ -24,6 +24,10 @@ type MockedClient = {
 
 const mockedPool = pool as unknown as MockedPool;
 
+/**
+ * `pool.connect()` で返すモッククライアントを用意し、1回分だけ接続を差し込む。
+ * @returns クエリ/リリースを検証できるモッククライアント
+ */
 function setupConnectedClient(): MockedClient {
   const client: MockedClient = {
     query: vi.fn(),
@@ -33,6 +37,10 @@ function setupConnectedClient(): MockedClient {
   return client;
 }
 
+/**
+ * checklist-items ルーター統合テスト用の Express アプリを生成する。
+ * @returns checklist-items API をマウントした Express アプリ
+ */
 function createApp() {
   const app = express();
   app.use(express.json());

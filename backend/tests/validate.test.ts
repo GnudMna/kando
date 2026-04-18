@@ -4,6 +4,10 @@ import { parseId, validateBody } from "../middleware/validate";
 import type { Request, Response, NextFunction } from "express";
 
 // テスト用のモック Express レスポンスオブジェクトを生成するヘルパー
+/**
+ * レスポンス検証用の簡易モックを作成する。
+ * @returns `statusCode` と `body` を保持するモック Response
+ */
 function mockRes() {
   const res = {
     statusCode: 200,

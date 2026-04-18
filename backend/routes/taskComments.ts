@@ -18,6 +18,13 @@ router.post(
       maxLength: 2000,
     },
   }),
+  /**
+   * タスクコメントを作成する。
+   * @param req - `task_id` と `content` を含むリクエスト
+   * @param res - 作成したコメントを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { task_id, content } = req.body as {
       task_id: number;
@@ -71,6 +78,13 @@ router.put(
       positive: true,
     },
   }),
+  /**
+   * タスクコメントを更新する。
+   * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
+   * @param res - 更新後コメントを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -129,6 +143,13 @@ router.put(
 // コメントを削除する: DELETE /api/task-comments/:id
 router.delete(
   "/:id",
+  /**
+   * タスクコメントを削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {

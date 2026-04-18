@@ -29,6 +29,11 @@ const DUE_SOON_DAYS_STORAGE_KEY = "kando-due-soon-days";
 const DEFAULT_DUE_SOON_DAYS = 3;
 const MAX_DUE_SOON_DAYS = 30;
 
+/**
+ * 期限間近の設定値を UI で扱う範囲へ正規化する。
+ * @param value - 入力値
+ * @returns 0 以上 MAX 以下の整数日
+ */
 function normalizeDueSoonDays(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_DUE_SOON_DAYS;
   return Math.max(0, Math.min(MAX_DUE_SOON_DAYS, Math.floor(value)));
@@ -57,6 +62,7 @@ interface ConfirmState {
  * かんばんボードのメインコンポーネント。
  * 行・カラム・タスクのレンダリング、ドラッグ&ドロップ操作、カンバンビュー・リストビューの切り替え、
  * タスク編集モーダルおよび削除確認ダイアログの表示を管理する。
+ * @returns かんばんボード UI の JSX 要素
  */
 export function KanbanBoard() {
   const {
@@ -115,6 +121,7 @@ export function KanbanBoard() {
    * 確認ダイアログを表示するヘルパー。
    * @param message - 確認メッセージ
    * @param onConfirm - 確定時のコールバック
+   * @returns なし
    */
   const confirmAction = useCallback(
     (message: string, onConfirm: () => void) => {
@@ -126,6 +133,7 @@ export function KanbanBoard() {
   /**
    * 確認ダイアログの「削除する」ボタン押下時のハンドラー。
    * コールバックを実行してダイアログを閉じる。
+   * @returns なし
    */
   const handleConfirm = useCallback(() => {
     confirmState?.onConfirm();
@@ -136,6 +144,7 @@ export function KanbanBoard() {
    * @hello-pangea/dnd のドラッグ終了イベントハンドラー。
    * ドロップ先が有効な場合のみタスク移動を実行する。
    * @param result - DnDライブラリから渡される DropResult
+   * @returns ドラッグ処理完了時に解決される Promise
    */
   const handleDragEnd = useCallback(
     async (result: DropResult) => {
@@ -168,6 +177,7 @@ export function KanbanBoard() {
 
   /**
    * 行追加ダイアログを表示して新しい行を作成する。
+   * @returns 追加処理完了時に解決される Promise
    */
   const handleAddRow = useCallback(async () => {
     const title = prompt("行のタイトルを入力してください");
@@ -178,6 +188,7 @@ export function KanbanBoard() {
   /**
    * カラム名入力ダイアログを表示して新しいカラムを追加する。
    * @param rowId - カラムを追加する行 ID
+   * @returns 追加処理完了時に解決される Promise
    */
   const handleAddColumn = useCallback(
     async (rowId: number) => {
@@ -190,6 +201,7 @@ export function KanbanBoard() {
 
   /**
    * 行名インライン編集を確定する。内容が空の場合は保存しない。
+   * @returns 保存処理完了時に解決される Promise
    */
   const handleSaveRowTitle = useCallback(async () => {
     if (!editingRow) return;
@@ -200,6 +212,7 @@ export function KanbanBoard() {
 
   /**
    * カラム名インライン編集を確定する。内容が空の場合は保存しない。
+   * @returns 保存処理完了時に解決される Promise
    */
   const handleSaveColTitle = useCallback(async () => {
     if (!editingCol) return;
@@ -212,6 +225,7 @@ export function KanbanBoard() {
    * タスクを追加して編集モーダルを自動開く。
    * @param colId - タスクを追加するカラム ID
    * @param rowId - カラムが所属する行 ID
+   * @returns 追加処理完了時に解決される Promise
    */
   const handleAddTask = useCallback(
     async (colId: number, rowId: number) => {
@@ -225,6 +239,7 @@ export function KanbanBoard() {
    * タスク削除ハンドラー。
    * @param colId - タスクが属するカラム ID
    * @param taskId - 削除するタスク ID
+   * @returns 削除処理完了時に解決される Promise
    */
   const handleDeleteTask = useCallback(
     async (colId: number, taskId: number) => {
@@ -251,6 +266,11 @@ export function KanbanBoard() {
     };
   }, [rows]);
 
+  /**
+   * タスク編集モーダルを閉じる際の後処理を行う。
+   * @param reason - 閉じた理由（保存済み / キャンセル）
+   * @returns なし
+   */
   const handleCloseTaskModal = useCallback(
     (reason: "saved" | "dismiss") => {
       if (!editingTask) return;
@@ -268,6 +288,11 @@ export function KanbanBoard() {
     [editingTask, removeTask],
   );
 
+  /**
+   * 行ヘッダー（タイトル編集と操作ボタン）を描画する。
+   * @param row - 描画対象の行
+   * @returns 行ヘッダーの JSX 要素
+   */
   const renderRowHeader = (row: Row) => (
     <div className="board-row-header">
       {editingRow?.id === row.id ? (

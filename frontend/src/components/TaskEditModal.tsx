@@ -45,6 +45,11 @@ const POSITION_GAP = 1000;
 
 type CommentSortMode = "oldest" | "newest" | "manual";
 
+/**
+ * コメント作成日時を UI 表示向けの文字列へ整形する。
+ * @param value - ISO 形式の日時文字列
+ * @returns `ja-JP` ロケール文字列。変換失敗時は "時刻不明"
+ */
 function formatCommentTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -65,6 +70,13 @@ interface Props {
   onTaskUpdated: (task: Task) => void;
 }
 
+/**
+ * タスク詳細を編集するモーダルコンポーネント。
+ * @param task - 編集対象タスク
+ * @param onClose - モーダルを閉じるコールバック
+ * @param onTaskUpdated - 保存後タスクを反映するコールバック
+ * @returns タスク編集モーダルの JSX 要素
+ */
 export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // モーダル内のローカル編集状態（保存前は外部に影響しない）
   const [localTask, setLocalTask] = useState<LocalTask>(() => {
@@ -120,6 +132,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * ローカルの編集内容を API に保存してモーダルを閉じる。
    * タスク本体・サブタスク・チェックリスト・コメントを単一 API で一括保存する。
    * 失敗時はエラーメッセージを表示する。
+   * @returns 保存処理完了時に解決される Promise
    */
   const saveAndClose = async () => {
     setSaveError(null);
@@ -164,6 +177,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   /**
    * 新しいサブタスクをローカル state に追加する。
    * 保存は saveAndClose 呼び出し時にまとめて行う。
+   * @returns なし
    */
   const addSubtask = () => {
     if (!newSubtaskContent.trim()) return;
@@ -182,6 +196,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * サブタスクのインライン編集を確定してローカル state を更新する。
    * 内容が空の場合は編集をキャンセルする。
    * @param subtaskId - 編集対象のサブタスク ID
+   * @returns なし
    */
   const saveSubtaskEdit = (subtaskId: number | TempId) => {
     if (!editingSubtaskContent.trim()) {
@@ -200,6 +215,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   /**
    * サブタスクをローカル state から削除する。
    * @param subId - 削除対象のサブタスク ID
+   * @returns なし
    */
   const removeSubtask = (subId: number | TempId) => {
     setLocalTask((prev) => ({
@@ -212,6 +228,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * 新しいチェックリスト項目をローカル state に追加する。
    * @param type - 'task' の場合はタスク直下、'subtask' の場合はサブタスク配下に追加
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
+   * @returns なし
    */
   const addChecklistItem = (
     type: "task" | "subtask",
@@ -262,6 +279,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * @param parentKey - 'task' またはサブタスク ID
    * @param fromIndex - ドラッグ元インデックス
    * @param toIndex - ドロップ先インデックス
+   * @returns なし
    */
   const moveChecklistItem = (
     parentKey: "task" | number | TempId,
@@ -295,6 +313,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * @param itemId - 対象項目 ID
    * @param type - 'task' または 'subtask'
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
+   * @returns なし
    */
   const toggleChecklist = (
     itemId: number | TempId,
@@ -331,6 +350,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * @param itemId - 削除対象項目 ID
    * @param type - 'task' または 'subtask'
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
+   * @returns なし
    */
   const removeChecklist = (
     itemId: number | TempId,
@@ -358,6 +378,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   /**
    * 新しいコメントをローカル state に追加する。
    * 保存は saveAndClose 呼び出し時にまとめて行う。
+   * @returns なし
    */
   const addComment = () => {
     const content = newCommentContent.trim();
@@ -382,6 +403,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * コメント編集を開始する。
    * @param commentId - 編集対象のコメント ID
    * @param content - 現在のコメント内容
+   * @returns なし
    */
   const beginCommentEdit = (commentId: number | TempId, content: string) => {
     setEditingCommentId(commentId);
@@ -391,6 +413,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   /**
    * コメント編集を確定してローカル state を更新する。
    * @param commentId - 編集対象のコメント ID
+   * @returns なし
    */
   const saveCommentEdit = (commentId: number | TempId) => {
     const content = editingCommentContent.trim();
@@ -411,6 +434,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
   /**
    * コメント編集をキャンセルする。
+   * @returns なし
    */
   const cancelCommentEdit = () => {
     setEditingCommentId(null);
@@ -420,6 +444,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   /**
    * コメントをローカル state から削除する。
    * @param commentId - 削除対象のコメント ID
+   * @returns なし
    */
   const removeComment = (commentId: number | TempId) => {
     setLocalTask((prev) => ({
@@ -455,6 +480,12 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     });
   }, [localTask.comments, commentSortMode]);
 
+  /**
+   * 手動ソートモードでコメント配列を並び替える。
+   * @param fromIndex - 移動元インデックス
+   * @param toIndex - 移動先インデックス
+   * @returns なし
+   */
   const moveCommentInManualMode = (fromIndex: number, toIndex: number) => {
     if (commentSortMode !== "manual" || fromIndex === toIndex) return;
 
@@ -1122,6 +1153,7 @@ interface ChecklistInputProps {
  * @param onChange - 入力変更コールバック
  * @param onAdd - 追加確定コールバック
  * @param onCancel - キャンセルコールバック
+ * @returns 入力フォームの JSX 要素
  */
 function ChecklistInput({
   value,

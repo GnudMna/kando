@@ -1,6 +1,11 @@
 // DB スキーマ変更と初期データ投入を実行するマイグレーションエントリーポイント
 import { pool, waitForDbWithRetry } from "./db.js";
 
+/**
+ * スキーマ作成・制約追加・初期データ投入を実行する。
+ * @returns マイグレーション完了時に解決される Promise
+ * @throws Error SQL 実行に失敗した場合
+ */
 async function runMigrations(): Promise<void> {
   const client = await pool.connect();
   try {
@@ -229,6 +234,10 @@ async function runMigrations(): Promise<void> {
   }
 }
 
+/**
+ * DB 接続待機後にマイグレーションを起動し、終了処理まで行う。
+ * @returns 実行完了時に解決される Promise
+ */
 async function main(): Promise<void> {
   try {
     await waitForDbWithRetry();

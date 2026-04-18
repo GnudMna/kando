@@ -5,6 +5,10 @@ import { Request, Response, NextFunction } from "express";
 /**
  * HTTP リクエスト/レスポンスをコンソールに記録するミドルウェア。
  * 開発・本番環境のトラブルシューティングに使用する。
+ * @param req - Express リクエスト
+ * @param res - Express レスポンス
+ * @param next - 次のミドルウェアへ処理を渡す関数
+ * @returns なし
  */
 export function requestLogger(
   req: Request,

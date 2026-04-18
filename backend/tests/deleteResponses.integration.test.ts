@@ -25,6 +25,10 @@ type MockedPool = {
 
 const mockedPool = pool as unknown as MockedPool;
 
+/**
+ * DELETE 系 API の統合テスト用 Express アプリを生成する。
+ * @returns 主要ルーターをマウントした Express アプリ
+ */
 function createApp() {
   const app = express();
   app.use(express.json());

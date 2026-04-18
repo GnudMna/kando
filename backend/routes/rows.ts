@@ -15,6 +15,13 @@ router.post(
     title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
     position: { type: "number", required: true, positive: true },
   }),
+  /**
+   * 行を作成する。
+   * @param req - `title` と `position` を含むリクエスト
+   * @param res - 作成した行を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { title, position } = req.body as { title: string; position: number };
     try {
@@ -37,6 +44,13 @@ router.post(
     title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
     position: { type: "number", required: true, positive: true },
   }),
+  /**
+   * 行とデフォルト3カラムを単一トランザクションで作成する。
+   * @param req - `title` と `position` を含むリクエスト
+   * @param res - デフォルトカラムを含む行を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 作成処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const { title, position } = req.body as { title: string; position: number };
     const client = await pool.connect();
@@ -84,6 +98,13 @@ router.put(
   validateBody({
     title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
   }),
+  /**
+   * 行タイトルを更新する。
+   * @param req - パスパラメータ `id` と本文 `title` を含むリクエスト
+   * @param res - 更新結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 更新処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -110,6 +131,13 @@ router.put(
 // 行を削除する（配下のカラム・タスクも CASCADE で削除される）: DELETE /api/rows/:id
 router.delete(
   "/:id",
+  /**
+   * 行を削除する。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 削除結果を返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns 削除処理完了時に解決される Promise
+   */
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
