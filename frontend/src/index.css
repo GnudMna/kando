@@ -434,9 +434,23 @@ body {
   background: var(--bg-primary);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
+  cursor: grab;
 }
 .checklist-item:hover {
   background: var(--bg-tertiary);
+}
+.checklist-item.checklist-drag-over {
+  border-top: 2px solid var(--accent-color);
+}
+.checklist-drag-handle {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  flex-shrink: 0;
+}
+.checklist-item:hover .checklist-drag-handle {
+  opacity: 1;
 }
 .checklist-toggle {
   background: transparent;
