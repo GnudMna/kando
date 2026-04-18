@@ -61,19 +61,56 @@ router.post(
       return;
     }
 
+    const client = await pool.connect();
     try {
-      const result = await pool.query<DbChecklistItem>(
-        `INSERT INTO checklist_items (task_id, subtask_id, content, position)
-         SELECT $1, $2, $3, COALESCE(MAX(position), 0) + 1000
-         FROM checklist_items
-         WHERE ($1::integer IS NOT NULL AND task_id = $1)
-            OR ($2::integer IS NOT NULL AND subtask_id = $2)
-         RETURNING *`,
-        [parentRefs.taskId, parentRefs.subtaskId, content],
+      await client.query("BEGIN");
+
+      // 同一親への同時追加を直列化して position の重複採番を防ぐ。
+      let nextPosition = 1000;
+      if (parentRefs.taskId !== null) {
+        await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [
+          parentRefs.taskId,
+        ]);
+        const nextPositionResult = await client.query<{
+          next_position: number;
+        }>(
+          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE task_id = $1",
+          [parentRefs.taskId],
+        );
+        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+      } else {
+        const subtaskId = parentRefs.subtaskId;
+        if (subtaskId === null) {
+          throw new Error("Invalid checklist parent refs");
+        }
+        await client.query("SELECT id FROM subtasks WHERE id = $1 FOR UPDATE", [
+          subtaskId,
+        ]);
+        const nextPositionResult = await client.query<{
+          next_position: number;
+        }>(
+          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE subtask_id = $1",
+          [subtaskId],
+        );
+        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+      }
+
+      const result = await client.query<DbChecklistItem>(
+        "INSERT INTO checklist_items (task_id, subtask_id, content, position) VALUES ($1, $2, $3, $4) RETURNING *",
+        [parentRefs.taskId, parentRefs.subtaskId, content, nextPosition],
       );
+
+      await client.query("COMMIT");
       res.json(result.rows[0]);
     } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback failed:", rollbackErr);
+      }
       next(err);
+    } finally {
+      client.release();
     }
   },
 );
