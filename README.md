@@ -55,6 +55,41 @@ docker compose up --build
 | フロントエンド | http://localhost:8080 |
 | バックエンド API | http://localhost:3001 |
 
+### Docker 運用（再現性 + データ永続化）
+
+- Docker ビルドでは `npm ci` を使用し、`package-lock.json` に基づいて依存関係を固定します。
+- ビルドコンテキストから `pgdata` やローカル生成物を除外し、ローカル状態の混入を防ぎます。
+- PostgreSQL データは bind mount（`./pgdata:/var/lib/postgresql/data/pgdata`）で永続化されます。
+
+バックアップ（論理バックアップ）:
+
+```bash
+# Linux / macOS
+./scripts/linux/db-backup.sh
+```
+
+```powershell
+# Windows
+scripts\windows\db-backup.bat
+```
+
+復元（既存データを削除して復元）:
+
+```bash
+# Linux / macOS
+./scripts/linux/db-restore.sh backups/kanban_db-YYYYMMDD-HHMMSS.sql
+```
+
+```powershell
+# Windows
+scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
+```
+
+補足:
+
+- 復元は `public` スキーマを再作成してから実行されるため破壊的操作です。
+- 生成されたバックアップファイルは `backups/` 配下に保存されます。
+
 ### ローカル開発
 
 事前に PostgreSQL が起動していること、および `DATABASE_URL` 環境変数が設定されていることを確認してください。
@@ -82,6 +117,8 @@ scripts\windows\dev.bat
 | `./scripts/linux/dev.sh` / `scripts\\windows\\dev.bat` | backend の `migrate:dev` 実行後、frontend + backend を同時起動 |
 | `./scripts/linux/test.sh` / `scripts\\windows\\test.bat` | backend/frontend の `lint` → `typecheck` → `test` を順番に実行 |
 | `./scripts/linux/format.sh` / `scripts\\windows\\format.bat` | backend/frontend の `eslint --fix` と `prettier --write` を順番に実行 |
+| `./scripts/linux/db-backup.sh` / `scripts\\windows\\db-backup.bat` | Docker Compose 上の db サービスから論理バックアップ（`.sql`）を取得 |
+| `./scripts/linux/db-restore.sh` / `scripts\\windows\\db-restore.bat` | バックアップ `.sql` を db サービスへ復元（既存 `public` スキーマは再作成） |
 
 補足: `format` は ESLint 自動修正のあとに Prettier 整形も実行します。
 
