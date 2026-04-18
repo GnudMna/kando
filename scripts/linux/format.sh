@@ -9,7 +9,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/../common/cd-project-root.sh"
 
-echo "ESLint の自動修正を実行しています..."
+echo "ESLint の自動修正と Prettier によるコード整形を実行しています..."
 echo
 
 # バックエンドの ESLint 自動修正
@@ -30,4 +30,22 @@ if [ $? -ne 0 ]; then
 fi
 echo
 
-echo "ESLint 自動修正が完了しました"
+# バックエンドの Prettier によるコード整形
+echo "バックエンドの Prettier によるコード整形を実行中..."
+npm --prefix backend run format
+if [ $? -ne 0 ]; then
+    echo "バックエンドの Prettier によるコード整形に失敗しました"
+    exit 1
+fi
+echo
+
+# フロントエンドの Prettier によるコード整形
+echo "フロントエンドの Prettier によるコード整形を実行中..."
+npm --prefix frontend run format
+if [ $? -ne 0 ]; then
+    echo "フロントエンドの Prettier によるコード整形に失敗しました"
+    exit 1
+fi
+echo
+
+echo "ESLint 自動修正と Prettier によるコード整形が完了しました"

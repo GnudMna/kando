@@ -3,7 +3,7 @@
 
 // DB 保存前の一時 ID を表すブランデッド型
 // 通常の string と区別することで、一時 ID を実 DB ID として誤用するのをコンパイル時に防ぐ
-export type TempId = string & { readonly __brand: 'TempId' };
+export type TempId = string & { readonly __brand: "TempId" };
 
 // チェックリスト項目（API レスポンス・永続化済みデータ）
 // task_id または subtask_id のどちらかに紐付く
@@ -58,17 +58,20 @@ export interface Row {
 // ---- ローカル編集状態用の型（TaskEditModal 内でのみ使用）----
 // DB 保存前の一時 ID（TempId）を許容するバリアント
 
-export interface LocalChecklistItem extends Omit<ChecklistItem, 'id' | 'subtask_id'> {
+export interface LocalChecklistItem extends Omit<
+  ChecklistItem,
+  "id" | "subtask_id"
+> {
   id: number | TempId;
   subtask_id: number | TempId | null;
 }
 
-export interface LocalSubtask extends Omit<Subtask, 'id' | 'checklists'> {
+export interface LocalSubtask extends Omit<Subtask, "id" | "checklists"> {
   id: number | TempId;
   checklists: LocalChecklistItem[];
 }
 
-export interface LocalTask extends Omit<Task, 'subtasks' | 'checklists'> {
+export interface LocalTask extends Omit<Task, "subtasks" | "checklists"> {
   subtasks: LocalSubtask[];
   checklists: LocalChecklistItem[];
 }

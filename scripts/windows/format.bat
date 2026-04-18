@@ -9,7 +9,7 @@ REM カレントディレクトリをプロジェクトのルートに変更
 set SCRIPT_DIR=%~dp0
 call "%SCRIPT_DIR%..\common\cd-project-root.bat"
 
-echo ESLint の自動修正を実行しています...
+echo ESLint の自動修正と Prettier によるコード整形を実行しています...
 echo.
 
 REM バックエンドの ESLint 自動修正
@@ -32,5 +32,25 @@ if errorlevel 1 (
 )
 echo.
 
-echo ESLint 自動修正が完了しました
+REM バックエンドの Prettier によるコード整形
+echo バックエンドの Prettier によるコード整形を実行中...
+call npm --prefix backend run format
+if errorlevel 1 (
+    echo バックエンドの Prettier によるコード整形に失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
+REM フロントエンドの Prettier によるコード整形
+echo フロントエンドの Prettier によるコード整形を実行中...
+call npm --prefix frontend run format
+if errorlevel 1 (
+    echo フロントエンドの Prettier によるコード整形に失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
+echo ESLint 自動修正と Prettier によるコード整形が完了しました
 pause

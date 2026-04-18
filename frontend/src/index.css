@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@300;400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@300;400;500;600;700;800&display=swap");
 
 :root {
   color-scheme: dark;
@@ -28,14 +28,23 @@
   --shadow-lg: 0 28px 60px rgba(0, 0, 0, 0.58);
   --focus-ring: 0 0 0 3px rgba(167, 139, 250, 0.38);
 
-  --page-gradient: linear-gradient(150deg, var(--bg-page) 0%, var(--bg-page-mid) 48%, var(--bg-page-alt) 100%);
+  --page-gradient: linear-gradient(
+    150deg,
+    var(--bg-page) 0%,
+    var(--bg-page-mid) 48%,
+    var(--bg-page-alt) 100%
+  );
   --page-orb-1: rgba(130, 87, 255, 0.35);
   --page-orb-2: rgba(58, 35, 107, 0.36);
   --page-orb-3: rgba(16, 10, 32, 0.66);
   --page-overlay-line: rgba(183, 159, 255, 0.08);
   --page-overlay-wash: rgba(255, 255, 255, 0.02);
 
-  --app-brand-bg: linear-gradient(125deg, rgba(26, 17, 48, 0.86), rgba(12, 9, 22, 0.92));
+  --app-brand-bg: linear-gradient(
+    125deg,
+    rgba(26, 17, 48, 0.86),
+    rgba(12, 9, 22, 0.92)
+  );
   --app-brand-border: rgba(180, 154, 255, 0.32);
 
   --btn-hover-bg: rgba(39, 28, 70, 0.94);
@@ -53,7 +62,11 @@
   --empty-bg: rgba(18, 13, 33, 0.56);
 
   --row-border: rgba(178, 149, 255, 0.23);
-  --row-header-bg: linear-gradient(110deg, rgba(42, 30, 74, 0.88), rgba(24, 18, 42, 0.96));
+  --row-header-bg: linear-gradient(
+    110deg,
+    rgba(42, 30, 74, 0.88),
+    rgba(24, 18, 42, 0.96)
+  );
   --row-header-divider: rgba(177, 147, 255, 0.22);
 
   --column-border: rgba(173, 143, 255, 0.2);
@@ -94,7 +107,7 @@
   --modal-divider: rgba(160, 131, 242, 0.2);
 }
 
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   color-scheme: light;
 
   --bg-page: #f5f2ff;
@@ -122,14 +135,23 @@
   --shadow-lg: 0 24px 52px rgba(54, 33, 112, 0.24);
   --focus-ring: 0 0 0 3px rgba(111, 67, 255, 0.24);
 
-  --page-gradient: linear-gradient(150deg, var(--bg-page) 0%, var(--bg-page-mid) 52%, var(--bg-page-alt) 100%);
+  --page-gradient: linear-gradient(
+    150deg,
+    var(--bg-page) 0%,
+    var(--bg-page-mid) 52%,
+    var(--bg-page-alt) 100%
+  );
   --page-orb-1: rgba(123, 79, 255, 0.22);
   --page-orb-2: rgba(196, 176, 255, 0.32);
   --page-orb-3: rgba(230, 220, 255, 0.5);
   --page-overlay-line: rgba(120, 89, 218, 0.08);
   --page-overlay-wash: rgba(255, 255, 255, 0.2);
 
-  --app-brand-bg: linear-gradient(125deg, rgba(255, 255, 255, 0.9), rgba(243, 236, 255, 0.95));
+  --app-brand-bg: linear-gradient(
+    125deg,
+    rgba(255, 255, 255, 0.9),
+    rgba(243, 236, 255, 0.95)
+  );
   --app-brand-border: rgba(126, 95, 220, 0.26);
 
   --btn-hover-bg: rgba(245, 240, 255, 0.97);
@@ -147,7 +169,11 @@
   --empty-bg: rgba(255, 255, 255, 0.64);
 
   --row-border: rgba(129, 96, 231, 0.2);
-  --row-header-bg: linear-gradient(110deg, rgba(246, 240, 255, 0.95), rgba(239, 231, 255, 0.96));
+  --row-header-bg: linear-gradient(
+    110deg,
+    rgba(246, 240, 255, 0.95),
+    rgba(239, 231, 255, 0.96)
+  );
   --row-header-divider: rgba(129, 96, 231, 0.18);
 
   --column-border: rgba(126, 95, 220, 0.2);
@@ -201,14 +227,14 @@ body,
 }
 
 body {
-  font-family: 'Sora', sans-serif;
+  font-family: "Sora", sans-serif;
   color: var(--text-primary);
   background: var(--page-gradient);
   overflow-x: hidden;
 }
 
 body::before {
-  content: '';
+  content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -222,13 +248,17 @@ body::before {
 }
 
 body::after {
-  content: '';
+  content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
   background:
     linear-gradient(var(--page-overlay-wash), var(--page-overlay-wash)),
-    repeating-linear-gradient(135deg, transparent 0 12px, var(--page-overlay-line) 12px 13px);
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 12px,
+      var(--page-overlay-line) 12px 13px
+    );
   z-index: -1;
 }
 
@@ -282,7 +312,7 @@ body::after {
 }
 
 .app-title {
-  font-family: 'Instrument Serif', serif;
+  font-family: "Instrument Serif", serif;
   font-size: clamp(2.25rem, 7.5vw, 4.8rem);
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -386,7 +416,9 @@ body::after {
   display: inline-flex;
   align-items: center;
   gap: 0.26rem;
-  transition: color 0.18s ease, transform 0.18s ease;
+  transition:
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .text-btn:hover {
@@ -504,7 +536,7 @@ body::after {
 }
 
 .board-empty-title {
-  font-family: 'Instrument Serif', serif;
+  font-family: "Instrument Serif", serif;
   font-size: clamp(1.6rem, 4vw, 2.2rem);
   color: var(--text-primary);
   line-height: 1.05;
@@ -605,7 +637,9 @@ body::after {
   border: 1px solid var(--column-border);
   border-radius: 16px;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   overflow: hidden;
 }
 
@@ -686,7 +720,10 @@ body::after {
   cursor: grab;
   position: relative;
   box-shadow: var(--task-shadow);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .task-card:hover {
@@ -742,7 +779,9 @@ body::after {
   width: 100%;
   padding: 0.5rem 0.6rem;
   resize: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .task-content-input:focus {
@@ -773,7 +812,10 @@ body::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+  transition:
+    color 0.18s ease,
+    background-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .action-btn:hover {
@@ -917,7 +959,9 @@ body::after {
   padding: 0.58rem 0.65rem;
   border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.16s ease, transform 0.16s ease;
+  transition:
+    background-color 0.16s ease,
+    transform 0.16s ease;
 }
 
 .list-view-row:hover {
@@ -1055,7 +1099,7 @@ body::after {
 }
 
 .modal-title {
-  font-family: 'Instrument Serif', serif;
+  font-family: "Instrument Serif", serif;
   font-size: 1.35rem;
   font-weight: 400;
   line-height: 1.05;

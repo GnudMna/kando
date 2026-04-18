@@ -1,7 +1,7 @@
 // validate ミドルウェア（parseId / validateBody）のユニットテスト
-import { describe, it, expect } from 'vitest';
-import { parseId, validateBody } from '../middleware/validate';
-import type { Request, Response, NextFunction } from 'express';
+import { describe, it, expect } from "vitest";
+import { parseId, validateBody } from "../middleware/validate";
+import type { Request, Response, NextFunction } from "express";
 
 // テスト用のモック Express レスポンスオブジェクトを生成するヘルパー
 function mockRes() {
@@ -20,165 +20,193 @@ function mockRes() {
   return res as unknown as Response & { statusCode: number; body: unknown };
 }
 
-describe('parseId', () => {
-  it('正常な ID 文字列に対して正の整数を返す', () => {
-    expect(parseId('42')).toBe(42);
-    expect(parseId('1')).toBe(1);
-    expect(parseId('0007')).toBe(7);
+describe("parseId", () => {
+  it("正常な ID 文字列に対して正の整数を返す", () => {
+    expect(parseId("42")).toBe(42);
+    expect(parseId("1")).toBe(1);
+    expect(parseId("0007")).toBe(7);
   });
 
-  it('0 または負の値に対して null を返す', () => {
-    expect(parseId('0')).toBeNull();
-    expect(parseId('-5')).toBeNull();
+  it("0 または負の値に対して null を返す", () => {
+    expect(parseId("0")).toBeNull();
+    expect(parseId("-5")).toBeNull();
   });
 
-  it('数値以外の文字列に対して null を返す', () => {
-    expect(parseId('abc')).toBeNull();
-    expect(parseId('')).toBeNull();
-    expect(parseId('12abc')).toBeNull();
-    expect(parseId('1.5')).toBeNull();
-    expect(parseId('1e3')).toBeNull();
+  it("数値以外の文字列に対して null を返す", () => {
+    expect(parseId("abc")).toBeNull();
+    expect(parseId("")).toBeNull();
+    expect(parseId("12abc")).toBeNull();
+    expect(parseId("1.5")).toBeNull();
+    expect(parseId("1e3")).toBeNull();
   });
 
-  it('安全な整数範囲を超える値に対して null を返す', () => {
+  it("安全な整数範囲を超える値に対して null を返す", () => {
     const tooLarge = `${Number.MAX_SAFE_INTEGER + 1}`;
     expect(parseId(tooLarge)).toBeNull();
   });
 });
 
-describe('validateBody', () => {
+describe("validateBody", () => {
   const middleware = validateBody({
-    title: { type: 'string', required: true, notEmpty: true },
-    position: { type: 'number', required: true },
+    title: { type: "string", required: true, notEmpty: true },
+    position: { type: "number", required: true },
   });
 
-  it('有効なボディの場合は next() を呼び出す', () => {
-    const req = { body: { title: 'Test', position: 1000 } } as Request;
+  it("有効なボディの場合は next() を呼び出す", () => {
+    const req = { body: { title: "Test", position: 1000 } } as Request;
     const res = mockRes();
     let called = false;
-    const next: NextFunction = () => { called = true; };
+    const next: NextFunction = () => {
+      called = true;
+    };
     middleware(req, res, next);
     expect(called).toBe(true);
   });
 
-  it('必須フィールドが欠落している場合は 400 を返す', () => {
+  it("必須フィールドが欠落している場合は 400 を返す", () => {
     const req = { body: { position: 1000 } } as Request;
     const res = mockRes();
     const next: NextFunction = () => {};
     middleware(req, res, next);
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/'title' is required/);
+    expect((res.body as { error: string }).error).toMatch(
+      /'title' is required/,
+    );
   });
 
-  it('文字列フィールドが空の場合は 400 を返す', () => {
-    const req = { body: { title: '   ', position: 1000 } } as Request;
+  it("文字列フィールドが空の場合は 400 を返す", () => {
+    const req = { body: { title: "   ", position: 1000 } } as Request;
     const res = mockRes();
     const next: NextFunction = () => {};
     middleware(req, res, next);
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/'title' must not be empty/);
+    expect((res.body as { error: string }).error).toMatch(
+      /'title' must not be empty/,
+    );
   });
 
-  it('フィールドの型が正しくない場合は 400 を返す', () => {
-    const req = { body: { title: 'Test', position: 'not-a-number' } } as Request;
+  it("フィールドの型が正しくない場合は 400 を返す", () => {
+    const req = {
+      body: { title: "Test", position: "not-a-number" },
+    } as Request;
     const res = mockRes();
     const next: NextFunction = () => {};
     middleware(req, res, next);
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/'position' must be a number/);
+    expect((res.body as { error: string }).error).toMatch(
+      /'position' must be a number/,
+    );
   });
 
-  it('maxLength を超える場合は 400 を返す', () => {
+  it("maxLength を超える場合は 400 を返す", () => {
     const mw = validateBody({
-      title: { type: 'string', required: true, notEmpty: true, maxLength: 10 },
+      title: { type: "string", required: true, notEmpty: true, maxLength: 10 },
     });
-    const req = { body: { title: 'a'.repeat(11) } } as Request;
+    const req = { body: { title: "a".repeat(11) } } as Request;
     const res = mockRes();
     const next: NextFunction = () => {};
     mw(req, res, next);
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/'title' must be 10 characters or fewer/);
+    expect((res.body as { error: string }).error).toMatch(
+      /'title' must be 10 characters or fewer/,
+    );
   });
 
-  it('maxLength 以内の場合は next() を呼び出す', () => {
+  it("maxLength 以内の場合は next() を呼び出す", () => {
     const mw = validateBody({
-      title: { type: 'string', required: true, notEmpty: true, maxLength: 10 },
+      title: { type: "string", required: true, notEmpty: true, maxLength: 10 },
     });
-    const req = { body: { title: 'a'.repeat(10) } } as Request;
+    const req = { body: { title: "a".repeat(10) } } as Request;
     const res = mockRes();
     let called = false;
-    const next: NextFunction = () => { called = true; };
+    const next: NextFunction = () => {
+      called = true;
+    };
     mw(req, res, next);
     expect(called).toBe(true);
   });
 
-  it('number が NaN または Infinity の場合は 400 を返す', () => {
+  it("number が NaN または Infinity の場合は 400 を返す", () => {
     const mw = validateBody({
-      position: { type: 'number', required: true },
+      position: { type: "number", required: true },
     });
 
     const reqNaN = { body: { position: Number.NaN } } as Request;
     const resNaN = mockRes();
     mw(reqNaN, resNaN, (() => {}) as NextFunction);
     expect(resNaN.statusCode).toBe(400);
-    expect((resNaN.body as { error: string }).error).toMatch(/'position' must be a finite number/);
+    expect((resNaN.body as { error: string }).error).toMatch(
+      /'position' must be a finite number/,
+    );
 
     const reqInf = { body: { position: Number.POSITIVE_INFINITY } } as Request;
     const resInf = mockRes();
     mw(reqInf, resInf, (() => {}) as NextFunction);
     expect(resInf.statusCode).toBe(400);
-    expect((resInf.body as { error: string }).error).toMatch(/'position' must be a finite number/);
+    expect((resInf.body as { error: string }).error).toMatch(
+      /'position' must be a finite number/,
+    );
   });
 
-  it('integer 指定時に小数を拒否する', () => {
+  it("integer 指定時に小数を拒否する", () => {
     const mw = validateBody({
-      row_id: { type: 'number', required: true, integer: true },
+      row_id: { type: "number", required: true, integer: true },
     });
     const req = { body: { row_id: 1.25 } } as Request;
     const res = mockRes();
     mw(req, res, (() => {}) as NextFunction);
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/'row_id' must be an integer/);
+    expect((res.body as { error: string }).error).toMatch(
+      /'row_id' must be an integer/,
+    );
   });
 
-  it('positive 指定時に 0 以下を拒否する', () => {
+  it("positive 指定時に 0 以下を拒否する", () => {
     const mw = validateBody({
-      position: { type: 'number', required: true, positive: true },
+      position: { type: "number", required: true, positive: true },
     });
     const req = { body: { position: 0 } } as Request;
     const res = mockRes();
     mw(req, res, (() => {}) as NextFunction);
     expect(res.statusCode).toBe(400);
-    expect((res.body as { error: string }).error).toMatch(/'position' must be greater than 0/);
+    expect((res.body as { error: string }).error).toMatch(
+      /'position' must be greater than 0/,
+    );
   });
 
-  it('min / max を満たさない場合は 400 を返す', () => {
+  it("min / max を満たさない場合は 400 を返す", () => {
     const mw = validateBody({
-      score: { type: 'number', required: true, min: 0, max: 100 },
+      score: { type: "number", required: true, min: 0, max: 100 },
     });
 
     const reqTooSmall = { body: { score: -1 } } as Request;
     const resTooSmall = mockRes();
     mw(reqTooSmall, resTooSmall, (() => {}) as NextFunction);
     expect(resTooSmall.statusCode).toBe(400);
-    expect((resTooSmall.body as { error: string }).error).toMatch(/'score' must be greater than or equal to 0/);
+    expect((resTooSmall.body as { error: string }).error).toMatch(
+      /'score' must be greater than or equal to 0/,
+    );
 
     const reqTooLarge = { body: { score: 101 } } as Request;
     const resTooLarge = mockRes();
     mw(reqTooLarge, resTooLarge, (() => {}) as NextFunction);
     expect(resTooLarge.statusCode).toBe(400);
-    expect((resTooLarge.body as { error: string }).error).toMatch(/'score' must be less than or equal to 100/);
+    expect((resTooLarge.body as { error: string }).error).toMatch(
+      /'score' must be less than or equal to 100/,
+    );
   });
 
-  it('number 制約をすべて満たす場合は next() を呼び出す', () => {
+  it("number 制約をすべて満たす場合は next() を呼び出す", () => {
     const mw = validateBody({
-      row_id: { type: 'number', required: true, integer: true, positive: true },
-      position: { type: 'number', required: true, min: 0.5, max: 10 },
+      row_id: { type: "number", required: true, integer: true, positive: true },
+      position: { type: "number", required: true, min: 0.5, max: 10 },
     });
     const req = { body: { row_id: 3, position: 2.5 } } as Request;
     const res = mockRes();
     let called = false;
-    const next: NextFunction = () => { called = true; };
+    const next: NextFunction = () => {
+      called = true;
+    };
     mw(req, res, next);
     expect(called).toBe(true);
   });

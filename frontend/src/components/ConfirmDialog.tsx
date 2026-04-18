@@ -1,8 +1,8 @@
 // 削除確認ダイアログコンポーネント
 // React Portal を使って document.body 直下にレンダリングし、
 // オーバーレイクリックでキャンセルできる
-import { useId } from 'react';
-import { createPortal } from 'react-dom';
+import { useId } from "react";
+import { createPortal } from "react-dom";
 
 interface Props {
   message: string;
@@ -23,7 +23,11 @@ export function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
   const descriptionId = useId();
 
   return createPortal(
-    <div className="modal-overlay" onClick={onCancel} data-testid="confirm-dialog-overlay">
+    <div
+      className="modal-overlay"
+      onClick={onCancel}
+      data-testid="confirm-dialog-overlay"
+    >
       <div
         className="modal-content confirm-dialog"
         onClick={(e) => e.stopPropagation()}
@@ -33,8 +37,12 @@ export function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
         aria-describedby={descriptionId}
       >
         <div className="modal-body confirm-dialog-body">
-          <h2 id={titleId} className="confirm-dialog-title">削除の確認</h2>
-          <p id={descriptionId} className="confirm-dialog-message">{message}</p>
+          <h2 id={titleId} className="confirm-dialog-title">
+            削除の確認
+          </h2>
+          <p id={descriptionId} className="confirm-dialog-message">
+            {message}
+          </p>
         </div>
         <div className="modal-footer">
           <button type="button" className="btn" onClick={onCancel}>
@@ -46,6 +54,6 @@ export function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }

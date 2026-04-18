@@ -1,10 +1,24 @@
 // タスク編集モーダルコンポーネント
 // タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
-import { useId, useState, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Trash2, Plus, CheckSquare, Square, CornerDownRight, GripVertical } from 'lucide-react';
-import type { Task, LocalTask, LocalSubtask, LocalChecklistItem, TempId } from '../types';
-import * as api from '../api/boardApi';
+import { useId, useState, useRef } from "react";
+import { createPortal } from "react-dom";
+import {
+  X,
+  Trash2,
+  Plus,
+  CheckSquare,
+  Square,
+  CornerDownRight,
+  GripVertical,
+} from "lucide-react";
+import type {
+  Task,
+  LocalTask,
+  LocalSubtask,
+  LocalChecklistItem,
+  TempId,
+} from "../types";
+import * as api from "../api/boardApi";
 
 // 一時的な新規レコード用 ID のカウンター
 let _tempId = 0;
@@ -22,36 +36,46 @@ function tempId(): TempId {
  * @returns 一時 ID の場合 true（id は TempId に絞り込まれる）
  */
 function isTemp(id: number | TempId): id is TempId {
-  return typeof id === 'string';
+  return typeof id === "string";
 }
 
 interface Props {
   task: Task;
-  onClose: (reason: 'saved' | 'dismiss') => void;
+  onClose: (reason: "saved" | "dismiss") => void;
   onTaskUpdated: (task: Task) => void;
 }
 
 export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // モーダル内のローカル編集状態（保存前は外部に影響しない）
-  const [localTask, setLocalTask] = useState<LocalTask>(() =>
-    structuredClone(task) as LocalTask
+  const [localTask, setLocalTask] = useState<LocalTask>(
+    () => structuredClone(task) as LocalTask,
   );
   // 削除対象のサブタスク・チェックリストIDを保存しておき、保存時にまとめて削除する
   // 一時IDの項目はサーバーに存在しないため含まれない（常に number）
   const [deletedSubtaskIds, setDeletedSubtaskIds] = useState<number[]>([]);
   const [deletedChecklistIds, setDeletedChecklistIds] = useState<number[]>([]);
   // サブタスクのインライン編集状態
-  const [editingSubtaskId, setEditingSubtaskId] = useState<number | TempId | null>(null);
-  const [editingSubtaskContent, setEditingSubtaskContent] = useState('');
+  const [editingSubtaskId, setEditingSubtaskId] = useState<
+    number | TempId | null
+  >(null);
+  const [editingSubtaskContent, setEditingSubtaskContent] = useState("");
   // サブタスク追加フォームの表示状態と入力値
-  const [newSubtaskContent, setNewSubtaskContent] = useState('');
+  const [newSubtaskContent, setNewSubtaskContent] = useState("");
   const [addingSubtask, setAddingSubtask] = useState(false);
   // チェックリスト追加フォームの表示状態（'task' | subtaskId | null）
-  const [addingChecklist, setAddingChecklist] = useState<'task' | number | TempId | null>(null);
+  const [addingChecklist, setAddingChecklist] = useState<
+    "task" | number | TempId | null
+  >(null);
   // チェックリストドラッグ状態：親キー（'task' または subtaskId）とインデックス
-  const dragState = useRef<{ parentKey: 'task' | number | TempId; index: number } | null>(null);
-  const [dragOverKey, setDragOverKey] = useState<{ parentKey: 'task' | number | TempId; index: number } | null>(null);
-  const [newChecklistContent, setNewChecklistContent] = useState('');
+  const dragState = useRef<{
+    parentKey: "task" | number | TempId;
+    index: number;
+  } | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<{
+    parentKey: "task" | number | TempId;
+    index: number;
+  } | null>(null);
+  const [newChecklistContent, setNewChecklistContent] = useState("");
   // 保存中エラーとローディング状態
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -99,18 +123,30 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
         const c = final.checklists[i];
         const expectedPosition = (i + 1) * 1000;
         if (isTemp(c.id)) {
-          const created = await api.createChecklistItem(c.content, task.id, null);
+          const created = await api.createChecklistItem(
+            c.content,
+            task.id,
+            null,
+          );
           // 作成後に position を確定値に更新する
           if (created.position !== expectedPosition) {
-            await api.updateChecklistItem(created.id, { position: expectedPosition });
+            await api.updateChecklistItem(created.id, {
+              position: expectedPosition,
+            });
             created.position = expectedPosition;
           }
-          final.checklists[i] = { ...c, id: created.id, position: created.position };
+          final.checklists[i] = {
+            ...c,
+            id: created.id,
+            position: created.position,
+          };
         } else {
           const orig = task.checklists.find((oc) => oc.id === c.id);
           const patch: { completed?: boolean; position?: number } = {};
-          if (orig && orig.completed !== c.completed) patch.completed = c.completed;
-          if (orig && orig.position !== expectedPosition) patch.position = expectedPosition;
+          if (orig && orig.completed !== c.completed)
+            patch.completed = c.completed;
+          if (orig && orig.position !== expectedPosition)
+            patch.position = expectedPosition;
           if (Object.keys(patch).length > 0) {
             await api.updateChecklistItem(c.id as number, patch);
           }
@@ -127,17 +163,29 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
           const c = sub.checklists[j];
           const expectedPosition = (j + 1) * 1000;
           if (isTemp(c.id)) {
-            const created = await api.createChecklistItem(c.content, null, subId);
+            const created = await api.createChecklistItem(
+              c.content,
+              null,
+              subId,
+            );
             if (created.position !== expectedPosition) {
-              await api.updateChecklistItem(created.id, { position: expectedPosition });
+              await api.updateChecklistItem(created.id, {
+                position: expectedPosition,
+              });
               created.position = expectedPosition;
             }
-            final.subtasks[i].checklists[j] = { ...c, id: created.id, position: created.position };
+            final.subtasks[i].checklists[j] = {
+              ...c,
+              id: created.id,
+              position: created.position,
+            };
           } else if (origSub) {
             const origC = origSub.checklists.find((oc) => oc.id === c.id);
             const patch: { completed?: boolean; position?: number } = {};
-            if (origC && origC.completed !== c.completed) patch.completed = c.completed;
-            if (origC && origC.position !== expectedPosition) patch.position = expectedPosition;
+            if (origC && origC.completed !== c.completed)
+              patch.completed = c.completed;
+            if (origC && origC.position !== expectedPosition)
+              patch.position = expectedPosition;
             if (Object.keys(patch).length > 0) {
               await api.updateChecklistItem(c.id as number, patch);
             }
@@ -147,10 +195,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
       // 保存完了後は全IDが number に確定しているため Task として扱う
       onTaskUpdated(final as unknown as Task);
-      onClose('saved');
+      onClose("saved");
     } catch (err) {
       console.error(err);
-      setSaveError('保存中にエラーが発生しました。再試行してください。');
+      setSaveError("保存中にエラーが発生しました。再試行してください。");
     } finally {
       setIsSaving(false);
     }
@@ -169,7 +217,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
       checklists: [],
     };
     setLocalTask((prev) => ({ ...prev, subtasks: [...prev.subtasks, newSub] }));
-    setNewSubtaskContent('');
+    setNewSubtaskContent("");
     setAddingSubtask(false);
   };
 
@@ -186,7 +234,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     setLocalTask((prev) => ({
       ...prev,
       subtasks: prev.subtasks.map((s) =>
-        s.id === subtaskId ? { ...s, content: editingSubtaskContent } : s
+        s.id === subtaskId ? { ...s, content: editingSubtaskContent } : s,
       ),
     }));
     setEditingSubtaskId(null);
@@ -211,12 +259,12 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
    */
   const addChecklistItem = (
-    type: 'task' | 'subtask',
-    subtaskId: number | TempId | null = null
+    type: "task" | "subtask",
+    subtaskId: number | TempId | null = null,
   ) => {
     if (!newChecklistContent.trim()) return;
     setLocalTask((prev) => {
-      if (type === 'task') {
+      if (type === "task") {
         const position = (prev.checklists.length + 1) * 1000;
         const newItem: LocalChecklistItem = {
           id: tempId(),
@@ -246,11 +294,11 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   },
                 ],
               }
-            : s
+            : s,
         ),
       };
     });
-    setNewChecklistContent('');
+    setNewChecklistContent("");
     setAddingChecklist(null);
   };
 
@@ -261,13 +309,13 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    * @param toIndex - ドロップ先インデックス
    */
   const moveChecklistItem = (
-    parentKey: 'task' | number | TempId,
+    parentKey: "task" | number | TempId,
     fromIndex: number,
-    toIndex: number
+    toIndex: number,
   ) => {
     if (fromIndex === toIndex) return;
     setLocalTask((prev) => {
-      if (parentKey === 'task') {
+      if (parentKey === "task") {
         const checklists = [...prev.checklists];
         const [item] = checklists.splice(fromIndex, 1);
         checklists.splice(toIndex, 0, item);
@@ -295,15 +343,15 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    */
   const toggleChecklist = (
     itemId: number | TempId,
-    type: 'task' | 'subtask',
-    subtaskId: number | TempId | null = null
+    type: "task" | "subtask",
+    subtaskId: number | TempId | null = null,
   ) => {
     setLocalTask((prev) => {
-      if (type === 'task') {
+      if (type === "task") {
         return {
           ...prev,
           checklists: prev.checklists.map((c) =>
-            c.id === itemId ? { ...c, completed: !c.completed } : c
+            c.id === itemId ? { ...c, completed: !c.completed } : c,
           ),
         };
       }
@@ -314,10 +362,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
             ? {
                 ...s,
                 checklists: s.checklists.map((c) =>
-                  c.id === itemId ? { ...c, completed: !c.completed } : c
+                  c.id === itemId ? { ...c, completed: !c.completed } : c,
                 ),
               }
-            : s
+            : s,
         ),
       };
     });
@@ -332,20 +380,23 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
    */
   const removeChecklist = (
     itemId: number | TempId,
-    type: 'task' | 'subtask',
-    subtaskId: number | TempId | null = null
+    type: "task" | "subtask",
+    subtaskId: number | TempId | null = null,
   ) => {
     if (!isTemp(itemId)) setDeletedChecklistIds((prev) => [...prev, itemId]);
     setLocalTask((prev) => {
-      if (type === 'task') {
-        return { ...prev, checklists: prev.checklists.filter((c) => c.id !== itemId) };
+      if (type === "task") {
+        return {
+          ...prev,
+          checklists: prev.checklists.filter((c) => c.id !== itemId),
+        };
       }
       return {
         ...prev,
         subtasks: prev.subtasks.map((s) =>
           s.id === subtaskId
             ? { ...s, checklists: s.checklists.filter((c) => c.id !== itemId) }
-            : s
+            : s,
         ),
       };
     });
@@ -361,11 +412,13 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
         aria-labelledby={modalTitleId}
       >
         <div className="modal-header">
-          <h3 id={modalTitleId} className="modal-title">タスクを編集</h3>
+          <h3 id={modalTitleId} className="modal-title">
+            タスクを編集
+          </h3>
           <button
             type="button"
             className="action-btn"
-            onClick={() => onClose('dismiss')}
+            onClick={() => onClose("dismiss")}
             aria-label="編集モーダルを閉じる"
           >
             <X size={18} />
@@ -374,7 +427,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
         <div className="modal-body">
           <div className="modal-section">
-            <label htmlFor={taskContentInputId} className="modal-label">タスク内容</label>
+            <label htmlFor={taskContentInputId} className="modal-label">
+              タスク内容
+            </label>
             <textarea
               id={taskContentInputId}
               className="task-content-input"
@@ -384,7 +439,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               }
               rows={3}
               autoFocus
-              style={{ resize: 'vertical' }}
+              style={{ resize: "vertical" }}
             />
           </div>
 
@@ -395,22 +450,26 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                 <div
                   key={c.id}
                   className={[
-                    'checklist-item',
-                    dragOverKey?.parentKey === 'task' && dragOverKey.index === i ? 'checklist-drag-over' : '',
-                  ].join(' ').trim()}
+                    "checklist-item",
+                    dragOverKey?.parentKey === "task" && dragOverKey.index === i
+                      ? "checklist-drag-over"
+                      : "",
+                  ]
+                    .join(" ")
+                    .trim()}
                   draggable
                   onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    dragState.current = { parentKey: 'task', index: i };
+                    e.dataTransfer.effectAllowed = "move";
+                    dragState.current = { parentKey: "task", index: i };
                   }}
                   onDragOver={(e) => {
                     e.preventDefault();
-                    setDragOverKey({ parentKey: 'task', index: i });
+                    setDragOverKey({ parentKey: "task", index: i });
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (dragState.current?.parentKey === 'task') {
-                      moveChecklistItem('task', dragState.current.index, i);
+                    if (dragState.current?.parentKey === "task") {
+                      moveChecklistItem("task", dragState.current.index, i);
                     }
                     dragState.current = null;
                     setDragOverKey(null);
@@ -426,8 +485,8 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   <button
                     type="button"
                     className="checklist-toggle"
-                    onClick={() => toggleChecklist(c.id, 'task')}
-                    aria-label={`チェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
+                    onClick={() => toggleChecklist(c.id, "task")}
+                    aria-label={`チェックリスト「${c.content}」を${c.completed ? "未完了" : "完了"}にする`}
                   >
                     {c.completed ? (
                       <CheckSquare size={14} className="accent" />
@@ -437,7 +496,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   </button>
                   <span
                     className={
-                      c.completed ? 'checklist-text completed text-muted' : 'checklist-text'
+                      c.completed
+                        ? "checklist-text completed text-muted"
+                        : "checklist-text"
                     }
                   >
                     {c.content}
@@ -445,7 +506,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   <button
                     type="button"
                     className="checklist-del modal-del-btn"
-                    onClick={() => removeChecklist(c.id, 'task')}
+                    onClick={() => removeChecklist(c.id, "task")}
                     aria-label={`チェックリスト「${c.content}」を削除`}
                   >
                     <Trash2 size={12} />
@@ -453,24 +514,24 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                 </div>
               ))}
             </div>
-            {addingChecklist === 'task' ? (
+            {addingChecklist === "task" ? (
               <ChecklistInput
                 value={newChecklistContent}
                 onChange={setNewChecklistContent}
-                onAdd={() => addChecklistItem('task')}
+                onAdd={() => addChecklistItem("task")}
                 onCancel={() => {
                   setAddingChecklist(null);
-                  setNewChecklistContent('');
+                  setNewChecklistContent("");
                 }}
               />
             ) : (
               <button
                 type="button"
                 className="text-btn text-muted"
-                style={{ marginTop: '0.5rem' }}
+                style={{ marginTop: "0.5rem" }}
                 onClick={() => {
-                  setAddingChecklist('task');
-                  setNewChecklistContent('');
+                  setAddingChecklist("task");
+                  setNewChecklistContent("");
                 }}
               >
                 <Plus size={12} /> チェック項目を追加
@@ -484,14 +545,14 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               <div
                 key={subtask.id}
                 className="subtask-card"
-                style={{ marginBottom: '0.5rem' }}
+                style={{ marginBottom: "0.5rem" }}
               >
                 <div className="subtask-header">
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
                       flex: 1,
                     }}
                   >
@@ -500,19 +561,25 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                       <input
                         autoFocus
                         className="task-content-input"
-                        style={{ fontSize: '0.85rem', padding: '0.2rem 0.4rem', flex: 1 }}
+                        style={{
+                          fontSize: "0.85rem",
+                          padding: "0.2rem 0.4rem",
+                          flex: 1,
+                        }}
                         value={editingSubtaskContent}
-                        onChange={(e) => setEditingSubtaskContent(e.target.value)}
+                        onChange={(e) =>
+                          setEditingSubtaskContent(e.target.value)
+                        }
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') saveSubtaskEdit(subtask.id);
-                          if (e.key === 'Escape') setEditingSubtaskId(null);
+                          if (e.key === "Enter") saveSubtaskEdit(subtask.id);
+                          if (e.key === "Escape") setEditingSubtaskId(null);
                         }}
                         onBlur={() => saveSubtaskEdit(subtask.id)}
                       />
                     ) : (
                       <span
                         className="subtask-title"
-                        style={{ cursor: 'pointer', flex: 1 }}
+                        style={{ cursor: "pointer", flex: 1 }}
                         onClick={() => {
                           setEditingSubtaskId(subtask.id);
                           setEditingSubtaskContent(subtask.content);
@@ -535,18 +602,23 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
                 <div
                   className="task-checklists"
-                  style={{ marginLeft: '1.25rem', marginTop: '0.25rem' }}
+                  style={{ marginLeft: "1.25rem", marginTop: "0.25rem" }}
                 >
                   {subtask.checklists.map((c, j) => (
                     <div
                       key={c.id}
                       className={[
-                        'checklist-item',
-                        dragOverKey?.parentKey === subtask.id && dragOverKey.index === j ? 'checklist-drag-over' : '',
-                      ].join(' ').trim()}
+                        "checklist-item",
+                        dragOverKey?.parentKey === subtask.id &&
+                        dragOverKey.index === j
+                          ? "checklist-drag-over"
+                          : "",
+                      ]
+                        .join(" ")
+                        .trim()}
                       draggable
                       onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.effectAllowed = "move";
                         dragState.current = { parentKey: subtask.id, index: j };
                       }}
                       onDragOver={(e) => {
@@ -556,7 +628,11 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                       onDrop={(e) => {
                         e.preventDefault();
                         if (dragState.current?.parentKey === subtask.id) {
-                          moveChecklistItem(subtask.id, dragState.current.index, j);
+                          moveChecklistItem(
+                            subtask.id,
+                            dragState.current.index,
+                            j,
+                          );
                         }
                         dragState.current = null;
                         setDragOverKey(null);
@@ -566,14 +642,19 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                         setDragOverKey(null);
                       }}
                     >
-                      <span className="checklist-drag-handle" aria-hidden="true">
+                      <span
+                        className="checklist-drag-handle"
+                        aria-hidden="true"
+                      >
                         <GripVertical size={12} />
                       </span>
                       <button
                         type="button"
                         className="checklist-toggle"
-                        onClick={() => toggleChecklist(c.id, 'subtask', subtask.id)}
-                        aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
+                        onClick={() =>
+                          toggleChecklist(c.id, "subtask", subtask.id)
+                        }
+                        aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を${c.completed ? "未完了" : "完了"}にする`}
                       >
                         {c.completed ? (
                           <CheckSquare size={14} className="accent" />
@@ -584,8 +665,8 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                       <span
                         className={
                           c.completed
-                            ? 'checklist-text completed text-muted'
-                            : 'checklist-text'
+                            ? "checklist-text completed text-muted"
+                            : "checklist-text"
                         }
                       >
                         {c.content}
@@ -593,7 +674,9 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                       <button
                         type="button"
                         className="checklist-del modal-del-btn"
-                        onClick={() => removeChecklist(c.id, 'subtask', subtask.id)}
+                        onClick={() =>
+                          removeChecklist(c.id, "subtask", subtask.id)
+                        }
                         aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を削除`}
                       >
                         <Trash2 size={12} />
@@ -603,14 +686,14 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                 </div>
 
                 {addingChecklist === subtask.id ? (
-                  <div style={{ marginLeft: '1.25rem', marginTop: '0.25rem' }}>
+                  <div style={{ marginLeft: "1.25rem", marginTop: "0.25rem" }}>
                     <ChecklistInput
                       value={newChecklistContent}
                       onChange={setNewChecklistContent}
-                      onAdd={() => addChecklistItem('subtask', subtask.id)}
+                      onAdd={() => addChecklistItem("subtask", subtask.id)}
                       onCancel={() => {
                         setAddingChecklist(null);
-                        setNewChecklistContent('');
+                        setNewChecklistContent("");
                       }}
                     />
                   </div>
@@ -618,10 +701,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   <button
                     type="button"
                     className="text-btn text-muted"
-                    style={{ marginLeft: '1.25rem', marginTop: '0.25rem' }}
+                    style={{ marginLeft: "1.25rem", marginTop: "0.25rem" }}
                     onClick={() => {
                       setAddingChecklist(subtask.id);
-                      setNewChecklistContent('');
+                      setNewChecklistContent("");
                     }}
                   >
                     <Plus size={12} /> チェック項目を追加
@@ -631,19 +714,19 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
             ))}
 
             {addingSubtask ? (
-              <div className="add-sub-form" style={{ marginTop: '0.5rem' }}>
+              <div className="add-sub-form" style={{ marginTop: "0.5rem" }}>
                 <input
                   autoFocus
                   placeholder="サブタスク名..."
                   className="task-content-input"
-                  style={{ fontSize: '0.85rem' }}
+                  style={{ fontSize: "0.85rem" }}
                   value={newSubtaskContent}
                   onChange={(e) => setNewSubtaskContent(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') addSubtask();
-                    if (e.key === 'Escape') {
+                    if (e.key === "Enter") addSubtask();
+                    if (e.key === "Escape") {
                       setAddingSubtask(false);
-                      setNewSubtaskContent('');
+                      setNewSubtaskContent("");
                     }
                   }}
                 />
@@ -651,7 +734,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
                     onClick={addSubtask}
                   >
                     追加
@@ -659,10 +742,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                   <button
                     type="button"
                     className="btn"
-                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
                     onClick={() => {
                       setAddingSubtask(false);
-                      setNewSubtaskContent('');
+                      setNewSubtaskContent("");
                     }}
                   >
                     キャンセル
@@ -673,7 +756,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
               <button
                 type="button"
                 className="text-btn text-muted"
-                style={{ marginTop: '0.5rem' }}
+                style={{ marginTop: "0.5rem" }}
                 onClick={() => setAddingSubtask(true)}
               >
                 <Plus size={12} /> サブタスクを追加
@@ -684,17 +767,28 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
 
         <div className="modal-footer">
           {saveError && (
-            <span style={{ color: 'var(--danger, #e53e3e)', fontSize: '0.85rem', flex: 1 }}>
+            <span
+              style={{
+                color: "var(--danger, #e53e3e)",
+                fontSize: "0.85rem",
+                flex: 1,
+              }}
+            >
               {saveError}
             </span>
           )}
-          <button type="button" className="btn btn-primary" onClick={() => void saveAndClose()} disabled={isSaving}>
-            {isSaving ? '保存中...' : '保存して閉じる'}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void saveAndClose()}
+            disabled={isSaving}
+          >
+            {isSaving ? "保存中..." : "保存して閉じる"}
           </button>
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 
@@ -713,26 +807,31 @@ interface ChecklistInputProps {
  * @param onAdd - 追加確定コールバック
  * @param onCancel - キャンセルコールバック
  */
-function ChecklistInput({ value, onChange, onAdd, onCancel }: ChecklistInputProps) {
+function ChecklistInput({
+  value,
+  onChange,
+  onAdd,
+  onCancel,
+}: ChecklistInputProps) {
   return (
-    <div className="add-sub-form" style={{ marginTop: '0.5rem' }}>
+    <div className="add-sub-form" style={{ marginTop: "0.5rem" }}>
       <input
         autoFocus
         placeholder="チェック項目..."
         className="task-content-input"
-        style={{ fontSize: '0.85rem', padding: '0.35rem' }}
+        style={{ fontSize: "0.85rem", padding: "0.35rem" }}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') onAdd();
-          if (e.key === 'Escape') onCancel();
+          if (e.key === "Enter") onAdd();
+          if (e.key === "Escape") onCancel();
         }}
       />
       <div className="form-actions">
         <button
           type="button"
           className="btn btn-primary"
-          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+          style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
           onClick={onAdd}
         >
           追加
@@ -740,7 +839,7 @@ function ChecklistInput({ value, onChange, onAdd, onCancel }: ChecklistInputProp
         <button
           type="button"
           className="btn"
-          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+          style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
           onClick={onCancel}
         >
           キャンセル

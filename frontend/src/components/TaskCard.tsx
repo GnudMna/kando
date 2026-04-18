@@ -1,11 +1,11 @@
 // タスクカードコンポーネント
 // かんばんボード上でタスクの内容・チェックリスト・サブタスクを表示し
 // チェック状態の切り替えや削除確認ダイアログを提供する
-import { useState, memo } from 'react';
-import { Trash2, CheckSquare, Square, CornerDownRight } from 'lucide-react';
-import type { Task } from '../types';
-import { ConfirmDialog } from './ConfirmDialog';
-import * as api from '../api/boardApi';
+import { useState, memo } from "react";
+import { Trash2, CheckSquare, Square, CornerDownRight } from "lucide-react";
+import type { Task } from "../types";
+import { ConfirmDialog } from "./ConfirmDialog";
+import * as api from "../api/boardApi";
 
 interface Props {
   task: Task;
@@ -25,7 +25,13 @@ interface Props {
  * @param onTaskUpdated - タスク更新時のコールバック
  * @param onEditTask - タスク編集開始時のコールバック
  */
-export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, onTaskUpdated, onEditTask }: Props) {
+export const TaskCard = memo(function TaskCard({
+  task,
+  columnId,
+  onDeleteTask,
+  onTaskUpdated,
+  onEditTask,
+}: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   /**
@@ -37,25 +43,32 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
    */
   const toggleChecklist = async (
     item: { id: number; completed: boolean },
-    type: 'task' | 'subtask',
-    subtaskId?: number
+    type: "task" | "subtask",
+    subtaskId?: number,
   ) => {
     try {
       const updatedItem = await api.updateChecklistItem(item.id, {
         completed: !item.completed,
       });
-      if (type === 'task') {
+      if (type === "task") {
         onTaskUpdated({
           ...task,
-          checklists: task.checklists.map((c) => (c.id === item.id ? updatedItem : c)),
+          checklists: task.checklists.map((c) =>
+            c.id === item.id ? updatedItem : c,
+          ),
         });
       } else if (subtaskId !== undefined) {
         onTaskUpdated({
           ...task,
           subtasks: task.subtasks.map((s) =>
             s.id === subtaskId
-              ? { ...s, checklists: s.checklists.map((c) => (c.id === item.id ? updatedItem : c)) }
-              : s
+              ? {
+                  ...s,
+                  checklists: s.checklists.map((c) =>
+                    c.id === item.id ? updatedItem : c,
+                  ),
+                }
+              : s,
           ),
         });
       }
@@ -83,8 +96,8 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
                 <button
                   type="button"
                   className="checklist-toggle"
-                  onClick={() => void toggleChecklist(c, 'task')}
-                  aria-label={`チェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
+                  onClick={() => void toggleChecklist(c, "task")}
+                  aria-label={`チェックリスト「${c.content}」を${c.completed ? "未完了" : "完了"}にする`}
                 >
                   {c.completed ? (
                     <CheckSquare size={14} className="accent" />
@@ -94,7 +107,9 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
                 </button>
                 <span
                   className={
-                    c.completed ? 'checklist-text completed text-muted' : 'checklist-text'
+                    c.completed
+                      ? "checklist-text completed text-muted"
+                      : "checklist-text"
                   }
                 >
                   {c.content}
@@ -123,9 +138,9 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
                           type="button"
                           className="checklist-toggle"
                           onClick={() =>
-                            void toggleChecklist(c, 'subtask', subtask.id)
+                            void toggleChecklist(c, "subtask", subtask.id)
                           }
-                          aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を${c.completed ? '未完了' : '完了'}にする`}
+                          aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を${c.completed ? "未完了" : "完了"}にする`}
                         >
                           {c.completed ? (
                             <CheckSquare size={14} className="accent" />
@@ -136,8 +151,8 @@ export const TaskCard = memo(function TaskCard({ task, columnId, onDeleteTask, o
                         <span
                           className={
                             c.completed
-                              ? 'checklist-text completed text-muted'
-                              : 'checklist-text'
+                              ? "checklist-text completed text-muted"
+                              : "checklist-text"
                           }
                         >
                           {c.content}
