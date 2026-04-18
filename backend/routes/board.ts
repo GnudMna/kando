@@ -1,8 +1,15 @@
 // ボード全体のデータを返す GET /api/board エンドポイント
 // rows → columns → tasks → subtasks → checklist_items の順にネストして返す
-import { Router, Request, Response, NextFunction } from 'express';
-import { pool } from '../db.js';
-import type { DbRow, DbColumn, DbTask, DbSubtask, DbChecklistItem, Row } from '../types.js';
+import { Router, Request, Response, NextFunction } from "express";
+import { pool } from "../db.js";
+import type {
+  DbRow,
+  DbColumn,
+  DbTask,
+  DbSubtask,
+  DbChecklistItem,
+  Row,
+} from "../types.js";
 
 const router = Router();
 
@@ -20,7 +27,7 @@ export function buildBoardHierarchy(
   columns: DbColumn[],
   tasks: DbTask[],
   subtasks: DbSubtask[],
-  checklistItems: DbChecklistItem[]
+  checklistItems: DbChecklistItem[],
 ): Row[] {
   const taskChecklistMap = new Map<number, DbChecklistItem[]>();
   const subtaskChecklistMap = new Map<number, DbChecklistItem[]>();
@@ -35,7 +42,10 @@ export function buildBoardHierarchy(
     }
   }
 
-  const subtasksByTaskId = new Map<number, Array<DbSubtask & { checklists: DbChecklistItem[] }>>();
+  const subtasksByTaskId = new Map<
+    number,
+    Array<DbSubtask & { checklists: DbChecklistItem[] }>
+  >();
   for (const subtask of subtasks) {
     const nestedSubtask = {
       ...subtask,
@@ -44,10 +54,15 @@ export function buildBoardHierarchy(
     pushToGroupMap(subtasksByTaskId, subtask.task_id, nestedSubtask);
   }
 
-  const tasksByColumnId = new Map<number, Array<DbTask & {
-    subtasks: Array<DbSubtask & { checklists: DbChecklistItem[] }>;
-    checklists: DbChecklistItem[];
-  }>>();
+  const tasksByColumnId = new Map<
+    number,
+    Array<
+      DbTask & {
+        subtasks: Array<DbSubtask & { checklists: DbChecklistItem[] }>;
+        checklists: DbChecklistItem[];
+      }
+    >
+  >();
 
   for (const task of tasks) {
     const nestedTask = {
@@ -58,12 +73,19 @@ export function buildBoardHierarchy(
     pushToGroupMap(tasksByColumnId, task.column_id, nestedTask);
   }
 
-  const columnsByRowId = new Map<number, Array<DbColumn & {
-    tasks: Array<DbTask & {
-      subtasks: Array<DbSubtask & { checklists: DbChecklistItem[] }>;
-      checklists: DbChecklistItem[];
-    }>;
-  }>>();
+  const columnsByRowId = new Map<
+    number,
+    Array<
+      DbColumn & {
+        tasks: Array<
+          DbTask & {
+            subtasks: Array<DbSubtask & { checklists: DbChecklistItem[] }>;
+            checklists: DbChecklistItem[];
+          }
+        >;
+      }
+    >
+  >();
 
   for (const column of columns) {
     const nestedColumn = {
@@ -80,25 +102,30 @@ export function buildBoardHierarchy(
 }
 
 // ボード全体のデータを一括取得して階層構造に組み立てて返す
-router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+router.get("/", async (_req: Request, res: Response, next: NextFunction) => {
   try {
     // 全テーブルを並行して取得することでパフォーマンスを最適化する
-    const [rowsResult, colsResult, tasksResult, subResult, chkResult] = await Promise.all([
-      pool.query<DbRow>('SELECT * FROM rows ORDER BY position ASC'),
-      pool.query<DbColumn>('SELECT * FROM columns ORDER BY position ASC'),
-      pool.query<DbTask>('SELECT * FROM tasks ORDER BY position ASC'),
-      pool.query<DbSubtask>('SELECT * FROM subtasks ORDER BY id ASC'),
-      pool.query<DbChecklistItem>('SELECT * FROM checklist_items ORDER BY position ASC'),
-    ]);
+    const [rowsResult, colsResult, tasksResult, subResult, chkResult] =
+      await Promise.all([
+        pool.query<DbRow>("SELECT * FROM rows ORDER BY position ASC"),
+        pool.query<DbColumn>("SELECT * FROM columns ORDER BY position ASC"),
+        pool.query<DbTask>("SELECT * FROM tasks ORDER BY position ASC"),
+        pool.query<DbSubtask>("SELECT * FROM subtasks ORDER BY id ASC"),
+        pool.query<DbChecklistItem>(
+          "SELECT * FROM checklist_items ORDER BY position ASC",
+        ),
+      ]);
 
     // Map を使って線形時間で階層構造を構築する
-    res.json(buildBoardHierarchy(
-      rowsResult.rows,
-      colsResult.rows,
-      tasksResult.rows,
-      subResult.rows,
-      chkResult.rows
-    ));
+    res.json(
+      buildBoardHierarchy(
+        rowsResult.rows,
+        colsResult.rows,
+        tasksResult.rows,
+        subResult.rows,
+        chkResult.rows,
+      ),
+    );
   } catch (err) {
     next(err);
   }

@@ -1,7 +1,7 @@
 // リストビューコンポーネント
 // かんばんビューの代替表示。全タスクをリスト形式（行→ステータス列で表示）で表示する
-import { Plus, Trash2 } from 'lucide-react';
-import type { Row, Task } from '../types';
+import { Plus, Trash2 } from "lucide-react";
+import type { Row, Task } from "../types";
 
 interface Props {
   rows: Row[];
@@ -36,7 +36,9 @@ export function ListView({
           <div className="list-view-body">
             <div className="list-view-header-row">
               <span className="list-view-col list-view-col-task">タスク</span>
-              <span className="list-view-col list-view-col-status">ステータス</span>
+              <span className="list-view-col list-view-col-status">
+                ステータス
+              </span>
               <span className="list-view-col list-view-col-actions" />
             </div>
 
@@ -47,7 +49,9 @@ export function ListView({
                   className="list-view-row"
                   onClick={() => onTaskClick(task, column.id)}
                 >
-                  <span className="list-view-col list-view-col-task">{task.content}</span>
+                  <span className="list-view-col list-view-col-task">
+                    {task.content}
+                  </span>
                   <span className="list-view-col list-view-col-status">
                     <span className="status-badge">{column.title}</span>
                   </span>
@@ -88,9 +92,9 @@ export function ListView({
                       <span className="list-view-col list-view-col-task list-view-col-task-deep">
                         <span className="list-subtask-indent">↳</span>
                         <span
-                          className={`list-checklist-item${item.completed ? ' list-checklist-checked' : ''}`}
+                          className={`list-checklist-item${item.completed ? " list-checklist-checked" : ""}`}
                         >
-                          {item.completed ? '☑' : '☐'} {item.content}
+                          {item.completed ? "☑" : "☐"} {item.content}
                         </span>
                       </span>
                       <span className="list-view-col list-view-col-status" />
@@ -108,16 +112,16 @@ export function ListView({
                     <span className="list-view-col list-view-col-task">
                       <span className="list-subtask-indent">↳</span>
                       <span
-                        className={`list-checklist-item${item.completed ? ' list-checklist-checked' : ''}`}
+                        className={`list-checklist-item${item.completed ? " list-checklist-checked" : ""}`}
                       >
-                        {item.completed ? '☑' : '☐'} {item.content}
+                        {item.completed ? "☑" : "☐"} {item.content}
                       </span>
                     </span>
                     <span className="list-view-col list-view-col-status" />
                     <span className="list-view-col list-view-col-actions" />
                   </div>
                 )),
-              ])
+              ]),
             )}
 
             {row.columns.every((c) => c.tasks.length === 0) && (
