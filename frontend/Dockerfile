@@ -4,12 +4,12 @@
 # =============================================================================
 
 # ---- ステージ1: ビルド ----
-# package*.json を先にコピーして、ソース変更時に npm install キャッシュを再利用する
+# package*.json を先にコピーして、ソース変更時に npm ci キャッシュを再利用する
 FROM node:24-alpine AS build
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY . .
 # Vite で本番用静的ファイルを /app/dist に出力する
 RUN npm run build

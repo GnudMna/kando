@@ -1,3 +1,7 @@
 backend/node_modules
 frontend/node_modules
 frontend/dist
+backend/dist
+pgdata
+.git
+.devcontainer

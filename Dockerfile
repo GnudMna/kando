@@ -7,21 +7,21 @@
 # =============================================================================
 
 # ---- ステージ1: フロントエンドのビルド ----
-# package*.json を先にコピーすることで、ソース変更時に npm install キャッシュを再利用できる
+# package*.json を先にコピーすることで、ソース変更時に npm ci キャッシュを再利用できる
 FROM node:24-alpine AS frontend-build
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/ .
 # Vite で本番用静的ファイルを /app/dist に出力する
 RUN npm run build
 
 # ---- ステージ2: バックエンドのビルド ----
-# package*.json を先にコピーして npm install のキャッシュを最大限活用する
+# package*.json を先にコピーして npm ci のキャッシュを最大限活用する
 FROM node:24-alpine AS backend-build
 WORKDIR /app
 COPY backend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY backend/ .
 # TypeScript を JavaScript にコンパイルして /app/dist に出力する
 RUN npm run build
@@ -32,7 +32,7 @@ RUN npm run build
 FROM node:24-alpine AS backend-deps
 WORKDIR /app
 COPY backend/package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 # ---- ステージ4: 本番イメージ ----
 # 軽量な node:24-alpine をベースに nginx と Supervisor を追加し、
