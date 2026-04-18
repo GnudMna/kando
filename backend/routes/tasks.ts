@@ -814,7 +814,11 @@ router.delete(
       return;
     }
     try {
-      await pool.query("DELETE FROM tasks WHERE id = $1", [id]);
+      const result = await pool.query("DELETE FROM tasks WHERE id = $1", [id]);
+      if ((result.rowCount ?? 0) === 0) {
+        res.status(404).json({ error: "Task not found" });
+        return;
+      }
       res.json({ success: true });
     } catch (err) {
       next(err);

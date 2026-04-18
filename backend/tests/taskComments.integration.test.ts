@@ -192,7 +192,7 @@ describe("task-comments router integration", () => {
   });
 
   it("DELETE /api/task-comments/:id は削除して success を返す", async () => {
-    mockedPool.query.mockResolvedValueOnce({ rows: [] });
+    mockedPool.query.mockResolvedValueOnce({ rowCount: 1, rows: [] });
 
     const res = await request(createApp()).delete("/api/task-comments/3");
 
@@ -201,6 +201,19 @@ describe("task-comments router integration", () => {
     expect(mockedPool.query).toHaveBeenCalledWith(
       "DELETE FROM task_comments WHERE id = $1",
       [3],
+    );
+  });
+
+  it("DELETE /api/task-comments/:id は対象が存在しない場合 404 を返す", async () => {
+    mockedPool.query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const res = await request(createApp()).delete("/api/task-comments/999");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Comment not found" });
+    expect(mockedPool.query).toHaveBeenCalledWith(
+      "DELETE FROM task_comments WHERE id = $1",
+      [999],
     );
   });
 });
