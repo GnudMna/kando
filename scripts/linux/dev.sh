@@ -32,6 +32,15 @@ if [ ! -d "frontend/node_modules" ]; then
 fi
 echo
 
+# バックエンドの DB マイグレーションを実行
+echo "バックエンドの DB マイグレーションを実行しています..."
+npm --prefix backend run migrate:dev
+if [ $? -ne 0 ]; then
+    echo "バックエンドの DB マイグレーションに失敗しました"
+    exit 1
+fi
+echo
+
 # 終了時に子プロセスを終了する
 trap 'kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit' INT TERM
 

@@ -13,5 +13,5 @@ COPY . .
 RUN npm run build
 # バックエンド API のポートを公開する
 EXPOSE 3001
-# コンパイル済み JS サーバーを起動する
-CMD ["npm", "start"]
+# マイグレーション実行後にコンパイル済み JS サーバーを起動する
+CMD ["sh", "-c", "npm run migrate && npm start"]

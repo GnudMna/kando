@@ -6,7 +6,7 @@ Kando のバックエンド API（Express + TypeScript + PostgreSQL）です。
 
 - かんばんボード全体データの取得 (`/api/board`)
 - 行・カラム・タスク・サブタスク・チェックリスト・コメントの CRUD
-- アプリ起動時の DB 初期化（テーブル作成・既存スキーマ補完・初期データ投入）
+- 専用マイグレーション (`migrate.ts`) による DB スキーマ更新・初期データ投入
 
 ## 必要環境
 
@@ -23,6 +23,7 @@ npm install
 ## 開発起動
 
 ```bash
+npm run migrate:dev
 npm run dev
 ```
 
@@ -32,7 +33,21 @@ npm run dev
 
 ```bash
 npm run build
+npm run migrate
 npm run start
+```
+
+## マイグレーション
+
+スキーマ変更と初期データ投入は API サーバー起動処理から分離されており、
+専用コマンドで実行します。
+
+```bash
+# 開発環境（TypeScript 直接実行）
+npm run migrate:dev
+
+# 本番ビルド後（dist/migrate.js を実行）
+npm run migrate
 ```
 
 ## 環境変数
@@ -132,6 +147,8 @@ CORS_ORIGIN=http://localhost:5173
 
 | コマンド                   | 説明                                      |
 | -------------------------- | ----------------------------------------- |
+| `npm run migrate:dev`      | マイグレーションを TypeScript で実行      |
+| `npm run migrate`          | ビルド済みマイグレーションを実行          |
 | `npm run dev`              | 開発サーバー起動（`tsx watch server.ts`） |
 | `npm run build`            | TypeScript をビルドして `dist/` を生成    |
 | `npm run start`            | `dist/server.js` を起動                   |
@@ -162,7 +179,8 @@ backend/
 ├── middleware/   # エラーハンドリング / ロギング / バリデーション
 ├── routes/       # API ルート定義
 ├── tests/        # Vitest テスト
-├── db.ts         # DB 接続と初期化
+├── db.ts         # DB 接続と接続待機
+├── migrate.ts    # DB スキーマ変更と初期データ投入
 ├── server.ts     # Express エントリーポイント
 └── types.ts      # DB/レスポンス型定義
 ```
