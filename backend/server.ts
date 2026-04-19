@@ -73,16 +73,111 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT ?? 3001;
 
+// Graceful shutdown 設定（ms）
+const SHUTDOWN_TIMEOUT_MS = parseInt(
+  (process.env.SHUTDOWN_TIMEOUT_MS as string) ?? "30000",
+  10,
+);
+
+import type { Server } from "http";
+import type { Socket } from "net";
+
+let server: Server | undefined;
+const connections = new Set<Socket>();
+let isShuttingDown = false;
+let forceShutdownTimer: NodeJS.Timeout | undefined;
+
 /**
  * DB 接続確認後に HTTP サーバーを起動する。
+ * シグナルを監視して graceful shutdown を行う。
  * @returns 起動処理完了時に解決される Promise
  */
 async function startServer(): Promise<void> {
   try {
     // DB 接続可能になるまで待機し、待ち受け開始前の起動失敗を避ける
     await waitForDbWithRetry();
-    app.listen(PORT, () => {
+
+    server = app.listen(PORT, () => {
       console.log(`Backend listening on port ${PORT}`);
+    });
+
+    // 接続を追跡して強制終了時に破棄できるようにする
+    server.on("connection", (socket: Socket) => {
+      connections.add(socket);
+      socket.on("close", () => connections.delete(socket));
+    });
+
+    // シグナルハンドラ
+    const handleSignal = (signal: NodeJS.Signals) => {
+      if (isShuttingDown) {
+        console.log(`Already shutting down (signal: ${signal})`);
+        return;
+      }
+      isShuttingDown = true;
+      console.log(`Received ${signal} - starting graceful shutdown`);
+
+      // 新しい接続受け付けを止める
+      if (server) {
+        server.close(async (err?: Error) => {
+          if (err) {
+            console.error("Error closing HTTP server:", err);
+            process.exit(1);
+          }
+
+          // DB プールを閉じる
+          try {
+            await pool.end();
+            console.log("DB pool closed");
+            if (forceShutdownTimer) clearTimeout(forceShutdownTimer);
+            process.exit(0);
+          } catch (e) {
+            console.error("Error closing DB pool:", e);
+            process.exit(1);
+          }
+        });
+      } else {
+        // サーバが存在しない場合は DB を閉じて終了
+        pool
+          .end()
+          .then(() => {
+            console.log("DB pool closed");
+            process.exit(0);
+          })
+          .catch((e) => {
+            console.error("Error closing DB pool:", e);
+            process.exit(1);
+          });
+      }
+
+      // 強制シャットダウンタイマ
+      forceShutdownTimer = setTimeout(async () => {
+        console.error("Graceful shutdown timed out - forcing close");
+        for (const sock of connections) {
+          try {
+            sock.destroy();
+          } catch (e) {
+            console.error("Error destroying socket:", e);
+          }
+        }
+        try {
+          await pool.end();
+        } catch (e) {
+          console.error("Error closing DB pool during forced shutdown:", e);
+        }
+        process.exit(1);
+      }, SHUTDOWN_TIMEOUT_MS);
+    };
+
+    process.on("SIGINT", () => handleSignal("SIGINT"));
+    process.on("SIGTERM", () => handleSignal("SIGTERM"));
+
+    // 予期せぬ例外はログ出力して shutdown を開始する
+    process.on("uncaughtException", (err) => {
+      console.error("Uncaught exception:", err);
+      handleSignal("SIGTERM");
+    });
+    process.on("unhandledRejection", (reason) => {
+      console.error("Unhandled rejection:", reason);
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
