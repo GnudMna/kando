@@ -1,0 +1,25 @@
+{
+  "name": "kando",
+  "private": true,
+  "version": "0.0.4",
+  "packageManager": "npm@11.9.0",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/types"
+  ],
+  "scripts": {
+    "setup": "npm install",
+    "dev": "./scripts/linux/dev.sh",
+    "dev:win": "scripts/windows/dev.bat",
+    "build": "npm --workspace frontend run build && npm --workspace backend run build",
+    "lint": "npm --workspace backend run lint && npm --workspace frontend run lint",
+    "lint:fix": "npm --workspace backend run lint:fix && npm --workspace frontend run lint:fix",
+    "format": "npm --workspace backend run format && npm --workspace frontend run format",
+    "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
+    "test": "./scripts/linux/test.sh",
+    "test:coverage": "npm --workspace backend run test:coverage && npm --workspace frontend run test:coverage",
+    "test:ci": "npm run lint && npm run typecheck && npm run test:coverage",
+    "test:win": "scripts/windows/test.bat"
+  }
+}

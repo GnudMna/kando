@@ -37,10 +37,10 @@
 | バックエンド | Express + TypeScript |
 | DB | PostgreSQL 18 |
 | 配信 | Nginx（SPA フォールバック対応） |
-| プロセス管理 | Supervisor（Nginx + API を同一コンテナで管理） |
+| プロセス管理 | 各コンテナで単一サービスを実行（frontend / backend / db） |
 
-`compose.yaml` では `db`（PostgreSQL）と `app`（Nginx + Backend）を起動します。
-`app` コンテナ内では起動時に `node dist/migrate.js` を実行したあと、API サーバーを開始します。
+`compose.yaml` では `db`（PostgreSQL）、`backend`（Node.js API）、`frontend`（Nginx で静的Reactアプリ配信）を起動します。
+`backend` コンテナ内では起動時に `node dist/migrate.js` を実行したあと、API サーバーを開始します。
 
 ---
 
@@ -107,21 +107,20 @@ scripts\windows\dev.bat
 ### 手動起動
 
 ```bash
-npm install --prefix backend
-npm install --prefix frontend
-npm --prefix backend run migrate:dev
+npm install
+npm --workspace backend run migrate:dev
 ```
 
 別ターミナルで:
 
 ```bash
-npm --prefix backend run dev
+npm --workspace backend run dev
 ```
 
 別ターミナルで:
 
 ```bash
-npm --prefix frontend run dev -- --host
+npm --workspace frontend run dev -- --host
 ```
 
 ---
@@ -130,8 +129,13 @@ npm --prefix frontend run dev -- --host
 
 | スクリプト | 説明 |
 |---|---|
-| `./scripts/linux/dev.sh` / `scripts\windows\dev.bat` | 依存関係確認、`migrate:dev` 実行後に backend/frontend を起動 |
-| `./scripts/linux/test.sh` / `scripts\windows\test.bat` | backend/frontend の `lint` → `typecheck` → `test` を順番実行 |
+| `npm run dev` | ルートワークスペースの開発サーバーを起動 |
+| `npm run test` | ルートワークスペースの品質チェックを実行 |
+| `npm run test:coverage` | ルートワークスペースのテストカバレッジを生成 |
+| `npm run test:ci` | CI 向けに lint/typecheck/test:coverage を実行 |
+| `npm run lint` | backend/frontend の ESLint を実行 |
+| `./scripts/linux/dev.sh` / `scripts\windows\dev.bat` | 既存の開発起動スクリプト（依存関係確認・`migrate:dev` 実行後に backend/frontend を起動） |
+| `./scripts/linux/test.sh` / `scripts\windows\test.bat` | 既存の品質チェックスクリプト（lint/typecheck/test） |
 | `./scripts/linux/format.sh` / `scripts\windows\format.bat` | backend/frontend の `lint:fix` と `format` を実行 |
 | `./scripts/linux/db-backup.sh` / `scripts\windows\db-backup.bat` | Compose 上の DB を論理バックアップ（`.sql`） |
 | `./scripts/linux/db-restore.sh` / `scripts\windows\db-restore.bat` | `.sql` から DB 復元（`public` スキーマを再作成） |
@@ -156,11 +160,19 @@ scripts\windows\test.bat
 
 ```bash
 # backend
-npm --prefix backend run test
-npm --prefix backend run test:integration
+npm --workspace backend run test
+npm --workspace backend run test:integration
+npm --workspace backend run test:coverage
 
 # frontend
-npm --prefix frontend run test
+npm --workspace frontend run test
+npm --workspace frontend run test:coverage
+```
+
+CI 用チェック:
+
+```bash
+npm run test:ci
 ```
 
 ---
@@ -245,10 +257,10 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 │       ├── hooks/
 │       ├── test/
 │       └── utils/
+├── package.json          # ルート npm workspace と開発スクリプト
+├── package-lock.json     # ルート workspace lock
 ├── scripts/              # 開発・運用スクリプト（linux/windows）
-├── compose.yaml          # Compose 定義
-├── Dockerfile            # 本番用マルチステージビルド
-└── supervisord.conf      # app コンテナ内プロセス管理
+└── compose.yaml          # Compose 定義
 ```
 
 ---

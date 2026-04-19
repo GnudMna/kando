@@ -13,24 +13,12 @@ echo Kandoを開発モードで起動します...
 echo.
 
 REM 依存関係をインストール
-if not exist "backend\node_modules" (
-    echo バックエンドの依存関係をインストールしています...
-    call npm install --prefix backend
-    if errorlevel 1 (
-        echo バックエンドの依存関係のインストールに失敗しました
-        pause
-        exit /b 1
-    )
-)
-
-if not exist "frontend\node_modules" (
-    echo フロントエンドの依存関係をインストールしています...
-    call npm install --prefix frontend
-    if errorlevel 1 (
-        echo フロントエンドの依存関係のインストールに失敗しました
-        pause
-        exit /b 1
-    )
+echo ワークスペースの依存関係をインストールしています...
+call npm ci
+if errorlevel 1 (
+    echo 依存関係のインストールに失敗しました
+    pause
+    exit /b 1
 )
 echo.
 

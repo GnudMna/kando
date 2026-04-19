@@ -1,17 +1,26 @@
 # =============================================================================
-# バックエンド単体の開発・検証用 Dockerfile
-# 本番環境ではルートの Dockerfile（マルチステージビルド）を使用してください
+# バックエンド単体 Dockerfile
+# 本番環境でも使えるように、ビルドとランタイムを分離したマルチステージ構成にしています
 # =============================================================================
-FROM node:24-alpine
 
+# ---- ビルドステージ ----
+FROM node:24-alpine AS backend-build
 WORKDIR /app
-# package*.json を先にコピーし、ソースコード変更時に npm ci キャッシュを再利用する
-COPY package*.json ./
+COPY backend/package.json backend/package-lock.json ./backend/
+COPY packages/types ./packages/types
+WORKDIR /app/backend
 RUN npm ci
-COPY . .
-# TypeScript を JavaScript にコンパイルして dist/ に出力する
+COPY backend .
 RUN npm run build
-# バックエンド API のポートを公開する
+
+# ---- 本番ランタイムステージ ----
+FROM node:24-alpine AS backend-runtime
+WORKDIR /app
+COPY --from=backend-build /app/backend/dist ./backend/dist
+COPY backend/package.json backend/package-lock.json ./backend/
+COPY packages/types ./packages/types
+WORKDIR /app/backend
+RUN npm ci --omit=dev
+
 EXPOSE 3001
-# マイグレーション実行後にコンパイル済み JS サーバーを起動する
 CMD ["sh", "-c", "npm run migrate && npm start"]

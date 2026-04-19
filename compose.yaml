@@ -17,15 +17,18 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  app:
+  backend:
     build:
       context: .
-    container_name: kando-app
+      dockerfile: backend/Dockerfile
+    container_name: kando-backend
     ports:
-      - "8080:80"
       - "3001:3001"
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER:-kando_user}:${POSTGRES_PASSWORD:-kando_password}@db:5432/${POSTGRES_DB:-kanban_db}
+      DATABASE_URL: postgres://${POSTGRES_USER:-kando_user}:${POSTGRES_PASSWORD:-kando_password}@db:5432/${POSTGRES_DB:-kanban_db}
+      POSTGRES_USER: ${POSTGRES_USER:-kando_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kando_password}
+      POSTGRES_DB: ${POSTGRES_DB:-kanban_db}
     depends_on:
       db:
         condition: service_healthy
@@ -35,4 +38,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: kando-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
     restart: unless-stopped

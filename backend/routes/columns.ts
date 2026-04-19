@@ -1,7 +1,11 @@
 // カラム（ステータス列）に対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
-import { pool } from "../db.js";
-import type { DbColumn } from "../types.js";
+import {
+  createColumn,
+  deleteColumn,
+  moveColumn,
+  updateColumnTitle,
+} from "../services/columnsService.js";
 import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
@@ -28,11 +32,8 @@ router.post(
       row_id: number;
     };
     try {
-      const result = await pool.query<DbColumn>(
-        "INSERT INTO columns (title, position, row_id) VALUES ($1, $2, $3) RETURNING *",
-        [title, position, row_id],
-      );
-      res.json(result.rows[0]);
+      const column = await createColumn(title, position, row_id);
+      res.json(column);
     } catch (err) {
       next(err);
     }
@@ -60,15 +61,12 @@ router.put(
     }
     const { title } = req.body as { title: string };
     try {
-      const result = await pool.query<DbColumn>(
-        "UPDATE columns SET title = $1 WHERE id = $2 RETURNING *",
-        [title, id],
-      );
-      if (!result.rows[0]) {
+      const column = await updateColumnTitle(id, title);
+      if (!column) {
         res.status(404).json({ error: "Column not found" });
         return;
       }
-      res.json(result.rows[0]);
+      res.json(column);
     } catch (err) {
       next(err);
     }
@@ -96,15 +94,12 @@ router.put(
     }
     const { position } = req.body as { position: number };
     try {
-      const result = await pool.query<DbColumn>(
-        "UPDATE columns SET position = $1 WHERE id = $2 RETURNING *",
-        [position, id],
-      );
-      if (!result.rows[0]) {
+      const column = await moveColumn(id, position);
+      if (!column) {
         res.status(404).json({ error: "Column not found" });
         return;
       }
-      res.json(result.rows[0]);
+      res.json(column);
     } catch (err) {
       next(err);
     }
@@ -128,10 +123,8 @@ router.delete(
       return;
     }
     try {
-      const result = await pool.query("DELETE FROM columns WHERE id = $1", [
-        id,
-      ]);
-      if ((result.rowCount ?? 0) === 0) {
+      const deleted = await deleteColumn(id);
+      if (!deleted) {
         res.status(404).json({ error: "Column not found" });
         return;
       }

@@ -12,6 +12,16 @@ call "%SCRIPT_DIR%..\common\cd-project-root.bat"
 echo 品質チェック（Lint / 型チェック / テスト）を実行しています...
 echo.
 
+REM 依存関係をインストール
+echo ワークスペースの依存関係をインストールしています...
+call npm ci
+if errorlevel 1 (
+    echo 依存関係のインストールに失敗しました
+    pause
+    exit /b 1
+)
+
+echo.
 REM バックエンドの Lint
 echo バックエンドの Lint を実行中...
 call npm --prefix backend run lint

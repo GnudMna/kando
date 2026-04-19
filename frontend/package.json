@@ -1,7 +1,7 @@
 {
   "name": "kando-frontend",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc -b"
   },
@@ -21,6 +22,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@kando/types": "file:../packages/types",
     "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
