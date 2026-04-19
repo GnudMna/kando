@@ -15,28 +15,54 @@ import checklistItemsRouter from "./routes/checklistItems.js";
 import taskCommentsRouter from "./routes/taskComments.js";
 
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
 
-// 本番環境では CORS_ORIGIN の明示的な指定を必須にする
-if (process.env.NODE_ENV === "production" && !process.env.CORS_ORIGIN) {
+// 必須の環境変数を検証する
+if (!process.env.DATABASE_URL) {
+  console.error("FATAL: DATABASE_URL environment variable must be set");
+  process.exit(1);
+}
+
+if (isProduction && !process.env.CORS_ORIGIN) {
   console.error(
     "FATAL: CORS_ORIGIN environment variable must be set in production",
   );
   process.exit(1);
 }
 
+app.disable("x-powered-by");
+
 // セキュリティヘッダーを付与する
 app.use(helmet());
-// CORS設定: 許可オリジンは環境変数 CORS_ORIGIN で制御する
+
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  : [];
+
+// CORS設定: 許可オリジンを明示的に制御する
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN ?? "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: isProduction
+      ? allowedOrigins.length > 0
+        ? allowedOrigins
+        : false
+      : (process.env.CORS_ORIGIN ?? "*"),
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    optionsSuccessStatus: 204,
   }),
 );
+
 // リクエストボディをJSONとして解析する（100kB上限でDoSを防ぐ）
 app.use(express.json({ limit: "100kb" }));
 // リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
 app.use(requestLogger);
+
+// ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
+app.get("/api/liveness", (_req, res) => {
+  res.json({ status: "alive" });
+});
 
 // ヘルスチェックエンドポイント（ロードバランサー・コンテナオーケストレーター向け）
 app.get(
