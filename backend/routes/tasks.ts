@@ -8,7 +8,11 @@ import type {
   DbTask,
   DbTaskComment,
   Task,
-} from "../types.js";
+  TaskSnapshotChecklistPayload,
+  TaskSnapshotSubtaskPayload,
+  TaskSnapshotCommentPayload,
+  TaskSnapshotPayload,
+} from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
@@ -17,30 +21,9 @@ const TASK_RETURNING_COLUMNS =
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-type TaskSnapshotChecklistInput = {
-  id?: number;
-  content: string;
-  completed: boolean;
-};
-
-type TaskSnapshotSubtaskInput = {
-  id?: number;
-  content: string;
-  checklists: TaskSnapshotChecklistInput[];
-};
-
-type TaskSnapshotCommentInput = {
-  id?: number;
-  content: string;
-};
-
-type TaskSnapshotPayload = {
-  content: string;
-  due_date: string | null;
-  checklists: TaskSnapshotChecklistInput[];
-  subtasks: TaskSnapshotSubtaskInput[];
-  comments: TaskSnapshotCommentInput[];
-};
+type TaskSnapshotChecklistInput = TaskSnapshotChecklistPayload;
+type TaskSnapshotSubtaskInput = TaskSnapshotSubtaskPayload;
+type TaskSnapshotCommentInput = TaskSnapshotCommentPayload;
 
 /** HTTP ステータス付きで呼び出し元へ返す業務エラー。 */
 class HttpError extends Error {

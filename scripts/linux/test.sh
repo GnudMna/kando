@@ -12,6 +12,15 @@ source "$SCRIPT_DIR/../common/cd-project-root.sh"
 echo "品質チェック（Lint / 型チェック / テスト）を実行しています..."
 echo
 
+# 依存関係をインストール
+echo "ワークスペースの依存関係をインストールしています..."
+npm ci
+if [ $? -ne 0 ]; then
+    echo "依存関係のインストールに失敗しました"
+    exit 1
+fi
+
+echo
 # バックエンドの Lint
 echo "バックエンドの Lint を実行中..."
 npm --prefix backend run lint

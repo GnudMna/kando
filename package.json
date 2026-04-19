@@ -5,7 +5,8 @@
   "packageManager": "npm@11.9.0",
   "workspaces": [
     "backend",
-    "frontend"
+    "frontend",
+    "packages/types"
   ],
   "scripts": {
     "setup": "npm install",
