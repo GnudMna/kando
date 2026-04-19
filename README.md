@@ -37,10 +37,10 @@
 | バックエンド | Express + TypeScript |
 | DB | PostgreSQL 18 |
 | 配信 | Nginx（SPA フォールバック対応） |
-| プロセス管理 | Supervisor（Nginx + API を同一コンテナで管理） |
+| プロセス管理 | 各コンテナで単一サービスを実行（frontend / backend / db） |
 
-`compose.yaml` では `db`（PostgreSQL）と `app`（Nginx + Backend）を起動します。
-`app` コンテナ内では起動時に `node dist/migrate.js` を実行したあと、API サーバーを開始します。
+`compose.yaml` では `db`（PostgreSQL）、`backend`（Node.js API）、`frontend`（Nginx で静的Reactアプリ配信）を起動します。
+`backend` コンテナ内では起動時に `node dist/migrate.js` を実行したあと、API サーバーを開始します。
 
 ---
 
@@ -246,9 +246,7 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 │       ├── test/
 │       └── utils/
 ├── scripts/              # 開発・運用スクリプト（linux/windows）
-├── compose.yaml          # Compose 定義
-├── Dockerfile            # 本番用マルチステージビルド
-└── supervisord.conf      # app コンテナ内プロセス管理
+└── compose.yaml          # Compose 定義
 ```
 
 ---
