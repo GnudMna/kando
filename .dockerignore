@@ -1,0 +1,8 @@
+# exclude local packages and build artifacts from Docker build context
+**/node_modules
+**/dist
+**/.env
+**/npm-debug.log
+**/.dockerignore
+**/pgdata
+**/.devcontainer
