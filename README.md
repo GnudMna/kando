@@ -131,8 +131,9 @@ npm --workspace frontend run dev -- --host
 |---|---|
 | `npm run dev` | ルートワークスペースの開発サーバーを起動 |
 | `npm run test` | ルートワークスペースの品質チェックを実行 |
+| `npm run test:coverage` | ルートワークスペースのテストカバレッジを生成 |
+| `npm run test:ci` | CI 向けに lint/typecheck/test:coverage を実行 |
 | `npm run lint` | backend/frontend の ESLint を実行 |
-| `npm run format` | backend/frontend の Prettier 整形を実行 |
 | `./scripts/linux/dev.sh` / `scripts\windows\dev.bat` | 既存の開発起動スクリプト（依存関係確認・`migrate:dev` 実行後に backend/frontend を起動） |
 | `./scripts/linux/test.sh` / `scripts\windows\test.bat` | 既存の品質チェックスクリプト（lint/typecheck/test） |
 | `./scripts/linux/format.sh` / `scripts\windows\format.bat` | backend/frontend の `lint:fix` と `format` を実行 |
@@ -159,11 +160,19 @@ scripts\windows\test.bat
 
 ```bash
 # backend
-npm --prefix backend run test
-npm --prefix backend run test:integration
+npm --workspace backend run test
+npm --workspace backend run test:integration
+npm --workspace backend run test:coverage
 
 # frontend
-npm --prefix frontend run test
+npm --workspace frontend run test
+npm --workspace frontend run test:coverage
+```
+
+CI 用チェック:
+
+```bash
+npm run test:ci
 ```
 
 ---

@@ -63,17 +63,18 @@ VITE_API_URL=http://localhost:3001/api
 
 ## npm scripts
 
-| コマンド             | 説明                             |
-| -------------------- | -------------------------------- |
-| `npm run dev`        | 開発サーバー起動                 |
-| `npm run build`      | 本番ビルド                       |
-| `npm run preview`    | ビルド成果物確認                 |
-| `npm run lint`       | ESLint 実行                      |
-| `npm run lint:fix`   | ESLint 自動修正                  |
-| `npm run format`     | Prettier 整形                    |
-| `npm run typecheck`  | TypeScript 型チェック (`tsc -b`) |
-| `npm run test`       | Vitest 実行                      |
-| `npm run test:watch` | Vitest watch                     |
+| コマンド                | 説明                             |
+| ----------------------- | -------------------------------- |
+| `npm run dev`           | 開発サーバー起動                 |
+| `npm run build`         | 本番ビルド                       |
+| `npm run preview`       | ビルド成果物確認                 |
+| `npm run lint`          | ESLint 実行                      |
+| `npm run lint:fix`      | ESLint 自動修正                  |
+| `npm run format`        | Prettier 整形                    |
+| `npm run typecheck`     | TypeScript 型チェック (`tsc -b`) |
+| `npm run test`          | Vitest 実行                      |
+| `npm run test:coverage` | カバレッジ付きテスト実行         |
+| `npm run test:watch`    | Vitest watch                     |
 
 ## テスト方針（抜粋）
 

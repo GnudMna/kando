@@ -17,6 +17,8 @@
     "format": "npm --workspace backend run format && npm --workspace frontend run format",
     "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
     "test": "./scripts/linux/test.sh",
+    "test:coverage": "npm --workspace backend run test:coverage && npm --workspace frontend run test:coverage",
+    "test:ci": "npm run lint && npm run typecheck && npm run test:coverage",
     "test:win": "scripts/windows/test.bat"
   }
 }
