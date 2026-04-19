@@ -192,6 +192,7 @@ npm run migrate
 | `npm run typecheck`        | TypeScript 型チェック                     |
 | `npm run test`             | テスト実行                                |
 | `npm run test:integration` | 統合テスト実行                            |
+| `npm run test:coverage`    | カバレッジ付きテスト実行                  |
 | `npm run test:watch`       | Vitest watch                              |
 
 ## テスト
@@ -204,6 +205,12 @@ npm run test
 
 ```bash
 npm run test:integration
+```
+
+カバレッジ付きテスト:
+
+```bash
+npm run test:coverage
 ```
 
 ## ディレクトリ構成
