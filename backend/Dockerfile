@@ -6,16 +6,20 @@
 # ---- ビルドステージ ----
 FROM node:24-alpine AS backend-build
 WORKDIR /app
-COPY package*.json ./
+COPY backend/package.json backend/package-lock.json ./backend/
+COPY packages/types ./packages/types
+WORKDIR /app/backend
 RUN npm ci
-COPY . .
+COPY backend .
 RUN npm run build
 
 # ---- 本番ランタイムステージ ----
 FROM node:24-alpine AS backend-runtime
 WORKDIR /app
-COPY --from=backend-build /app/dist ./dist
-COPY package*.json ./
+COPY --from=backend-build /app/backend/dist ./backend/dist
+COPY backend/package.json backend/package-lock.json ./backend/
+COPY packages/types ./packages/types
+WORKDIR /app/backend
 RUN npm ci --omit=dev
 
 EXPOSE 3001
