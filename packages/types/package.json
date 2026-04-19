@@ -1,0 +1,24 @@
+{
+  "name": "@kando/types",
+  "version": "0.0.3",
+  "private": true,
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}

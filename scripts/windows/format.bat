@@ -52,5 +52,15 @@ if errorlevel 1 (
 )
 echo.
 
+REM 共有型パッケージの Prettier によるコード整形
+echo 共有型パッケージの Prettier によるコード整形を実行中...
+call npm --prefix packages/types run format
+if errorlevel 1 (
+    echo 共有型パッケージの Prettier によるコード整形に失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
 echo ESLint 自動修正と Prettier によるコード整形が完了しました
 pause

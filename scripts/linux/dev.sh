@@ -13,22 +13,11 @@ echo "Kandoを開発モードで起動します..."
 echo
 
 # 依存関係をインストール
-if [ ! -d "backend/node_modules" ]; then
-    echo "バックエンドの依存関係をインストールしています..."
-    npm install --prefix backend
-    if [ $? -ne 0 ]; then
-        echo "バックエンドの依存関係のインストールに失敗しました"
-        exit 1
-    fi
-fi
-
-if [ ! -d "frontend/node_modules" ]; then
-    echo "フロントエンドの依存関係をインストールしています..."
-    npm install --prefix frontend
-    if [ $? -ne 0 ]; then
-        echo "フロントエンドの依存関係のインストールに失敗しました"
-        exit 1
-    fi
+echo "ワークスペースの依存関係をインストールしています..."
+npm ci
+if [ $? -ne 0 ]; then
+    echo "依存関係のインストールに失敗しました"
+    exit 1
 fi
 echo
 

@@ -7,32 +7,10 @@ import type {
   Subtask,
   ChecklistItem,
   TaskComment,
-} from "../types";
+  TaskSnapshotPayload,
+} from "@kando/types";
 
-export interface TaskSnapshotChecklistPayload {
-  id?: number;
-  content: string;
-  completed: boolean;
-}
-
-export interface TaskSnapshotSubtaskPayload {
-  id?: number;
-  content: string;
-  checklists: TaskSnapshotChecklistPayload[];
-}
-
-export interface TaskSnapshotCommentPayload {
-  id?: number;
-  content: string;
-}
-
-export interface TaskSnapshotPayload {
-  content: string;
-  due_date: string | null;
-  checklists: TaskSnapshotChecklistPayload[];
-  subtasks: TaskSnapshotSubtaskPayload[];
-  comments: TaskSnapshotCommentPayload[];
-}
+export type { TaskSnapshotPayload } from "@kando/types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
 

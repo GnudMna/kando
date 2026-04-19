@@ -12,6 +12,15 @@ source "$SCRIPT_DIR/../common/cd-project-root.sh"
 echo "ESLint の自動修正と Prettier によるコード整形を実行しています..."
 echo
 
+# 依存関係をインストール
+echo "ワークスペースの依存関係をインストールしています..."
+npm ci
+if [ $? -ne 0 ]; then
+    echo "依存関係のインストールに失敗しました"
+    exit 1
+fi
+
+echo
 # バックエンドの ESLint 自動修正
 echo "バックエンドの ESLint 自動修正を実行中..."
 npm --prefix backend run lint:fix
@@ -44,6 +53,15 @@ echo "フロントエンドの Prettier によるコード整形を実行中..."
 npm --prefix frontend run format
 if [ $? -ne 0 ]; then
     echo "フロントエンドの Prettier によるコード整形に失敗しました"
+    exit 1
+fi
+
+echo
+# 共有型パッケージの Prettier によるコード整形
+echo "共有型パッケージの Prettier によるコード整形を実行中..."
+npm --prefix packages/types run format
+if [ $? -ne 0 ]; then
+    echo "共有型パッケージの Prettier によるコード整形に失敗しました"
     exit 1
 fi
 echo
