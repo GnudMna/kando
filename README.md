@@ -53,8 +53,8 @@ docker compose up --build
 起動後:
 
 - フロントエンド: http://localhost:8080
-- バックエンド API: http://localhost:3001
-- ヘルスチェック: http://localhost:3001/api/health
+- バックエンド API: Docker ネットワーク内のみ（クライアントPCからは直接アクセスしない）
+- ヘルスチェック: http://localhost:8080/api/health
 
 ### Compose 環境変数（任意）
 
@@ -89,7 +89,7 @@ export DATABASE_URL=postgres://kando_user:kando_password@localhost:5432/kanban_d
 フロントエンドの API 参照先を変える場合（任意）:
 
 ```bash
-export VITE_API_URL=http://localhost:3001/api
+export VITE_API_URL=/api
 ```
 
 ### ワンコマンド起動

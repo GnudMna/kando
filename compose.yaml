@@ -22,8 +22,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: kando-backend
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-kando_user}:${POSTGRES_PASSWORD:-kando_password}@db:5432/${POSTGRES_DB:-kanban_db}
       POSTGRES_USER: ${POSTGRES_USER:-kando_user}
