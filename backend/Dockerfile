@@ -6,21 +6,20 @@
 # ---- ビルドステージ ----
 FROM node:24-alpine AS backend-build
 WORKDIR /app
-COPY backend/package.json backend/package-lock.json ./backend/
+COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/
 COPY packages/types ./packages/types
-WORKDIR /app/backend
-RUN npm ci
-COPY backend .
-RUN npm run build
+RUN npm ci --workspace backend
+COPY backend ./backend
+RUN npm --workspace backend run build
 
 # ---- 本番ランタイムステージ ----
 FROM node:24-alpine AS backend-runtime
 WORKDIR /app
+COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/
+RUN npm ci --omit=dev --workspace backend
 COPY --from=backend-build /app/backend/dist ./backend/dist
-COPY backend/package.json backend/package-lock.json ./backend/
-COPY packages/types ./packages/types
-WORKDIR /app/backend
-RUN npm ci --omit=dev
 
 EXPOSE 3001
-CMD ["sh", "-c", "npm run migrate && npm start"]
+CMD ["sh", "-c", "npm --workspace backend run migrate && npm --workspace backend run start"]
