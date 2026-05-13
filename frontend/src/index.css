@@ -294,6 +294,9 @@ body::after {
 
 .app-brand {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   background: var(--app-brand-bg);
   border: 1px solid var(--app-brand-border);
   border-radius: 16px;
@@ -301,6 +304,13 @@ body::after {
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
   animation: fade-up 340ms ease both;
+}
+
+.app-logo {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: 6px;
 }
 
 .app-title {
