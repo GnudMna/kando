@@ -227,6 +227,14 @@ export const moveTask = (
 export const deleteTask = (id: number): Promise<void> =>
   request<void>(`${API_URL}/tasks/${id}`, { method: "DELETE" });
 
+/**
+ * タスクをコピーする（サブタスク・チェックリスト・コメントも複製）。
+ * @param id - コピー元タスク ID
+ * @returns 複製後タスクを解決する Promise
+ */
+export const copyTask = (id: number): Promise<Task> =>
+  request<Task>(`${API_URL}/tasks/${id}/copy`, { method: "POST" });
+
 // タスクコメントの操作
 /**
  * 新しいタスクコメントを作成する。
