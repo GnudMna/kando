@@ -79,6 +79,7 @@ export function KanbanBoard() {
     removeColumn,
     addTask,
     removeTask,
+    copyTask,
     updateTask,
     moveTask,
     moveColumn,
@@ -267,6 +268,19 @@ export function KanbanBoard() {
       await removeTask(colId, taskId);
     },
     [removeTask],
+  );
+
+  /**
+   * タスクコピーハンドラー。
+   * @param colId - タスクが属するカラム ID
+   * @param taskId - コピー元タスク ID
+   * @returns コピー処理完了時に解決される Promise
+   */
+  const handleCopyTask = useCallback(
+    async (colId: number, taskId: number) => {
+      await copyTask(colId, taskId);
+    },
+    [copyTask],
   );
 
   const boardStats = useMemo(() => {
@@ -656,6 +670,7 @@ export function KanbanBoard() {
                                                 columnId={column.id}
                                                 dueHighlight={dueHighlight}
                                                 onDeleteTask={handleDeleteTask}
+                                                onCopyTask={handleCopyTask}
                                                 onTaskUpdated={updateTask}
                                                 onEditTask={(t) =>
                                                   setEditingTask({

@@ -4,6 +4,7 @@
 import { useState, memo } from "react";
 import {
   Trash2,
+  Copy,
   CheckSquare,
   Square,
   CornerDownRight,
@@ -26,6 +27,7 @@ interface Props {
   columnId: number;
   dueHighlight: DueHighlightResult;
   onDeleteTask: (colId: number, taskId: number) => void;
+  onCopyTask: (colId: number, taskId: number) => void;
   onTaskUpdated: (task: Task) => void;
   onEditTask: (task: Task) => void;
 }
@@ -47,6 +49,7 @@ export const TaskCard = memo(function TaskCard({
   columnId,
   dueHighlight,
   onDeleteTask,
+  onCopyTask,
   onTaskUpdated,
   onEditTask,
 }: Props) {
@@ -244,6 +247,18 @@ export const TaskCard = memo(function TaskCard({
         )}
 
         <div className="task-actions">
+          <button
+            type="button"
+            className="action-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopyTask(columnId, task.id);
+            }}
+            aria-label={`タスク「${task.content}」をコピー`}
+            title="コピー"
+          >
+            <Copy size={14} />
+          </button>
           <button
             type="button"
             className="action-btn"
