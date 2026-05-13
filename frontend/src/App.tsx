@@ -31,6 +31,12 @@ function App() {
       <header className="app-header">
         <div className="app-header-inner">
           <div className="app-brand">
+            <img
+              src="/favicon.svg"
+              alt=""
+              className="app-logo"
+              aria-hidden="true"
+            />
             <h1 className="app-title">Kando</h1>
           </div>
           <button

@@ -701,12 +701,10 @@ router.put(
     );
 
     if (!contentProvided && !dueDateProvided && !completedProvided) {
-      res
-        .status(400)
-        .json({
-          error:
-            "At least one of 'content', 'due_date', or 'completed' is required",
-        });
+      res.status(400).json({
+        error:
+          "At least one of 'content', 'due_date', or 'completed' is required",
+      });
       return;
     }
 
