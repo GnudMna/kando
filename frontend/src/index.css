@@ -286,23 +286,30 @@ body::after {
 
 .app-header-inner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
 }
 
 .app-brand {
-  flex: 1;
-  min-width: min(32rem, 100%);
-  max-width: 50rem;
+  flex: 0 0 auto;
   background: var(--app-brand-bg);
   border: 1px solid var(--app-brand-border);
-  border-radius: 24px;
-  padding: clamp(1rem, 2.7vw, 2rem);
+  border-radius: 16px;
+  padding: 0.5rem 1.25rem;
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
   animation: fade-up 340ms ease both;
+}
+
+.app-title {
+  font-family: "Instrument Serif", serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  color: var(--text-primary);
 }
 
 .theme-toggle {
@@ -312,32 +319,6 @@ body::after {
   background: var(--surface-strong);
   white-space: nowrap;
   backdrop-filter: blur(8px);
-}
-
-.app-kicker {
-  font-size: 0.68rem;
-  letter-spacing: 0.18em;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--accent-color);
-  margin-bottom: 0.45rem;
-}
-
-.app-title {
-  font-family: "Instrument Serif", serif;
-  font-size: clamp(2.25rem, 7.5vw, 4.8rem);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  line-height: 0.95;
-  color: var(--text-primary);
-}
-
-.app-subtitle {
-  margin-top: 0.6rem;
-  color: var(--text-secondary);
-  font-size: clamp(0.9rem, 1.8vw, 1.07rem);
-  max-width: 34rem;
-  line-height: 1.55;
 }
 
 .app-main {
@@ -1626,8 +1607,8 @@ body::after {
   }
 
   .app-brand {
-    border-radius: 18px;
-    padding: 1rem;
+    border-radius: 12px;
+    padding: 0.4rem 1rem;
   }
 
   .theme-toggle {

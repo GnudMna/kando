@@ -31,11 +31,7 @@ function App() {
       <header className="app-header">
         <div className="app-header-inner">
           <div className="app-brand">
-            <p className="app-kicker">Project Flow Studio</p>
             <h1 className="app-title">Kando</h1>
-            <p className="app-subtitle">
-              ドラッグ&ドロップで、やることを軽やかに整理。
-            </p>
           </div>
           <button
             type="button"
