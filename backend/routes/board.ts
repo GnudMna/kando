@@ -15,7 +15,7 @@ import type {
 const router = Router();
 
 const TASK_SELECT_COLUMNS =
-  "id, column_id, content, due_date::text AS due_date, position";
+  "id, column_id, content, due_date::text AS due_date, position, completed";
 const MAX_BOARD_LIMIT = 100;
 
 /** クエリパラメータ検証失敗を 400 エラーへ変換するための内部エラー。 */

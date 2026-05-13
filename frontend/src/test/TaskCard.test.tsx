@@ -13,6 +13,7 @@ const baseTask: Task = {
   content: "テストタスク",
   due_date: null,
   position: 1000,
+  completed: false,
   subtasks: [],
   checklists: [],
   comments: [],

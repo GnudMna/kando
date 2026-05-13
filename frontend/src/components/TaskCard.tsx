@@ -9,6 +9,8 @@ import {
   CornerDownRight,
   MessageSquare,
   CalendarDays,
+  CircleCheck,
+  Circle,
 } from "lucide-react";
 import type { Task } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -54,6 +56,19 @@ export const TaskCard = memo(function TaskCard({
     dueHighlight.status === "none"
       ? ""
       : ` task-due-date-${dueHighlight.status}`;
+
+  /**
+   * タスクの完了状態を切り替えて API に保存する。
+   * @returns 更新処理完了時に解決される Promise
+   */
+  const toggleCompleted = async () => {
+    try {
+      await api.updateTask(task.id, { completed: !task.completed });
+      onTaskUpdated({ ...task, completed: !task.completed });
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   /**
    * チェックリスト項目の完了状態を切り替えて API に保存する。
@@ -102,14 +117,33 @@ export const TaskCard = memo(function TaskCard({
   return (
     <>
       <div className="task-card-inner">
-        <button
-          type="button"
-          className="task-content task-title-btn"
-          onClick={() => onEditTask(task)}
-          aria-label={`タスク「${task.content}」を編集`}
-        >
-          {task.content}
-        </button>
+        <div className="task-card-header">
+          <button
+            type="button"
+            className="task-complete-btn"
+            onClick={() => void toggleCompleted()}
+            aria-label={
+              task.completed
+                ? `タスク「${task.content}」を未完了にする`
+                : `タスク「${task.content}」を完了にする`
+            }
+            title={task.completed ? "未完了に戻す" : "完了にする"}
+          >
+            {task.completed ? (
+              <CircleCheck size={15} className="task-complete-icon completed" />
+            ) : (
+              <Circle size={15} className="task-complete-icon text-muted" />
+            )}
+          </button>
+          <button
+            type="button"
+            className={`task-content task-title-btn${task.completed ? " task-title-completed" : ""}`}
+            onClick={() => onEditTask(task)}
+            aria-label={`タスク「${task.content}」を編集`}
+          >
+            {task.content}
+          </button>
+        </div>
 
         {task.due_date && (
           <div className={`task-due-date text-muted${dueClass}`}>

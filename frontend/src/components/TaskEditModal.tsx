@@ -9,6 +9,8 @@ import {
   Square,
   CornerDownRight,
   GripVertical,
+  CircleCheck,
+  Circle,
 } from "lucide-react";
 import type {
   Task,
@@ -195,6 +197,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
       const payload: api.TaskSnapshotPayload = {
         content: final.content,
         due_date: final.due_date,
+        completed: final.completed,
         checklists: final.checklists.map((checklist) => ({
           id: isTemp(checklist.id) ? undefined : checklist.id,
           content: checklist.content,
@@ -611,6 +614,28 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                 ? `現在の期限: ${formatDueDate(localTask.due_date)}`
                 : "期限未設定"}
             </span>
+          </div>
+
+          <div className="modal-section">
+            <button
+              type="button"
+              className={`modal-complete-btn${localTask.completed ? " modal-complete-btn-done" : ""}`}
+              onClick={() =>
+                setLocalTask((prev) => ({
+                  ...prev,
+                  completed: !prev.completed,
+                }))
+              }
+            >
+              {localTask.completed ? (
+                <CircleCheck size={16} />
+              ) : (
+                <Circle size={16} />
+              )}
+              {localTask.completed
+                ? "完了済み（クリックで戻す）"
+                : "未完了（クリックで完了にする）"}
+            </button>
           </div>
 
           <div className="modal-section modal-section-comments">
