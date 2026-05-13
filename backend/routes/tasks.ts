@@ -17,7 +17,7 @@ import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
 const TASK_RETURNING_COLUMNS =
-  "id, column_id, content, due_date::text AS due_date, position";
+  "id, column_id, content, due_date::text AS due_date, position, completed";
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -294,9 +294,19 @@ function parseTaskSnapshotPayload(raw: unknown): TaskSnapshotPayload {
     ensureNoDuplicateIds(subtask.checklists, `subtasks[${index}].checklists`);
   }
 
+  let completed: boolean;
+  if (typeof body.completed === "boolean") {
+    completed = body.completed;
+  } else if (body.completed === undefined) {
+    completed = false;
+  } else {
+    throw new HttpError(400, "'completed' must be a boolean");
+  }
+
   return {
     content,
     due_date,
+    completed,
     checklists,
     subtasks,
     comments,
@@ -675,6 +685,7 @@ router.put(
     const body = req.body as {
       content?: string | null;
       due_date?: string | null;
+      completed?: boolean;
     };
     const contentProvided = Object.prototype.hasOwnProperty.call(
       body,
@@ -684,11 +695,21 @@ router.put(
       body,
       "due_date",
     );
+    const completedProvided = Object.prototype.hasOwnProperty.call(
+      body,
+      "completed",
+    );
 
-    if (!contentProvided && !dueDateProvided) {
-      res
-        .status(400)
-        .json({ error: "At least one of 'content' or 'due_date' is required" });
+    if (!contentProvided && !dueDateProvided && !completedProvided) {
+      res.status(400).json({
+        error:
+          "At least one of 'content', 'due_date', or 'completed' is required",
+      });
+      return;
+    }
+
+    if (completedProvided && typeof body.completed !== "boolean") {
+      res.status(400).json({ error: "'completed' must be a boolean" });
       return;
     }
 
@@ -708,7 +729,7 @@ router.put(
     }
 
     const updates: string[] = [];
-    const values: Array<string | number | null> = [];
+    const values: Array<string | number | boolean | null> = [];
 
     if (contentProvided) {
       updates.push(`content = $${values.length + 1}`);
@@ -718,6 +739,11 @@ router.put(
     if (dueDateProvided) {
       updates.push(`due_date = $${values.length + 1}`);
       values.push(normalizedDueDate ?? null);
+    }
+
+    if (completedProvided) {
+      updates.push(`completed = $${values.length + 1}`);
+      values.push(body.completed as boolean);
     }
 
     values.push(id);
@@ -790,8 +816,8 @@ router.put(
       }
 
       await client.query(
-        "UPDATE tasks SET content = $1, due_date = $2 WHERE id = $3",
-        [payload.content, normalizedDueDate, id],
+        "UPDATE tasks SET content = $1, due_date = $2, completed = $3 WHERE id = $4",
+        [payload.content, normalizedDueDate, payload.completed, id],
       );
 
       const existingSubtaskResult = await client.query<{ id: number }>(
@@ -926,6 +952,108 @@ router.put(
       res.json(result.rows[0]);
     } catch (err) {
       next(err);
+    }
+  },
+);
+
+// タスクをコピーする（サブタスク・チェックリスト・コメントも含めて複製）: POST /api/tasks/:id/copy
+router.post(
+  "/:id/copy",
+  /**
+   * 指定タスクを同一カラムの末尾にコピーする。
+   * サブタスク・チェックリスト・コメントもすべて複製される。
+   * @param req - パスパラメータ `id` を含むリクエスト
+   * @param res - 複製後タスクを返すレスポンス
+   * @param next - エラーハンドラへ委譲する関数
+   * @returns コピー処理完了時に解決される Promise
+   */
+  async (req: Request, res: Response, next: NextFunction) => {
+    const id = parseId(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // 元タスクを取得
+      const srcTask = await fetchTaskSnapshot(client, id);
+      if (!srcTask) {
+        await client.query("ROLLBACK");
+        res.status(404).json({ error: "Task not found" });
+        return;
+      }
+
+      // 同一カラムの末尾 position を計算
+      const maxPosResult = await client.query<{ max: string | null }>(
+        "SELECT MAX(position) AS max FROM tasks WHERE column_id = $1",
+        [srcTask.column_id],
+      );
+      const maxPos = Number(maxPosResult.rows[0]?.max ?? 0);
+      const newPosition = maxPos + 1000;
+
+      // タスク本体を複製
+      const newTaskResult = await client.query<DbTask>(
+        `INSERT INTO tasks (column_id, content, due_date, position, completed)
+         VALUES ($1, $2, $3, $4, false)
+         RETURNING ${TASK_RETURNING_COLUMNS}`,
+        [
+          srcTask.column_id,
+          `${srcTask.content} のコピー`,
+          srcTask.due_date,
+          newPosition,
+        ],
+      );
+      const newTask = newTaskResult.rows[0];
+      if (!newTask) throw new Error("Failed to copy task");
+
+      // タスク直下チェックリストを複製
+      for (const [index, cl] of srcTask.checklists.entries()) {
+        await client.query(
+          "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES ($1, NULL, $2, $3, $4)",
+          [newTask.id, cl.content, false, calcPosition(index)],
+        );
+      }
+
+      // コメントを複製
+      for (const [index, cm] of srcTask.comments.entries()) {
+        await client.query(
+          "INSERT INTO task_comments (task_id, content, position) VALUES ($1, $2, $3)",
+          [newTask.id, cm.content, calcPosition(index)],
+        );
+      }
+
+      // サブタスクとそのチェックリストを複製
+      for (const subtask of srcTask.subtasks) {
+        const newSubtaskResult = await client.query<{ id: number }>(
+          "INSERT INTO subtasks (task_id, content) VALUES ($1, $2) RETURNING id",
+          [newTask.id, subtask.content],
+        );
+        const newSubtaskId = newSubtaskResult.rows[0]?.id;
+        if (!newSubtaskId) throw new Error("Failed to copy subtask");
+
+        for (const [index, cl] of subtask.checklists.entries()) {
+          await client.query(
+            "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES (NULL, $1, $2, $3, $4)",
+            [newSubtaskId, cl.content, false, calcPosition(index)],
+          );
+        }
+      }
+
+      const copied = await fetchTaskSnapshot(client, newTask.id);
+      await client.query("COMMIT");
+      res.status(201).json(copied);
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback failed:", rollbackErr);
+      }
+      next(err);
+    } finally {
+      client.release();
     }
   },
 );

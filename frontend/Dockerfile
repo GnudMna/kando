@@ -8,13 +8,13 @@
 FROM node:24-alpine AS build
 
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json ./frontend/
+COPY package.json package-lock.json ./
+COPY frontend/package.json ./frontend/
 COPY packages/types ./packages/types
-WORKDIR /app/frontend
-RUN npm ci
-COPY frontend .
+RUN npm ci --workspace frontend
+COPY frontend ./frontend
 # Vite で本番用静的ファイルを /app/dist に出力する
-RUN npm run build
+RUN npm --workspace frontend run build
 
 # ---- ステージ2: 配信 ----
 # ビルド成果物のみを軽量な nginx イメージにコピーして静的ファイルを配信する

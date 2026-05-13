@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@300;400;500;600;700;800&display=swap");
-
 :root {
   color-scheme: dark;
 
@@ -286,23 +284,40 @@ body::after {
 
 .app-header-inner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
 }
 
 .app-brand {
-  flex: 1;
-  min-width: min(32rem, 100%);
-  max-width: 50rem;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   background: var(--app-brand-bg);
   border: 1px solid var(--app-brand-border);
-  border-radius: 24px;
-  padding: clamp(1rem, 2.7vw, 2rem);
+  border-radius: 16px;
+  padding: 0.5rem 1.25rem;
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
   animation: fade-up 340ms ease both;
+}
+
+.app-logo {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: 6px;
+}
+
+.app-title {
+  font-family: "Instrument Serif", serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  color: var(--text-primary);
 }
 
 .theme-toggle {
@@ -312,32 +327,6 @@ body::after {
   background: var(--surface-strong);
   white-space: nowrap;
   backdrop-filter: blur(8px);
-}
-
-.app-kicker {
-  font-size: 0.68rem;
-  letter-spacing: 0.18em;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--accent-color);
-  margin-bottom: 0.45rem;
-}
-
-.app-title {
-  font-family: "Instrument Serif", serif;
-  font-size: clamp(2.25rem, 7.5vw, 4.8rem);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  line-height: 0.95;
-  color: var(--text-primary);
-}
-
-.app-subtitle {
-  margin-top: 0.6rem;
-  color: var(--text-secondary);
-  font-size: clamp(0.9rem, 1.8vw, 1.07rem);
-  max-width: 34rem;
-  line-height: 1.55;
 }
 
 .app-main {
@@ -924,11 +913,45 @@ body::after {
   border-color: var(--due-soon-border);
 }
 
+.task-card.task-completed {
+  opacity: 0.72;
+}
+
 .task-card-inner {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 0.48rem;
+}
+
+.task-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.task-complete-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  margin-top: 0.1rem;
+  display: flex;
+  align-items: center;
+}
+
+.task-complete-icon {
+  transition: color 0.18s ease;
+}
+
+.task-complete-icon.completed {
+  color: var(--accent-color);
+}
+
+.task-title-completed {
+  text-decoration: line-through;
+  color: var(--text-muted) !important;
 }
 
 .task-content {
@@ -1134,6 +1157,16 @@ body::after {
 
 .task-comment-content-btn:hover {
   color: var(--accent-color);
+}
+
+.comment-link {
+  color: var(--accent-color);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.comment-link:hover {
+  opacity: 0.8;
 }
 
 .task-checklists {
@@ -1503,6 +1536,34 @@ body::after {
   color: var(--text-muted);
 }
 
+.modal-complete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  padding: 0.38rem 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background 0.18s ease;
+}
+
+.modal-complete-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.modal-complete-btn.modal-complete-btn-done {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(167, 139, 250, 0.1);
+}
+
 .modal-footer {
   padding: 0.82rem 1.2rem 1rem;
   border-top: 1px solid var(--modal-divider);
@@ -1626,8 +1687,8 @@ body::after {
   }
 
   .app-brand {
-    border-radius: 18px;
-    padding: 1rem;
+    border-radius: 12px;
+    padding: 0.4rem 1rem;
   }
 
   .theme-toggle {

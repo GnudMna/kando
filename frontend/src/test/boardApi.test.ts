@@ -32,7 +32,7 @@ describe("boardApi", () => {
 
     expect(result).toEqual(mockRows);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3001/api/board?row_id=1&limit=5&offset=10",
+      "/api/board?row_id=1&limit=5&offset=10",
       undefined,
     );
   });
@@ -47,7 +47,7 @@ describe("boardApi", () => {
     const result = await api.createRow("New Row", 2000);
 
     expect(result).toEqual(createdRow);
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:3001/api/rows", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/rows", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "New Row", position: 2000 }),
@@ -59,12 +59,9 @@ describe("boardApi", () => {
 
     await api.deleteRow(123);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3001/api/rows/123",
-      {
-        method: "DELETE",
-      },
-    );
+    expect(fetchMock).toHaveBeenCalledWith("/api/rows/123", {
+      method: "DELETE",
+    });
   });
 
   it("request throws Error with backend error message", async () => {

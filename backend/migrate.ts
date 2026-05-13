@@ -45,6 +45,10 @@ async function runMigrations(): Promise<void> {
     await client.query(`
       ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date DATE;
     `);
+    // tasks に完了フラグ（completed）カラムを追加する（既存 DB へのマイグレーション対応）
+    await client.query(`
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT false;
+    `);
     // タスクコメントテーブルを作成する
     await client.query(`
       CREATE TABLE IF NOT EXISTS task_comments (

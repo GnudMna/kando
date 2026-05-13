@@ -21,6 +21,7 @@ import { ListView } from "./ListView";
 import { useBoard } from "../hooks/useBoard";
 import type { Row, Task } from "../types";
 import { getDueHighlight } from "../utils/dueDate";
+import type { DueHighlightResult } from "../utils/dueDate";
 import { countTasks, filterRowsByTaskQuery } from "../utils/taskSearch";
 
 const taskDragPortalTarget =
@@ -78,6 +79,7 @@ export function KanbanBoard() {
     removeColumn,
     addTask,
     removeTask,
+    copyTask,
     updateTask,
     moveTask,
     moveColumn,
@@ -99,6 +101,26 @@ export function KanbanBoard() {
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const dueSoonDaysInputId = useId();
   const taskSearchInputId = useId();
+
+  const taskDueHighlights = useMemo(() => {
+    const map = new Map<number, DueHighlightResult>();
+    for (const row of rows) {
+      for (const column of row.columns) {
+        for (const task of column.tasks) {
+          map.set(
+            task.id,
+            getDueHighlight(
+              task.due_date,
+              dueSoonDays,
+              undefined,
+              task.completed,
+            ),
+          );
+        }
+      }
+    }
+    return map;
+  }, [rows, dueSoonDays]);
 
   const filteredRows = useMemo(
     () => filterRowsByTaskQuery(rows, searchQuery),
@@ -246,6 +268,19 @@ export function KanbanBoard() {
       await removeTask(colId, taskId);
     },
     [removeTask],
+  );
+
+  /**
+   * タスクコピーハンドラー。
+   * @param colId - タスクが属するカラム ID
+   * @param taskId - コピー元タスク ID
+   * @returns コピー処理完了時に解決される Promise
+   */
+  const handleCopyTask = useCallback(
+    async (colId: number, taskId: number) => {
+      await copyTask(colId, taskId);
+    },
+    [copyTask],
   );
 
   const boardStats = useMemo(() => {
@@ -608,17 +643,24 @@ export function KanbanBoard() {
                                           taskDragProvided,
                                           taskDragSnapshot,
                                         ) => {
-                                          const dueHighlight = getDueHighlight(
-                                            task.due_date,
-                                            dueSoonDays,
-                                          );
+                                          const dueHighlight =
+                                            taskDueHighlights.get(task.id) ??
+                                            getDueHighlight(
+                                              task.due_date,
+                                              dueSoonDays,
+                                              undefined,
+                                              task.completed,
+                                            );
                                           const dueTaskClass =
                                             dueHighlight.status === "none"
                                               ? ""
                                               : ` task-${dueHighlight.status}`;
+                                          const completedClass = task.completed
+                                            ? " task-completed"
+                                            : "";
                                           const taskCardNode = (
                                             <div
-                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}`}
+                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}${completedClass}`}
                                               ref={taskDragProvided.innerRef}
                                               {...taskDragProvided.draggableProps}
                                               {...taskDragProvided.dragHandleProps}
@@ -628,6 +670,7 @@ export function KanbanBoard() {
                                                 columnId={column.id}
                                                 dueHighlight={dueHighlight}
                                                 onDeleteTask={handleDeleteTask}
+                                                onCopyTask={handleCopyTask}
                                                 onTaskUpdated={updateTask}
                                                 onEditTask={(t) =>
                                                   setEditingTask({

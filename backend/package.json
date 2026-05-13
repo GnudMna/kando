@@ -1,6 +1,6 @@
 {
   "name": "kando-backend",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "Kando API",
   "main": "dist/server.js",
   "type": "module",
@@ -21,15 +21,16 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.18.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.1",
     "helmet": "^8.1.0",
     "pg": "^8.11.3"
   },
   "devDependencies": {
-    "@kando/types": "file:../packages/types",
     "@eslint/js": "^10.0.1",
+    "@kando/types": "file:../packages/types",
     "@types/cors": "^2.8.19",
-    "@types/express": "^4.17.21",
+    "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",

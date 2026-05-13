@@ -282,6 +282,34 @@ export function useBoard() {
   }, []);
 
   /**
+   * タスクをコピーして同一カラムの末尾に追加する。
+   * @param colId - タスクが属するカラム ID
+   * @param taskId - コピー元タスク ID
+   * @returns 複製されたタスク、失敗時は null
+   */
+  const copyTask = useCallback(
+    async (colId: number, taskId: number): Promise<Task | null> => {
+      try {
+        const copied = await api.copyTask(taskId);
+        setRows((prev) =>
+          prev.map((r) => ({
+            ...r,
+            columns: r.columns.map((c) =>
+              c.id === colId ? { ...c, tasks: [...c.tasks, copied] } : c,
+            ),
+          })),
+        );
+        return copied;
+      } catch (err) {
+        console.error(err);
+        setOperationError("タスクのコピーに失敗しました");
+        return null;
+      }
+    },
+    [],
+  );
+
+  /**
    * state 内の特定タスクを更新済みデータに置き換える。
    * API 呼び出しは呼び出し側が完了後に呼び出すこと。
    * @param updatedTask - 更新済み Task オブジェクト
@@ -517,6 +545,7 @@ export function useBoard() {
     removeColumn,
     addTask,
     removeTask,
+    copyTask,
     updateTask,
     moveTask,
     moveColumn,

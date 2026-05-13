@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { KanbanBoard } from "./components/KanbanBoard";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 type ThemeMode = "dark" | "light";
 
@@ -31,11 +32,13 @@ function App() {
       <header className="app-header">
         <div className="app-header-inner">
           <div className="app-brand">
-            <p className="app-kicker">Project Flow Studio</p>
+            <img
+              src="/favicon.svg"
+              alt=""
+              className="app-logo"
+              aria-hidden="true"
+            />
             <h1 className="app-title">Kando</h1>
-            <p className="app-subtitle">
-              ドラッグ&ドロップで、やることを軽やかに整理。
-            </p>
           </div>
           <button
             type="button"
@@ -53,7 +56,9 @@ function App() {
         </div>
       </header>
       <main className="app-main">
-        <KanbanBoard />
+        <ErrorBoundary>
+          <KanbanBoard />
+        </ErrorBoundary>
       </main>
     </div>
   );

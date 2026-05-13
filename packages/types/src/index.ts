@@ -22,6 +22,7 @@ export interface DbTask {
   content: string;
   due_date: string | null;
   position: number;
+  completed: boolean;
 }
 
 export interface DbTaskComment {
@@ -88,6 +89,7 @@ export interface TaskSnapshotCommentPayload {
 export interface TaskSnapshotPayload {
   content: string;
   due_date: string | null;
+  completed: boolean;
   checklists: TaskSnapshotChecklistPayload[];
   subtasks: TaskSnapshotSubtaskPayload[];
   comments: TaskSnapshotCommentPayload[];

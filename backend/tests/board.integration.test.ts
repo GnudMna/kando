@@ -71,6 +71,7 @@ describe("board router integration", () => {
             content: "Task",
             due_date: null,
             position: 1000,
+            completed: false,
           },
         ],
       })
@@ -101,6 +102,7 @@ describe("board router integration", () => {
                 content: "Task",
                 due_date: null,
                 position: 1000,
+                completed: false,
                 subtasks: [],
                 checklists: [],
                 comments: [],

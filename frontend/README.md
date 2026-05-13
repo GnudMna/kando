@@ -48,12 +48,12 @@ npm run preview
 
 | 変数名         | 説明                        | 既定値                      |
 | -------------- | --------------------------- | --------------------------- |
-| `VITE_API_URL` | バックエンド API ベース URL | `http://localhost:3001/api` |
+| `VITE_API_URL` | バックエンド API ベース URL | `/api` |
 
 `.env.local` 例:
 
 ```bash
-VITE_API_URL=http://localhost:3001/api
+VITE_API_URL=/api
 ```
 
 ## ローカル保存される設定

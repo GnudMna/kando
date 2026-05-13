@@ -1,6 +1,5 @@
-// タスク編集モーダルコンポーネント
 // タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
-import { useId, useState, useRef, useMemo } from "react";
+import { useId, useState, useRef, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -10,6 +9,8 @@ import {
   Square,
   CornerDownRight,
   GripVertical,
+  CircleCheck,
+  Circle,
 } from "lucide-react";
 import type {
   Task,
@@ -42,6 +43,59 @@ function isTemp(id: number | TempId): id is TempId {
 }
 
 const POSITION_GAP = 1000;
+
+const URL_REGEX = /https?:\/\/[^\s<>'"]+/g;
+
+/**
+ * プレーンテキストセグメントの改行を <br /> に変換した ReactNode 配列を返す。
+ * @param segment - 変換対象のテキスト文字列
+ * @param keyPrefix - 生成する <br /> 要素の React key プレフィックス
+ * @returns 改行を <br /> に置き換えた ReactNode の配列
+ */
+function renderLineBreaks(segment: string, keyPrefix: string): ReactNode[] {
+  return segment
+    .split("\n")
+    .flatMap((line, i, arr) =>
+      i < arr.length - 1 ? [line, <br key={`${keyPrefix}-br-${i}`} />] : [line],
+    );
+}
+
+/**
+ * テキスト内の URL を <a> リンクに、改行を <br /> に変換した ReactNode 配列を返す。
+ * @param text - 変換対象のコメントテキスト
+ * @returns URL をリンク化し改行を <br /> に置き換えた ReactNode の配列
+ */
+function renderTextWithLinks(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  URL_REGEX.lastIndex = 0;
+  while ((match = URL_REGEX.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(
+        ...renderLineBreaks(text.slice(lastIndex, match.index), `${lastIndex}`),
+      );
+    }
+    const url = match[0];
+    nodes.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="comment-link"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {url}
+      </a>,
+    );
+    lastIndex = match.index + url.length;
+  }
+  if (lastIndex < text.length) {
+    nodes.push(...renderLineBreaks(text.slice(lastIndex), `${lastIndex}`));
+  }
+  return nodes;
+}
 
 type CommentSortMode = "oldest" | "newest" | "manual";
 
@@ -143,6 +197,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
       const payload: api.TaskSnapshotPayload = {
         content: final.content,
         due_date: final.due_date,
+        completed: final.completed,
         checklists: final.checklists.map((checklist) => ({
           id: isTemp(checklist.id) ? undefined : checklist.id,
           content: checklist.content,
@@ -561,6 +616,28 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
             </span>
           </div>
 
+          <div className="modal-section">
+            <button
+              type="button"
+              className={`modal-complete-btn${localTask.completed ? " modal-complete-btn-done" : ""}`}
+              onClick={() =>
+                setLocalTask((prev) => ({
+                  ...prev,
+                  completed: !prev.completed,
+                }))
+              }
+            >
+              {localTask.completed ? (
+                <CircleCheck size={16} />
+              ) : (
+                <Circle size={16} />
+              )}
+              {localTask.completed
+                ? "完了済み（クリックで戻す）"
+                : "未完了（クリックで完了にする）"}
+            </button>
+          </div>
+
           <div className="modal-section modal-section-comments">
             <label className="modal-label">コメント</label>
 
@@ -717,16 +794,24 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                         </div>
                       </div>
                     ) : (
-                      <button
-                        type="button"
+                      <div
                         className="task-comment-content-btn"
-                        onClick={() =>
-                          beginCommentEdit(comment.id, comment.content)
-                        }
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).tagName !== "A") {
+                            beginCommentEdit(comment.id, comment.content);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            beginCommentEdit(comment.id, comment.content);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
                         title="クリックして編集"
                       >
-                        {comment.content}
-                      </button>
+                        {renderTextWithLinks(comment.content)}
+                      </div>
                     )}
                   </div>
                 ))}
