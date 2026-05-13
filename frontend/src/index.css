@@ -1117,6 +1117,16 @@ body::after {
   color: var(--accent-color);
 }
 
+.comment-link {
+  color: var(--accent-color);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.comment-link:hover {
+  opacity: 0.8;
+}
+
 .task-checklists {
   display: flex;
   flex-direction: column;
