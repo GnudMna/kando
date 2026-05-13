@@ -3,6 +3,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import { pool, waitForDbWithRetry } from "./db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
@@ -30,6 +31,15 @@ if (isProduction && !process.env.CORS_ORIGIN) {
   process.exit(1);
 }
 
+const rawPort = process.env.PORT ?? "3001";
+const parsedPort = Number(rawPort);
+if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
+  console.error(
+    `FATAL: PORT must be an integer between 1 and 65535, got: ${rawPort}`,
+  );
+  process.exit(1);
+}
+
 app.disable("x-powered-by");
 
 // セキュリティヘッダーを付与する
@@ -40,6 +50,22 @@ const allowedOrigins = process.env.CORS_ORIGIN
       .map((origin) => origin.trim())
       .filter(Boolean)
   : [];
+
+// 各オリジンが正当な URL 形式かを起動時に検証する
+for (const origin of allowedOrigins) {
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      console.error(
+        `FATAL: CORS_ORIGIN contains an invalid origin (only http/https allowed): ${origin}`,
+      );
+      process.exit(1);
+    }
+  } catch {
+    console.error(`FATAL: CORS_ORIGIN contains a malformed origin: ${origin}`);
+    process.exit(1);
+  }
+}
 
 // CORS設定: 許可オリジンを明示的に制御する
 app.use(
@@ -58,6 +84,16 @@ app.use(
 app.use(express.json({ limit: "100kb" }));
 // リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
 app.use(requestLogger);
+
+// レートリミット: 1 IP あたり 15 分間に 300 リクエストまで
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+});
+app.use("/api", limiter);
 
 // ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
 app.get("/api/liveness", (_req, res) => {
@@ -97,7 +133,7 @@ app.use("/api/task-comments", taskCommentsRouter);
 // グローバルエラーハンドラーを登録する（最後に配置する必要がある）
 app.use(errorHandler);
 
-const PORT = process.env.PORT ?? 3001;
+const PORT = parsedPort;
 
 // Graceful shutdown 設定（ms）
 const SHUTDOWN_TIMEOUT_MS = parseInt(
