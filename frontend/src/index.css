@@ -905,11 +905,45 @@ body::after {
   border-color: var(--due-soon-border);
 }
 
+.task-card.task-completed {
+  opacity: 0.72;
+}
+
 .task-card-inner {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 0.48rem;
+}
+
+.task-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.task-complete-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  margin-top: 0.1rem;
+  display: flex;
+  align-items: center;
+}
+
+.task-complete-icon {
+  transition: color 0.18s ease;
+}
+
+.task-complete-icon.completed {
+  color: var(--accent-color);
+}
+
+.task-title-completed {
+  text-decoration: line-through;
+  color: var(--text-muted) !important;
 }
 
 .task-content {
@@ -1492,6 +1526,34 @@ body::after {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.modal-complete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  padding: 0.38rem 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background 0.18s ease;
+}
+
+.modal-complete-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.modal-complete-btn.modal-complete-btn-done {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(167, 139, 250, 0.1);
 }
 
 .modal-footer {

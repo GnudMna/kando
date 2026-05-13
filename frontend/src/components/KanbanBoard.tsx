@@ -611,14 +611,19 @@ export function KanbanBoard() {
                                           const dueHighlight = getDueHighlight(
                                             task.due_date,
                                             dueSoonDays,
+                                            undefined,
+                                            task.completed,
                                           );
                                           const dueTaskClass =
                                             dueHighlight.status === "none"
                                               ? ""
                                               : ` task-${dueHighlight.status}`;
+                                          const completedClass = task.completed
+                                            ? " task-completed"
+                                            : "";
                                           const taskCardNode = (
                                             <div
-                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}`}
+                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}${completedClass}`}
                                               ref={taskDragProvided.innerRef}
                                               {...taskDragProvided.draggableProps}
                                               {...taskDragProvided.dragHandleProps}

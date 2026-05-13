@@ -15,6 +15,7 @@ const baseTask: Task = {
   content: "Prepare API docs",
   due_date: null,
   position: 1000,
+  completed: false,
   subtasks: [
     {
       id: 101,
@@ -60,6 +61,7 @@ const secondTask: Task = {
   content: "Fix login bug",
   due_date: "2026-04-30",
   position: 1000,
+  completed: false,
   subtasks: [],
   checklists: [],
   comments: [],
@@ -105,6 +107,7 @@ const rows: Row[] = [
             content: "Write onboarding guide",
             due_date: null,
             position: 1000,
+            completed: false,
             subtasks: [],
             checklists: [],
             comments: [],

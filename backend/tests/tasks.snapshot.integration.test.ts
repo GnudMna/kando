@@ -64,7 +64,7 @@ describe("tasks snapshot integration", () => {
 
         if (
           statement.startsWith(
-            "UPDATE tasks SET content = $1, due_date = $2 WHERE id = $3",
+            "UPDATE tasks SET content = $1, due_date = $2, completed = $3 WHERE id = $4",
           )
         ) {
           return { rows: [] };
@@ -133,6 +133,7 @@ describe("tasks snapshot integration", () => {
                 content: "更新タスク",
                 due_date: "2026-12-01",
                 position: 1000,
+                completed: false,
               },
             ],
           };
@@ -213,6 +214,7 @@ describe("tasks snapshot integration", () => {
       .send({
         content: "更新タスク",
         due_date: "2026-12-01",
+        completed: false,
         checklists: [
           {
             id: 21,
@@ -248,6 +250,7 @@ describe("tasks snapshot integration", () => {
       content: "更新タスク",
       due_date: "2026-12-01",
       position: 1000,
+      completed: false,
       checklists: [
         {
           id: 21,
@@ -328,6 +331,8 @@ describe("tasks snapshot integration", () => {
     const res = await request(createApp()).put("/api/tasks/999/snapshot").send({
       content: "更新タスク",
       due_date: null,
+      completed: false,
+      completed: false,
       checklists: [],
       subtasks: [],
       comments: [],

@@ -17,7 +17,7 @@ import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
 const TASK_RETURNING_COLUMNS =
-  "id, column_id, content, due_date::text AS due_date, position";
+  "id, column_id, content, due_date::text AS due_date, position, completed";
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -294,9 +294,19 @@ function parseTaskSnapshotPayload(raw: unknown): TaskSnapshotPayload {
     ensureNoDuplicateIds(subtask.checklists, `subtasks[${index}].checklists`);
   }
 
+  let completed: boolean;
+  if (typeof body.completed === "boolean") {
+    completed = body.completed;
+  } else if (body.completed === undefined) {
+    completed = false;
+  } else {
+    throw new HttpError(400, "'completed' must be a boolean");
+  }
+
   return {
     content,
     due_date,
+    completed,
     checklists,
     subtasks,
     comments,
@@ -675,6 +685,7 @@ router.put(
     const body = req.body as {
       content?: string | null;
       due_date?: string | null;
+      completed?: boolean;
     };
     const contentProvided = Object.prototype.hasOwnProperty.call(
       body,
@@ -684,11 +695,23 @@ router.put(
       body,
       "due_date",
     );
+    const completedProvided = Object.prototype.hasOwnProperty.call(
+      body,
+      "completed",
+    );
 
-    if (!contentProvided && !dueDateProvided) {
+    if (!contentProvided && !dueDateProvided && !completedProvided) {
       res
         .status(400)
-        .json({ error: "At least one of 'content' or 'due_date' is required" });
+        .json({
+          error:
+            "At least one of 'content', 'due_date', or 'completed' is required",
+        });
+      return;
+    }
+
+    if (completedProvided && typeof body.completed !== "boolean") {
+      res.status(400).json({ error: "'completed' must be a boolean" });
       return;
     }
 
@@ -708,7 +731,7 @@ router.put(
     }
 
     const updates: string[] = [];
-    const values: Array<string | number | null> = [];
+    const values: Array<string | number | boolean | null> = [];
 
     if (contentProvided) {
       updates.push(`content = $${values.length + 1}`);
@@ -718,6 +741,11 @@ router.put(
     if (dueDateProvided) {
       updates.push(`due_date = $${values.length + 1}`);
       values.push(normalizedDueDate ?? null);
+    }
+
+    if (completedProvided) {
+      updates.push(`completed = $${values.length + 1}`);
+      values.push(body.completed as boolean);
     }
 
     values.push(id);
@@ -790,8 +818,8 @@ router.put(
       }
 
       await client.query(
-        "UPDATE tasks SET content = $1, due_date = $2 WHERE id = $3",
-        [payload.content, normalizedDueDate, id],
+        "UPDATE tasks SET content = $1, due_date = $2, completed = $3 WHERE id = $4",
+        [payload.content, normalizedDueDate, payload.completed, id],
       );
 
       const existingSubtaskResult = await client.query<{ id: number }>(

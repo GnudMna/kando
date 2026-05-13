@@ -98,13 +98,18 @@ function normalizeDueSoonDays(value: number): number {
  * @param dueDate - 期限日（`YYYY-MM-DD`）
  * @param dueSoonDays - 「期限が近い」と判定する日数しきい値
  * @param now - 比較基準日時（テスト時に差し替え可能）
+ * @param completed - タスクが完了済みの場合は常に `none` を返す
  * @returns バッジ状態と残日数
  */
 export function getDueHighlight(
   dueDate: string | null,
   dueSoonDays: number,
   now = new Date(),
+  completed = false,
 ): DueHighlightResult {
+  if (completed) {
+    return { status: "none", daysUntilDue: null };
+  }
   if (!dueDate) {
     return { status: "none", daysUntilDue: null };
   }

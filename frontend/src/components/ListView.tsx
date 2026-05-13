@@ -58,6 +58,8 @@ export function ListView({
                   const dueHighlight = getDueHighlight(
                     task.due_date,
                     dueSoonDays,
+                    undefined,
+                    task.completed,
                   );
                   const dueLabel = getDueStatusLabel(dueHighlight);
                   const rowDueClass =

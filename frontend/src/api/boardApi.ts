@@ -187,7 +187,7 @@ export const createTask = (
  */
 export const updateTask = (
   id: number,
-  patch: { content?: string; due_date?: string | null },
+  patch: { content?: string; due_date?: string | null; completed?: boolean },
 ): Promise<Task> => request<Task>(`${API_URL}/tasks/${id}`, json("PUT", patch));
 
 /**
