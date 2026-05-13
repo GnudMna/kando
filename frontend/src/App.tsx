@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { KanbanBoard } from "./components/KanbanBoard";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 type ThemeMode = "dark" | "light";
 
@@ -55,7 +56,9 @@ function App() {
         </div>
       </header>
       <main className="app-main">
-        <KanbanBoard />
+        <ErrorBoundary>
+          <KanbanBoard />
+        </ErrorBoundary>
       </main>
     </div>
   );
