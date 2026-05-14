@@ -44,6 +44,11 @@ describe("parseId", () => {
     expect(parseId("1e3")).toBeNull();
   });
 
+  it("文字列以外のパラメータに対して null を返す", () => {
+    expect(parseId(undefined)).toBeNull();
+    expect(parseId(["42"])).toBeNull();
+  });
+
   it("安全な整数範囲を超える値に対して null を返す", () => {
     const tooLarge = `${Number.MAX_SAFE_INTEGER + 1}`;
     expect(parseId(tooLarge)).toBeNull();
