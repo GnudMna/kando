@@ -629,7 +629,7 @@ router.post(
       notEmpty: true,
       maxLength: 10,
     },
-    position: { type: "number", required: true, positive: true },
+    position: { type: "number", required: true, integer: true, positive: true },
   }),
   /**
    * タスクを作成する。
@@ -958,7 +958,7 @@ router.put(
       integer: true,
       positive: true,
     },
-    position: { type: "number", required: true, positive: true },
+    position: { type: "number", required: true, integer: true, positive: true },
   }),
   /**
    * タスクを別カラムへ移動する。
