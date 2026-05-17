@@ -68,6 +68,7 @@ describe("TaskCard", () => {
     columnId: 10,
     dueHighlight: { status: "none" as const, daysUntilDue: null },
     onDeleteTask: vi.fn(),
+    onCopyTask: vi.fn(),
     onTaskUpdated: vi.fn(),
     onEditTask: vi.fn(),
   };
