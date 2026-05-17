@@ -1,6 +1,14 @@
 // かんばんボードのメインコンポーネント
 // 行・カラム・タスクのレンダリング、ドラッグ＆ドロップ、各種操作ダイアログを管理する
-import { useState, useCallback, useMemo, useEffect, useId } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useId,
+  lazy,
+  Suspense,
+} from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
 import { createPortal } from "react-dom";
@@ -15,9 +23,14 @@ import {
   GripVertical,
 } from "lucide-react";
 import { TaskCard } from "./TaskCard";
-import { TaskEditModal } from "./TaskEditModal";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ListView } from "./ListView";
+
+const TaskEditModal = lazy(() =>
+  import("./TaskEditModal").then((m) => ({ default: m.TaskEditModal })),
+);
+const ListView = lazy(() =>
+  import("./ListView").then((m) => ({ default: m.ListView })),
+);
 import { useBoard } from "../hooks/useBoard";
 import type { Row, Task } from "../types";
 import { getDueHighlight } from "../utils/dueDate";
@@ -725,26 +738,30 @@ export function KanbanBoard() {
           </div>
         </DragDropContext>
       ) : (
-        <ListView
-          rows={activeRows}
-          dueSoonDays={dueSoonDays}
-          onRowHeaderRender={renderRowHeader}
-          onTaskClick={(task, colId) =>
-            setEditingTask({ task, colId, isNew: false })
-          }
-          onDeleteTask={handleDeleteTask}
-          onAddTask={handleAddTask}
-        />
+        <Suspense fallback={null}>
+          <ListView
+            rows={activeRows}
+            dueSoonDays={dueSoonDays}
+            onRowHeaderRender={renderRowHeader}
+            onTaskClick={(task, colId) =>
+              setEditingTask({ task, colId, isNew: false })
+            }
+            onDeleteTask={handleDeleteTask}
+            onAddTask={handleAddTask}
+          />
+        </Suspense>
       )}
 
       {editingTask && (
-        <TaskEditModal
-          task={editingTask.task}
-          onClose={handleCloseTaskModal}
-          onTaskUpdated={(updatedTask) => {
-            updateTask(updatedTask);
-          }}
-        />
+        <Suspense fallback={null}>
+          <TaskEditModal
+            task={editingTask.task}
+            onClose={handleCloseTaskModal}
+            onTaskUpdated={(updatedTask) => {
+              updateTask(updatedTask);
+            }}
+          />
+        </Suspense>
       )}
 
       {confirmState && (
