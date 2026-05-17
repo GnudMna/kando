@@ -14,6 +14,7 @@ import type {
   TaskSnapshotPayload,
 } from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { HttpError } from "../errors.js";
 
 const router = Router();
 const TASK_RETURNING_COLUMNS =
@@ -24,16 +25,6 @@ const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 type TaskSnapshotChecklistInput = TaskSnapshotChecklistPayload;
 type TaskSnapshotSubtaskInput = TaskSnapshotSubtaskPayload;
 type TaskSnapshotCommentInput = TaskSnapshotCommentPayload;
-
-/** HTTP ステータス付きで呼び出し元へ返す業務エラー。 */
-class HttpError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 
 /**
  * 期限日を `YYYY-MM-DD` の厳密形式で検証する。
@@ -50,16 +41,16 @@ function normalizeDueDate(
   }
 
   if (!DATE_ONLY_RE.test(rawDueDate)) {
-    throw new Error("INVALID_DUE_DATE");
+    throw new HttpError(400, "Invalid due_date format: must be YYYY-MM-DD");
   }
 
   const parsed = new Date(`${rawDueDate}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) {
-    throw new Error("INVALID_DUE_DATE");
+    throw new HttpError(400, "Invalid due_date: not a valid calendar date");
   }
 
   if (parsed.toISOString().slice(0, 10) !== rawDueDate) {
-    throw new Error("INVALID_DUE_DATE");
+    throw new HttpError(400, "Invalid due_date: not a valid calendar date");
   }
 
   return rawDueDate;

@@ -1,23 +1,11 @@
 // グローバルエラーハンドラーミドルウェア
 // すべてのルートで捕捉されなかったエラーをここで処理する
 import { Request, Response, NextFunction } from "express";
-
-/**
- * status プロパティを持つ HTTP エラーかどうかをダックタイピングで判定する。
- * @param err - 検査するエラーオブジェクト
- * @returns HTTP エラーの場合 true
- */
-function isHttpError(err: unknown): err is { status: number; message: string } {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    typeof (err as Record<string, unknown>).status === "number"
-  );
-}
+import { HttpError } from "../errors.js";
 
 /**
  * Express のグローバルエラーハンドラーミドルウェア。
- * `status` プロパティを持つエラー（HttpError）はそのステータスコードで返す。
+ * `HttpError` はそのステータスコードで返す。
  * それ以外は本番環境では汎用メッセージ、開発環境ではエラー詳細を 500 で返す。
  * @param err - スローされたエラーオブジェクト
  * @param _req - Express リクエスト（使用しない）
@@ -31,7 +19,7 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
-  if (isHttpError(err)) {
+  if (err instanceof HttpError) {
     res.status(err.status).json({ error: err.message });
     return;
   }
