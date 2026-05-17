@@ -346,33 +346,37 @@ function pushToGroupMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
 }
 
 /**
- * タスク直下のチェックリストを「更新・追加・削除」で同期する。
- * 指定されなかった既存 ID は削除対象とみなす。
+ * チェックリストを「更新・追加・削除」で同期する。
+ * タスク直下（type: "task"）とサブタスク配下（type: "subtask"）の両方に対応する。
  * @param client - トランザクション内の DB クライアント
- * @param taskId - 親タスク ID
+ * @param parent - 親の種別と ID
  * @param checklists - 目標状態のチェックリスト配列
  * @returns 同期完了時に解決される Promise
  * @throws HttpError 既存に存在しない ID が指定された場合
  */
-async function syncTaskChecklists(
+async function syncChecklists(
   client: PoolClient,
-  taskId: number,
+  parent: { type: "task"; id: number } | { type: "subtask"; id: number },
   checklists: TaskSnapshotChecklistInput[],
 ): Promise<void> {
+  const isTask = parent.type === "task";
   const existingResult = await client.query<{ id: number }>(
-    "SELECT id FROM checklist_items WHERE task_id = $1 AND subtask_id IS NULL FOR UPDATE",
-    [taskId],
+    isTask
+      ? "SELECT id FROM checklist_items WHERE task_id = $1 AND subtask_id IS NULL FOR UPDATE"
+      : "SELECT id FROM checklist_items WHERE subtask_id = $1 FOR UPDATE",
+    [parent.id],
   );
 
   const existingIds = new Set(existingResult.rows.map((row) => row.id));
   const keepIds = new Set<number>();
+  const errorFieldPath = isTask ? "checklists" : "subtasks.checklists";
 
   for (const checklist of checklists) {
     if (checklist.id === undefined) continue;
     if (!existingIds.has(checklist.id)) {
       throw new HttpError(
         400,
-        `'checklists.id' contains unknown id ${checklist.id}`,
+        `'${errorFieldPath}.id' contains unknown id ${checklist.id}`,
       );
     }
     keepIds.add(checklist.id);
@@ -396,68 +400,17 @@ async function syncTaskChecklists(
       continue;
     }
 
-    await client.query(
-      "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES ($1, NULL, $2, $3, $4)",
-      [taskId, checklist.content, checklist.completed, position],
-    );
-  }
-}
-
-/**
- * サブタスク配下チェックリストを同期する。
- * 既存データは `FOR UPDATE` でロックし、同時編集時の競合を抑える。
- * @param client - トランザクション内の DB クライアント
- * @param subtaskId - 親サブタスク ID
- * @param checklists - 目標状態のチェックリスト配列
- * @returns 同期完了時に解決される Promise
- * @throws HttpError 既存に存在しない ID が指定された場合
- */
-async function syncSubtaskChecklists(
-  client: PoolClient,
-  subtaskId: number,
-  checklists: TaskSnapshotChecklistInput[],
-): Promise<void> {
-  const existingResult = await client.query<{ id: number }>(
-    "SELECT id FROM checklist_items WHERE subtask_id = $1 FOR UPDATE",
-    [subtaskId],
-  );
-
-  const existingIds = new Set(existingResult.rows.map((row) => row.id));
-  const keepIds = new Set<number>();
-
-  for (const checklist of checklists) {
-    if (checklist.id === undefined) continue;
-    if (!existingIds.has(checklist.id)) {
-      throw new HttpError(
-        400,
-        `'subtasks.checklists.id' contains unknown id ${checklist.id}`,
-      );
-    }
-    keepIds.add(checklist.id);
-  }
-
-  const removeIds = idsToDelete(existingIds, keepIds);
-  if (removeIds.length > 0) {
-    await client.query(
-      "DELETE FROM checklist_items WHERE id = ANY($1::int[])",
-      [removeIds],
-    );
-  }
-
-  for (const [index, checklist] of checklists.entries()) {
-    const position = calcPosition(index);
-    if (checklist.id !== undefined) {
+    if (isTask) {
       await client.query(
-        "UPDATE checklist_items SET content = $1, completed = $2, position = $3 WHERE id = $4",
-        [checklist.content, checklist.completed, position, checklist.id],
+        "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES ($1, NULL, $2, $3, $4)",
+        [parent.id, checklist.content, checklist.completed, position],
       );
-      continue;
+    } else {
+      await client.query(
+        "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES (NULL, $1, $2, $3, $4)",
+        [parent.id, checklist.content, checklist.completed, position],
+      );
     }
-
-    await client.query(
-      "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES (NULL, $1, $2, $3, $4)",
-      [subtaskId, checklist.content, checklist.completed, position],
-    );
   }
 }
 
@@ -658,6 +611,9 @@ router.put(
       notEmpty: true,
       maxLength: 10,
     },
+    completed: {
+      type: "boolean",
+    },
   }),
   /**
    * タスク内容または期限を更新する。
@@ -696,11 +652,6 @@ router.put(
         error:
           "At least one of 'content', 'due_date', or 'completed' is required",
       });
-      return;
-    }
-
-    if (completedProvided && typeof body.completed !== "boolean") {
-      res.status(400).json({ error: "'completed' must be a boolean" });
       return;
     }
 
@@ -868,10 +819,14 @@ router.put(
         ]);
       }
 
-      await syncTaskChecklists(client, id, payload.checklists);
+      await syncChecklists(client, { type: "task", id }, payload.checklists);
 
       for (const subtask of resolvedSubtasks) {
-        await syncSubtaskChecklists(client, subtask.id, subtask.checklists);
+        await syncChecklists(
+          client,
+          { type: "subtask", id: subtask.id },
+          subtask.checklists,
+        );
       }
 
       await syncTaskComments(client, id, payload.comments);
