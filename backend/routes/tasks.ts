@@ -390,25 +390,80 @@ async function syncChecklists(
     );
   }
 
+  const toUpdate: Array<{
+    id: number;
+    content: string;
+    completed: boolean;
+    position: number;
+  }> = [];
+  const toInsert: Array<{
+    content: string;
+    completed: boolean;
+    position: number;
+  }> = [];
+
   for (const [index, checklist] of checklists.entries()) {
     const position = calcPosition(index);
     if (checklist.id !== undefined) {
-      await client.query(
-        "UPDATE checklist_items SET content = $1, completed = $2, position = $3 WHERE id = $4",
-        [checklist.content, checklist.completed, position, checklist.id],
-      );
-      continue;
+      toUpdate.push({
+        id: checklist.id,
+        content: checklist.content,
+        completed: checklist.completed,
+        position,
+      });
+    } else {
+      toInsert.push({
+        content: checklist.content,
+        completed: checklist.completed,
+        position,
+      });
     }
+  }
 
+  if (toUpdate.length > 0) {
+    await client.query(
+      `UPDATE checklist_items SET
+         content   = updates.content,
+         completed = updates.completed,
+         position  = updates.position
+       FROM unnest($1::int[], $2::text[], $3::bool[], $4::int[])
+         AS updates(id, content, completed, position)
+       WHERE checklist_items.id = updates.id`,
+      [
+        toUpdate.map((u) => u.id),
+        toUpdate.map((u) => u.content),
+        toUpdate.map((u) => u.completed),
+        toUpdate.map((u) => u.position),
+      ],
+    );
+  }
+
+  if (toInsert.length > 0) {
     if (isTask) {
       await client.query(
-        "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES ($1, NULL, $2, $3, $4)",
-        [parent.id, checklist.content, checklist.completed, position],
+        `INSERT INTO checklist_items (task_id, subtask_id, content, completed, position)
+         SELECT $1, NULL, content, completed, position
+         FROM unnest($2::text[], $3::bool[], $4::int[])
+           AS t(content, completed, position)`,
+        [
+          parent.id,
+          toInsert.map((i) => i.content),
+          toInsert.map((i) => i.completed),
+          toInsert.map((i) => i.position),
+        ],
       );
     } else {
       await client.query(
-        "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES (NULL, $1, $2, $3, $4)",
-        [parent.id, checklist.content, checklist.completed, position],
+        `INSERT INTO checklist_items (task_id, subtask_id, content, completed, position)
+         SELECT NULL, $1, content, completed, position
+         FROM unnest($2::text[], $3::bool[], $4::int[])
+           AS t(content, completed, position)`,
+        [
+          parent.id,
+          toInsert.map((i) => i.content),
+          toInsert.map((i) => i.completed),
+          toInsert.map((i) => i.position),
+        ],
       );
     }
   }
@@ -454,19 +509,41 @@ async function syncTaskComments(
     ]);
   }
 
+  const toUpdate: Array<{ id: number; content: string; position: number }> = [];
+  const toInsert: Array<{ content: string; position: number }> = [];
+
   for (const [index, comment] of comments.entries()) {
     const position = calcPosition(index);
     if (comment.id !== undefined) {
-      await client.query(
-        "UPDATE task_comments SET content = $1, position = $2 WHERE id = $3",
-        [comment.content, position, comment.id],
-      );
-      continue;
+      toUpdate.push({ id: comment.id, content: comment.content, position });
+    } else {
+      toInsert.push({ content: comment.content, position });
     }
+  }
 
+  if (toUpdate.length > 0) {
     await client.query(
-      "INSERT INTO task_comments (task_id, content, position) VALUES ($1, $2, $3)",
-      [taskId, comment.content, position],
+      `UPDATE task_comments SET
+         content  = updates.content,
+         position = updates.position
+       FROM unnest($1::int[], $2::text[], $3::int[])
+         AS updates(id, content, position)
+       WHERE task_comments.id = updates.id`,
+      [
+        toUpdate.map((u) => u.id),
+        toUpdate.map((u) => u.content),
+        toUpdate.map((u) => u.position),
+      ],
+    );
+  }
+
+  if (toInsert.length > 0) {
+    await client.query(
+      `INSERT INTO task_comments (task_id, content, position)
+       SELECT $1, content, position
+       FROM unnest($2::text[], $3::int[])
+         AS t(content, position)`,
+      [taskId, toInsert.map((i) => i.content), toInsert.map((i) => i.position)],
     );
   }
 }
@@ -775,19 +852,33 @@ router.put(
         checklists: TaskSnapshotChecklistInput[];
       }> = [];
 
+      // 既存サブタスクを一括 UPDATE、新規サブタスクは RETURNING id が必要なため個別 INSERT
+      const subtasksToUpdate = payload.subtasks.filter(
+        (s): s is typeof s & { id: number } => s.id !== undefined,
+      );
+      for (const subtask of subtasksToUpdate) {
+        if (!existingSubtaskIds.has(subtask.id)) {
+          throw new HttpError(
+            400,
+            `'subtasks.id' contains unknown id ${subtask.id}`,
+          );
+        }
+        keepSubtaskIds.add(subtask.id);
+      }
+      if (subtasksToUpdate.length > 0) {
+        await client.query(
+          `UPDATE subtasks SET content = updates.content
+           FROM unnest($1::int[], $2::text[]) AS updates(id, content)
+           WHERE subtasks.id = updates.id`,
+          [
+            subtasksToUpdate.map((s) => s.id),
+            subtasksToUpdate.map((s) => s.content),
+          ],
+        );
+      }
+
       for (const subtask of payload.subtasks) {
         if (subtask.id !== undefined) {
-          if (!existingSubtaskIds.has(subtask.id)) {
-            throw new HttpError(
-              400,
-              `'subtasks.id' contains unknown id ${subtask.id}`,
-            );
-          }
-          keepSubtaskIds.add(subtask.id);
-          await client.query("UPDATE subtasks SET content = $1 WHERE id = $2", [
-            subtask.content,
-            subtask.id,
-          ]);
           resolvedSubtasks.push({
             id: subtask.id,
             checklists: subtask.checklists,
@@ -955,23 +1046,35 @@ router.post(
       const newTask = newTaskResult.rows[0];
       if (!newTask) throw new Error("Failed to copy task");
 
-      // タスク直下チェックリストを複製
-      for (const [index, cl] of srcTask.checklists.entries()) {
+      // タスク直下チェックリストを複製（まとめて INSERT）
+      if (srcTask.checklists.length > 0) {
         await client.query(
-          "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES ($1, NULL, $2, $3, $4)",
-          [newTask.id, cl.content, false, calcPosition(index)],
+          `INSERT INTO checklist_items (task_id, subtask_id, content, completed, position)
+           SELECT $1, NULL, content, false, position
+           FROM unnest($2::text[], $3::int[]) AS t(content, position)`,
+          [
+            newTask.id,
+            srcTask.checklists.map((cl) => cl.content),
+            srcTask.checklists.map((_, i) => calcPosition(i)),
+          ],
         );
       }
 
-      // コメントを複製
-      for (const [index, cm] of srcTask.comments.entries()) {
+      // コメントを複製（まとめて INSERT）
+      if (srcTask.comments.length > 0) {
         await client.query(
-          "INSERT INTO task_comments (task_id, content, position) VALUES ($1, $2, $3)",
-          [newTask.id, cm.content, calcPosition(index)],
+          `INSERT INTO task_comments (task_id, content, position)
+           SELECT $1, content, position
+           FROM unnest($2::text[], $3::int[]) AS t(content, position)`,
+          [
+            newTask.id,
+            srcTask.comments.map((cm) => cm.content),
+            srcTask.comments.map((_, i) => calcPosition(i)),
+          ],
         );
       }
 
-      // サブタスクとそのチェックリストを複製
+      // サブタスクとそのチェックリストを複製（サブタスクは RETURNING id が必要なため個別 INSERT）
       for (const subtask of srcTask.subtasks) {
         const newSubtaskResult = await client.query<{ id: number }>(
           "INSERT INTO subtasks (task_id, content) VALUES ($1, $2) RETURNING id",
@@ -980,10 +1083,16 @@ router.post(
         const newSubtaskId = newSubtaskResult.rows[0]?.id;
         if (!newSubtaskId) throw new Error("Failed to copy subtask");
 
-        for (const [index, cl] of subtask.checklists.entries()) {
+        if (subtask.checklists.length > 0) {
           await client.query(
-            "INSERT INTO checklist_items (task_id, subtask_id, content, completed, position) VALUES (NULL, $1, $2, $3, $4)",
-            [newSubtaskId, cl.content, false, calcPosition(index)],
+            `INSERT INTO checklist_items (task_id, subtask_id, content, completed, position)
+             SELECT NULL, $1, content, false, position
+             FROM unnest($2::text[], $3::int[]) AS t(content, position)`,
+            [
+              newSubtaskId,
+              subtask.checklists.map((cl) => cl.content),
+              subtask.checklists.map((_, i) => calcPosition(i)),
+            ],
           );
         }
       }
