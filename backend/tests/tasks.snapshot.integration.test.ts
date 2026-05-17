@@ -79,7 +79,7 @@ describe("tasks snapshot integration", () => {
         }
 
         if (
-          statement.startsWith("UPDATE subtasks SET content = $1 WHERE id = $2")
+          statement.startsWith("UPDATE subtasks SET content = updates.content")
         ) {
           return { rows: [] };
         }
@@ -100,11 +100,7 @@ describe("tasks snapshot integration", () => {
           return { rows: [{ id: 31 }] };
         }
 
-        if (
-          statement.startsWith(
-            "UPDATE checklist_items SET content = $1, completed = $2, position = $3 WHERE id = $4",
-          )
-        ) {
+        if (statement.startsWith("UPDATE checklist_items SET\n")) {
           return { rows: [] };
         }
 
@@ -116,11 +112,7 @@ describe("tasks snapshot integration", () => {
           return { rows: [{ id: 41 }] };
         }
 
-        if (
-          statement.startsWith(
-            "UPDATE task_comments SET content = $1, position = $2 WHERE id = $3",
-          )
-        ) {
+        if (statement.startsWith("UPDATE task_comments SET\n")) {
           return { rows: [] };
         }
 
@@ -331,7 +323,6 @@ describe("tasks snapshot integration", () => {
     const res = await request(createApp()).put("/api/tasks/999/snapshot").send({
       content: "更新タスク",
       due_date: null,
-      completed: false,
       completed: false,
       checklists: [],
       subtasks: [],
