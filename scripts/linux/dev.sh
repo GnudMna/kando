@@ -2,24 +2,36 @@
 # ========================================================================
 # Script Name : dev.sh
 # Description : Linux用の開発モード実行スクリプト
-# Usage       : ./dev.sh
+# Usage       : ./dev.sh [--install|-i]
 # ========================================================================
 
 # カレントディレクトリをプロジェクトのルートに変更
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/../common/cd-project-root.sh"
 
+# 引数を解析
+INSTALL=false
+for arg in "$@"; do
+    case $arg in
+        --install|-i)
+            INSTALL=true
+            ;;
+    esac
+done
+
 echo "Kandoを開発モードで起動します..."
 echo
 
-# 依存関係をインストール
-echo "ワークスペースの依存関係をインストールしています..."
-npm ci
-if [ $? -ne 0 ]; then
-    echo "依存関係のインストールに失敗しました"
-    exit 1
+# 依存関係をインストール（--install / -i オプション指定時のみ）
+if [ "$INSTALL" = true ]; then
+    echo "ワークスペースの依存関係をインストールしています..."
+    npm ci
+    if [ $? -ne 0 ]; then
+        echo "依存関係のインストールに失敗しました"
+        exit 1
+    fi
+    echo
 fi
-echo
 
 # バックエンドの DB マイグレーションを実行
 echo "バックエンドの DB マイグレーションを実行しています..."
