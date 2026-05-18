@@ -31,6 +31,18 @@ router.post(
       content: string;
     };
     try {
+      // 親タスクの所有権を確認する
+      const taskCheck = await pool.query<{ id: number }>(
+        `SELECT t.id FROM tasks t
+         JOIN columns c ON c.id = t.column_id
+         JOIN rows r ON r.id = c.row_id
+         WHERE t.id = $1 AND r.user_id = $2`,
+        [task_id, req.userId!],
+      );
+      if (!taskCheck.rows[0]) {
+        res.status(404).json({ error: "Task not found" });
+        return;
+      }
       const result = await pool.query<DbSubtask>(
         "INSERT INTO subtasks (task_id, content) VALUES ($1, $2) RETURNING *",
         [task_id, content],
@@ -70,8 +82,14 @@ router.put(
     const { content } = req.body as { content: string };
     try {
       const result = await pool.query<DbSubtask>(
-        "UPDATE subtasks SET content = $1 WHERE id = $2 RETURNING *",
-        [content, id],
+        `UPDATE subtasks SET content = $1
+         WHERE id = $2 AND task_id IN (
+           SELECT t.id FROM tasks t
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE r.user_id = $3
+         ) RETURNING *`,
+        [content, id, req.userId!],
       );
       if (!result.rows[0]) {
         res.status(404).json({ error: "Subtask not found" });
@@ -101,9 +119,15 @@ router.delete(
       return;
     }
     try {
-      const result = await pool.query("DELETE FROM subtasks WHERE id = $1", [
-        id,
-      ]);
+      const result = await pool.query(
+        `DELETE FROM subtasks WHERE id = $1 AND task_id IN (
+           SELECT t.id FROM tasks t
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE r.user_id = $2
+         )`,
+        [id, req.userId!],
+      );
       if ((result.rowCount ?? 0) === 0) {
         res.status(404).json({ error: "Subtask not found" });
         return;

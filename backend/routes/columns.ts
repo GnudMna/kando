@@ -32,7 +32,11 @@ router.post(
       row_id: number;
     };
     try {
-      const column = await createColumn(title, position, row_id);
+      const column = await createColumn(title, position, row_id, req.userId!);
+      if (!column) {
+        res.status(404).json({ error: "Row not found" });
+        return;
+      }
       res.json(column);
     } catch (err) {
       next(err);
@@ -61,7 +65,7 @@ router.put(
     }
     const { title } = req.body as { title: string };
     try {
-      const column = await updateColumnTitle(id, title);
+      const column = await updateColumnTitle(id, title, req.userId!);
       if (!column) {
         res.status(404).json({ error: "Column not found" });
         return;
@@ -94,7 +98,7 @@ router.put(
     }
     const { position } = req.body as { position: number };
     try {
-      const column = await moveColumn(id, position);
+      const column = await moveColumn(id, position, req.userId!);
       if (!column) {
         res.status(404).json({ error: "Column not found" });
         return;
@@ -123,7 +127,7 @@ router.delete(
       return;
     }
     try {
-      const deleted = await deleteColumn(id);
+      const deleted = await deleteColumn(id, req.userId!);
       if (!deleted) {
         res.status(404).json({ error: "Column not found" });
         return;

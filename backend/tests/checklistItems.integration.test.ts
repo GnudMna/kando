@@ -44,6 +44,11 @@ function setupConnectedClient(): MockedClient {
 function createApp() {
   const app = express();
   app.use(express.json());
+  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  app.use((_req, _res, next) => {
+    (_req as express.Request & { userId?: number }).userId = 99;
+    next();
+  });
   app.use("/api/checklist-items", checklistItemsRouter);
   app.use(errorHandler);
   return app;
@@ -115,11 +120,13 @@ describe("checklist-items router integration", () => {
     });
 
     expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
-    expect(client.query).toHaveBeenNthCalledWith(
-      2,
-      "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
-      [1],
-    );
+    const [lockSql, lockParams] = client.query.mock.calls[1] as [
+      string,
+      unknown[],
+    ];
+    expect(lockSql).toContain("FOR UPDATE");
+    expect(lockSql).toContain("r.user_id = $2");
+    expect(lockParams).toEqual([1, 99]);
     expect(client.query).toHaveBeenNthCalledWith(
       3,
       "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE task_id = $1",
@@ -170,11 +177,13 @@ describe("checklist-items router integration", () => {
     });
 
     expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
-    expect(client.query).toHaveBeenNthCalledWith(
-      2,
-      "SELECT id FROM subtasks WHERE id = $1 FOR UPDATE",
-      [20],
-    );
+    const [lockSql, lockParams] = client.query.mock.calls[1] as [
+      string,
+      unknown[],
+    ];
+    expect(lockSql).toContain("FOR UPDATE");
+    expect(lockSql).toContain("r.user_id = $2");
+    expect(lockParams).toEqual([20, 99]);
     expect(client.query).toHaveBeenNthCalledWith(
       3,
       "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE subtask_id = $1",
@@ -240,6 +249,6 @@ describe("checklist-items router integration", () => {
 
     const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("UPDATE checklist_items SET");
-    expect(params).toEqual([true, "更新後", 5]);
+    expect(params).toEqual([true, "更新後", 5, 99]);
   });
 });

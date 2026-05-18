@@ -20,10 +20,13 @@ export async function updateColumnTitle(
   client: Queryable,
   id: number,
   title: string,
+  userId: number,
 ): Promise<DbColumn | null> {
   const result = await client.query<DbColumn>(
-    "UPDATE columns SET title = $1 WHERE id = $2 RETURNING *",
-    [title, id],
+    `UPDATE columns SET title = $1
+     WHERE id = $2 AND row_id IN (SELECT id FROM rows WHERE user_id = $3)
+     RETURNING *`,
+    [title, id, userId],
   );
   return result.rows[0] ?? null;
 }
@@ -32,10 +35,13 @@ export async function moveColumn(
   client: Queryable,
   id: number,
   position: number,
+  userId: number,
 ): Promise<DbColumn | null> {
   const result = await client.query<DbColumn>(
-    "UPDATE columns SET position = $1 WHERE id = $2 RETURNING *",
-    [position, id],
+    `UPDATE columns SET position = $1
+     WHERE id = $2 AND row_id IN (SELECT id FROM rows WHERE user_id = $3)
+     RETURNING *`,
+    [position, id, userId],
   );
   return result.rows[0] ?? null;
 }
@@ -43,7 +49,11 @@ export async function moveColumn(
 export async function deleteColumn(
   client: Queryable,
   id: number,
+  userId: number,
 ): Promise<boolean> {
-  const result = await client.query("DELETE FROM columns WHERE id = $1", [id]);
+  const result = await client.query(
+    "DELETE FROM columns WHERE id = $1 AND row_id IN (SELECT id FROM rows WHERE user_id = $2)",
+    [id, userId],
+  );
   return (result.rowCount ?? 0) > 0;
 }

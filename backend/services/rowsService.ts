@@ -13,18 +13,20 @@ const DEFAULT_COLUMN_POSITION_GAP = 1000;
 export async function createRow(
   title: string,
   position: number,
+  userId: number,
 ): Promise<DbRow> {
-  return insertRow(pool, title, position);
+  return insertRow(pool, title, position, userId);
 }
 
 export async function createRowWithDefaultColumns(
   title: string,
   position: number,
+  userId: number,
 ): Promise<Row> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const row = await insertRow(client, title, position);
+    const row = await insertRow(client, title, position, userId);
     const columns: DbColumn[] = [];
 
     for (const [index, columnTitle] of DEFAULT_COLUMN_TITLES.entries()) {
@@ -55,10 +57,11 @@ export async function createRowWithDefaultColumns(
 export async function updateRowTitle(
   id: number,
   title: string,
+  userId: number,
 ): Promise<DbRow | null> {
-  return updateRowTitleQuery(pool, id, title);
+  return updateRowTitleQuery(pool, id, title, userId);
 }
 
-export async function deleteRow(id: number): Promise<boolean> {
-  return deleteRowQuery(pool, id);
+export async function deleteRow(id: number, userId: number): Promise<boolean> {
+  return deleteRowQuery(pool, id, userId);
 }

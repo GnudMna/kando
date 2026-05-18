@@ -31,6 +31,11 @@ const mockedPool = pool as unknown as MockedPool;
 function createApp() {
   const app = express();
   app.use(express.json());
+  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  app.use((_req, _res, next) => {
+    (_req as express.Request & { userId?: number }).userId = 99;
+    next();
+  });
   app.use("/api/tasks", tasksRouter);
   app.use(errorHandler);
   return app;
@@ -57,7 +62,8 @@ describe("tasks snapshot integration", () => {
         }
 
         if (
-          statement.startsWith("SELECT id FROM tasks WHERE id = $1 FOR UPDATE")
+          statement.includes("JOIN rows r ON r.id = c.row_id") &&
+          statement.includes("FOR UPDATE")
         ) {
           return { rows: [{ id: 1 }] };
         }
@@ -313,7 +319,8 @@ describe("tasks snapshot integration", () => {
         return { rows: [] };
       }
       if (
-        statement.startsWith("SELECT id FROM tasks WHERE id = $1 FOR UPDATE")
+        statement.includes("JOIN rows r ON r.id = c.row_id") &&
+        statement.includes("FOR UPDATE")
       ) {
         return { rows: [] };
       }

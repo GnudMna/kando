@@ -657,6 +657,17 @@ router.post(
     }
 
     try {
+      // カラムの親行がユーザーのものであることを確認する
+      const colCheck = await pool.query<{ id: number }>(
+        `SELECT c.id FROM columns c
+         JOIN rows r ON r.id = c.row_id
+         WHERE c.id = $1 AND r.user_id = $2`,
+        [column_id, req.userId!],
+      );
+      if (!colCheck.rows[0]) {
+        res.status(404).json({ error: "Column not found" });
+        return;
+      }
       const result = await pool.query<DbTask>(
         `INSERT INTO tasks (column_id, content, due_date, position) VALUES ($1, $2, $3, $4) RETURNING ${TASK_RETURNING_COLUMNS}`,
         [column_id, content, normalizedDueDate, position],
@@ -766,10 +777,16 @@ router.put(
     }
 
     values.push(id);
+    values.push(req.userId!);
 
     try {
       const result = await pool.query<DbTask>(
-        `UPDATE tasks SET ${updates.join(", ")} WHERE id = $${values.length} RETURNING ${TASK_RETURNING_COLUMNS}`,
+        `UPDATE tasks SET ${updates.join(", ")} WHERE id = $${values.length - 1}
+         AND column_id IN (
+           SELECT c.id FROM columns c
+           JOIN rows r ON r.id = c.row_id
+           WHERE r.user_id = $${values.length}
+         ) RETURNING ${TASK_RETURNING_COLUMNS}`,
         values,
       );
       if (!result.rows[0]) {
@@ -827,8 +844,11 @@ router.put(
       await client.query("BEGIN");
 
       const taskLockResult = await client.query<{ id: number }>(
-        "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
-        [id],
+        `SELECT t.id FROM tasks t
+         JOIN columns c ON c.id = t.column_id
+         JOIN rows r ON r.id = c.row_id
+         WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
+        [id, req.userId!],
       );
       if (!taskLockResult.rows[0]) {
         throw new HttpError(404, "Task not found");
@@ -978,9 +998,25 @@ router.put(
       position: number;
     };
     try {
+      // 移動先カラムがユーザーのものであることを確認する
+      const destCheck = await pool.query<{ id: number }>(
+        `SELECT c.id FROM columns c
+         JOIN rows r ON r.id = c.row_id
+         WHERE c.id = $1 AND r.user_id = $2`,
+        [column_id, req.userId!],
+      );
+      if (!destCheck.rows[0]) {
+        res.status(404).json({ error: "Column not found" });
+        return;
+      }
       const result = await pool.query<DbTask>(
-        `UPDATE tasks SET column_id = $1, position = $2 WHERE id = $3 RETURNING ${TASK_RETURNING_COLUMNS}`,
-        [column_id, position, id],
+        `UPDATE tasks SET column_id = $1, position = $2
+         WHERE id = $3 AND column_id IN (
+           SELECT c.id FROM columns c
+           JOIN rows r ON r.id = c.row_id
+           WHERE r.user_id = $4
+         ) RETURNING ${TASK_RETURNING_COLUMNS}`,
+        [column_id, position, id, req.userId!],
       );
       if (!result.rows[0]) {
         res.status(404).json({ error: "Task not found" });
@@ -1014,6 +1050,20 @@ router.post(
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+
+      // 元タスクの所有権を確認しつつ取得
+      const ownerCheck = await client.query<{ id: number }>(
+        `SELECT t.id FROM tasks t
+         JOIN columns c ON c.id = t.column_id
+         JOIN rows r ON r.id = c.row_id
+         WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
+        [id, req.userId!],
+      );
+      if (!ownerCheck.rows[0]) {
+        await client.query("ROLLBACK");
+        res.status(404).json({ error: "Task not found" });
+        return;
+      }
 
       // 元タスクを取得
       const srcTask = await fetchTaskSnapshot(client, id);
@@ -1130,7 +1180,15 @@ router.delete(
       return;
     }
     try {
-      const result = await pool.query("DELETE FROM tasks WHERE id = $1", [id]);
+      const result = await pool.query(
+        `DELETE FROM tasks WHERE id = $1
+         AND column_id IN (
+           SELECT c.id FROM columns c
+           JOIN rows r ON r.id = c.row_id
+           WHERE r.user_id = $2
+         )`,
+        [id, req.userId!],
+      );
       if ((result.rowCount ?? 0) === 0) {
         res.status(404).json({ error: "Task not found" });
         return;

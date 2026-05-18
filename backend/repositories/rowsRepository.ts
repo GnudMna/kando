@@ -7,10 +7,11 @@ export async function insertRow(
   client: Queryable,
   title: string,
   position: number,
+  userId: number,
 ): Promise<DbRow> {
   const result = await client.query<DbRow>(
-    "INSERT INTO rows (title, position) VALUES ($1, $2) RETURNING *",
-    [title, position],
+    "INSERT INTO rows (title, position, user_id) VALUES ($1, $2, $3) RETURNING *",
+    [title, position, userId],
   );
   return result.rows[0];
 }
@@ -32,10 +33,11 @@ export async function updateRowTitle(
   client: Queryable,
   id: number,
   title: string,
+  userId: number,
 ): Promise<DbRow | null> {
   const result = await client.query<DbRow>(
-    "UPDATE rows SET title = $1 WHERE id = $2 RETURNING *",
-    [title, id],
+    "UPDATE rows SET title = $1 WHERE id = $2 AND user_id = $3 RETURNING *",
+    [title, id, userId],
   );
   return result.rows[0] ?? null;
 }
@@ -43,7 +45,11 @@ export async function updateRowTitle(
 export async function deleteRow(
   client: Queryable,
   id: number,
+  userId: number,
 ): Promise<boolean> {
-  const result = await client.query("DELETE FROM rows WHERE id = $1", [id]);
+  const result = await client.query(
+    "DELETE FROM rows WHERE id = $1 AND user_id = $2",
+    [id, userId],
+  );
   return (result.rowCount ?? 0) > 0;
 }
