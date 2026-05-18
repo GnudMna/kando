@@ -78,9 +78,16 @@ router.post(
       // 同一親への同時追加を直列化して position の重複採番を防ぐ。
       let nextPosition = 1000;
       if (parentRefs.taskId !== null) {
-        await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [
-          parentRefs.taskId,
-        ]);
+        const parentRow = await client.query(
+          "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
+          [parentRefs.taskId],
+        );
+        if (parentRow.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          res.status(404).json({ error: "Task not found" });
+          return;
+        }
         const nextPositionResult = await client.query<{
           next_position: number;
         }>(
@@ -93,9 +100,16 @@ router.post(
         if (subtaskId === null) {
           throw new Error("Invalid checklist parent refs");
         }
-        await client.query("SELECT id FROM subtasks WHERE id = $1 FOR UPDATE", [
-          subtaskId,
-        ]);
+        const parentRow = await client.query(
+          "SELECT id FROM subtasks WHERE id = $1 FOR UPDATE",
+          [subtaskId],
+        );
+        if (parentRow.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          res.status(404).json({ error: "Subtask not found" });
+          return;
+        }
         const nextPositionResult = await client.query<{
           next_position: number;
         }>(
