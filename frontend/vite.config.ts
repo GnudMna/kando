@@ -6,10 +6,18 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ["react", "react-dom"],
-          dnd: ["@hello-pangea/dnd"],
-          lucide: ["lucide-react"],
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, "/");
+          // react は react-dom と区別して "react" パッケージだけを厳密に判定する
+          const isReactPackage = /node_modules\/react(?:\/|$)/.test(
+            normalizedId,
+          );
+          if (!normalizedId.includes("node_modules")) return;
+          if (normalizedId.includes("@hello-pangea/dnd")) return "dnd";
+          if (normalizedId.includes("lucide-react")) return "lucide";
+          if (normalizedId.includes("react-dom") || isReactPackage) {
+            return "react";
+          }
         },
       },
     },

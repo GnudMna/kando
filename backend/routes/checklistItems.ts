@@ -3,9 +3,12 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbChecklistItem } from "../types.js";
+import { HttpError, NotFoundError } from "../errors.js";
 import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
+
+const POSITION_INCREMENT = 1000;
 
 type ChecklistParentValidationResult =
   | { ok: true; taskId: number | null; subtaskId: number | null }
@@ -76,38 +79,57 @@ router.post(
       await client.query("BEGIN");
 
       // 同一親への同時追加を直列化して position の重複採番を防ぐ。
-      let nextPosition = 1000;
+      let nextPosition = POSITION_INCREMENT;
       if (parentRefs.taskId !== null) {
-        await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [
-          parentRefs.taskId,
-        ]);
+        // 親タスクの所有権を確認しつつロックを取得する
+        const parentRow = await client.query(
+          `SELECT t.id FROM tasks t
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
+          [parentRefs.taskId, req.userId!],
+        );
+        if (parentRow.rowCount === 0) {
+          throw new NotFoundError("Task not found");
+        }
         const nextPositionResult = await client.query<{
           next_position: number;
         }>(
-          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE task_id = $1",
+          `SELECT COALESCE(MAX(position), 0) + ${POSITION_INCREMENT} AS next_position FROM checklist_items WHERE task_id = $1`,
           [parentRefs.taskId],
         );
-        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+        nextPosition =
+          nextPositionResult.rows[0]?.next_position ?? POSITION_INCREMENT;
       } else {
         const subtaskId = parentRefs.subtaskId;
         if (subtaskId === null) {
-          throw new Error("Invalid checklist parent refs");
+          throw new HttpError(500, "Invalid checklist parent refs");
         }
-        await client.query("SELECT id FROM subtasks WHERE id = $1 FOR UPDATE", [
-          subtaskId,
-        ]);
+        // 親サブタスクの所有権を確認しつつロックを取得する
+        const parentRow = await client.query(
+          `SELECT s.id FROM subtasks s
+           JOIN tasks t ON t.id = s.task_id
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE s.id = $1 AND r.user_id = $2 FOR UPDATE`,
+          [subtaskId, req.userId!],
+        );
+        if (parentRow.rowCount === 0) {
+          throw new NotFoundError("Subtask not found");
+        }
         const nextPositionResult = await client.query<{
           next_position: number;
         }>(
-          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE subtask_id = $1",
+          `SELECT COALESCE(MAX(position), 0) + ${POSITION_INCREMENT} AS next_position FROM checklist_items WHERE subtask_id = $1`,
           [subtaskId],
         );
-        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+        nextPosition =
+          nextPositionResult.rows[0]?.next_position ?? POSITION_INCREMENT;
       }
 
       const result = await client.query<DbChecklistItem>(
         "INSERT INTO checklist_items (task_id, subtask_id, content, position) VALUES ($1, $2, $3, $4) RETURNING *",
-        [parentRefs.taskId, parentRefs.subtaskId, content, nextPosition],
+        [parentRefs.taskId, parentRefs.subtaskId, content.trim(), nextPosition],
       );
 
       await client.query("COMMIT");
@@ -131,7 +153,7 @@ router.put(
   validateBody({
     content: { type: "string", notEmpty: true, maxLength: 500 },
     completed: { type: "boolean" },
-    position: { type: "number", finite: true },
+    position: { type: "number", finite: true, integer: true, positive: true },
   }),
   /**
    * チェックリスト項目を更新する。
@@ -176,7 +198,7 @@ router.put(
     }
     if (content !== undefined) {
       fields.push(`content = $${idx++}`);
-      vals.push(content);
+      vals.push(content.trim());
     }
     if (position !== undefined) {
       fields.push(`position = $${idx++}`);
@@ -190,14 +212,29 @@ router.put(
     }
 
     vals.push(id);
+    vals.push(req.userId!);
     try {
       const result = await pool.query<DbChecklistItem>(
-        `UPDATE checklist_items SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+        `UPDATE checklist_items SET ${fields.join(", ")} WHERE id = $${idx}
+         AND (
+           (task_id IS NOT NULL AND task_id IN (
+             SELECT t.id FROM tasks t
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $${idx + 1}
+           )) OR
+           (subtask_id IS NOT NULL AND subtask_id IN (
+             SELECT s.id FROM subtasks s
+             JOIN tasks t ON t.id = s.task_id
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $${idx + 1}
+           ))
+         ) RETURNING *`,
         vals,
       );
       if (!result.rows[0]) {
-        res.status(404).json({ error: "Checklist item not found" });
-        return;
+        throw new NotFoundError("Checklist item not found");
       }
       res.json(result.rows[0]);
     } catch (err) {
@@ -224,12 +261,26 @@ router.delete(
     }
     try {
       const result = await pool.query(
-        "DELETE FROM checklist_items WHERE id = $1",
-        [id],
+        `DELETE FROM checklist_items WHERE id = $1
+         AND (
+           (task_id IS NOT NULL AND task_id IN (
+             SELECT t.id FROM tasks t
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $2
+           )) OR
+           (subtask_id IS NOT NULL AND subtask_id IN (
+             SELECT s.id FROM subtasks s
+             JOIN tasks t ON t.id = s.task_id
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $2
+           ))
+         )`,
+        [id, req.userId!],
       );
       if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ error: "Checklist item not found" });
-        return;
+        throw new NotFoundError("Checklist item not found");
       }
       res.json({ success: true });
     } catch (err) {

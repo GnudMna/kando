@@ -7,6 +7,8 @@ import { rateLimit } from "express-rate-limit";
 import { pool, waitForDbWithRetry } from "./db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { authenticate } from "./middleware/authenticate.js";
+import authRouter from "./routes/auth.js";
 import boardRouter from "./routes/board.js";
 import rowsRouter from "./routes/rows.js";
 import columnsRouter from "./routes/columns.js";
@@ -31,6 +33,14 @@ if (isProduction && !process.env.CORS_ORIGIN) {
   process.exit(1);
 }
 
+// AUTH_SECRET は本番環境で必須
+if (isProduction && !process.env.AUTH_SECRET) {
+  console.error(
+    "FATAL: AUTH_SECRET environment variable must be set in production",
+  );
+  process.exit(1);
+}
+
 const rawPort = process.env.PORT ?? "3001";
 const parsedPort = Number(rawPort);
 if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
@@ -41,6 +51,9 @@ if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
 }
 
 app.disable("x-powered-by");
+
+// リバースプロキシ（nginx等）からの X-Forwarded-For を信頼する
+app.set("trust proxy", 1);
 
 // セキュリティヘッダーを付与する
 app.use(helmet());
@@ -74,7 +87,7 @@ app.use(
       ? allowedOrigins.length > 0
         ? allowedOrigins
         : false
-      : (process.env.CORS_ORIGIN ?? "*"),
+      : (process.env.CORS_ORIGIN ?? "http://localhost:5173"),
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     optionsSuccessStatus: 204,
   }),
@@ -94,6 +107,18 @@ const limiter = rateLimit({
   message: { error: "Too many requests, please try again later" },
 });
 app.use("/api", limiter);
+
+// 認証エンドポイント専用のレートリミット: ブルートフォース攻撃対策として 15 分間に 10 リクエストまで
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+});
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/status", authLimiter);
 
 // ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
 app.get("/api/liveness", (_req, res) => {
@@ -120,6 +145,12 @@ app.get(
     }
   },
 );
+
+// 認証ルート（認証ミドルウェアの適用外）
+app.use("/api/auth", authRouter);
+
+// 認証ミドルウェアを適用する（全 API ルートで JWT 検証が必要）
+app.use("/api", authenticate);
 
 // 各リソースのAPIルートを登録する
 app.use("/api/board", boardRouter);

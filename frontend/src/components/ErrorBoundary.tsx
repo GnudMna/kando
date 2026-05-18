@@ -20,14 +20,29 @@ export class ErrorBoundary extends Component<Props, State> {
     this.state = { hasError: false, error: null };
   }
 
+  /**
+   * 子コンポーネントのレンダリングエラーからフォールバック状態を生成する。
+   * @param error - キャッチされた Error オブジェクト
+   * @returns `hasError` を `true` にした新しい State
+   */
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
+  /**
+   * エラー発生後にコンソールへログを出力する。
+   * @param error - 発生した Error オブジェクト
+   * @param info - コンポーネントスタック情報を含む ErrorInfo
+   * @returns なし
+   */
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error("ErrorBoundary caught an error:", error, info.componentStack);
   }
 
+  /**
+   * エラー時はフォールバック UI を、正常時は子要素を描画する。
+   * @returns フォールバックまたは子要素の ReactNode
+   */
   render(): ReactNode {
     if (this.state.hasError) {
       return (

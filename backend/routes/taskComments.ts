@@ -3,6 +3,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbTaskComment } from "../types.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
@@ -34,9 +35,18 @@ router.post(
     try {
       await client.query("BEGIN");
       // 同一 task への同時追加を直列化して position の重複採番を防ぐ。
-      await client.query("SELECT id FROM tasks WHERE id = $1 FOR UPDATE", [
-        task_id,
-      ]);
+      // 親タスクの所有権を確認しつつロックを取得する
+      const taskCheck = await client.query(
+        `SELECT t.id FROM tasks t
+         JOIN columns c ON c.id = t.column_id
+         JOIN rows r ON r.id = c.row_id
+         WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
+        [task_id, req.userId!],
+      );
+      if ((taskCheck.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
+        throw new NotFoundError("Task not found");
+      }
       const nextPositionResult = await client.query<{ next_position: number }>(
         "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM task_comments WHERE task_id = $1",
         [task_id],
@@ -123,15 +133,21 @@ router.put(
       return;
     }
     vals.push(id);
+    vals.push(req.userId!);
 
     try {
       const result = await pool.query<DbTaskComment>(
-        `UPDATE task_comments SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+        `UPDATE task_comments SET ${fields.join(", ")} WHERE id = $${idx}
+         AND task_id IN (
+           SELECT t.id FROM tasks t
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE r.user_id = $${idx + 1}
+         ) RETURNING *`,
         vals,
       );
       if (!result.rows[0]) {
-        res.status(404).json({ error: "Comment not found" });
-        return;
+        throw new NotFoundError("Comment not found");
       }
       res.json(result.rows[0]);
     } catch (err) {
@@ -158,12 +174,17 @@ router.delete(
     }
     try {
       const result = await pool.query(
-        "DELETE FROM task_comments WHERE id = $1",
-        [id],
+        `DELETE FROM task_comments WHERE id = $1
+         AND task_id IN (
+           SELECT t.id FROM tasks t
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE r.user_id = $2
+         )`,
+        [id, req.userId!],
       );
       if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ error: "Comment not found" });
-        return;
+        throw new NotFoundError("Comment not found");
       }
       res.json({ success: true });
     } catch (err) {

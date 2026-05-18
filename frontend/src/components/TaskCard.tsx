@@ -29,7 +29,7 @@ interface Props {
   onDeleteTask: (colId: number, taskId: number) => void;
   onCopyTask: (colId: number, taskId: number) => void;
   onTaskUpdated: (task: Task) => void;
-  onEditTask: (task: Task) => void;
+  onEditTask: (task: Task, colId: number) => void;
 }
 
 /**
@@ -141,7 +141,7 @@ export const TaskCard = memo(function TaskCard({
           <button
             type="button"
             className={`task-content task-title-btn${task.completed ? " task-title-completed" : ""}`}
-            onClick={() => onEditTask(task)}
+            onClick={() => onEditTask(task, columnId)}
             aria-label={`タスク「${task.content}」を編集`}
           >
             {task.content}

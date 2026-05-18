@@ -3,9 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Row, Task } from "../types";
 import * as api from "../api/boardApi";
-
-// タスク・カラム・行の position 間隔。新規追加時はこの値を加算する
-const POSITION_GAP = 1000;
+import { POSITION_GAP } from "../utils/constants";
 
 type ColumnLocation = {
   rowIndex: number;

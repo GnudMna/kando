@@ -31,6 +31,11 @@ const mockedPool = pool as unknown as MockedPool;
 function createApp() {
   const app = express();
   app.use(express.json());
+  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  app.use((_req, _res, next) => {
+    (_req as express.Request & { userId?: number }).userId = 99;
+    next();
+  });
   app.use("/api/tasks", tasksRouter);
   app.use(errorHandler);
   return app;
@@ -57,7 +62,8 @@ describe("tasks snapshot integration", () => {
         }
 
         if (
-          statement.startsWith("SELECT id FROM tasks WHERE id = $1 FOR UPDATE")
+          statement.includes("JOIN rows r ON r.id = c.row_id") &&
+          statement.includes("FOR UPDATE")
         ) {
           return { rows: [{ id: 1 }] };
         }
@@ -79,7 +85,7 @@ describe("tasks snapshot integration", () => {
         }
 
         if (
-          statement.startsWith("UPDATE subtasks SET content = $1 WHERE id = $2")
+          statement.startsWith("UPDATE subtasks SET content = updates.content")
         ) {
           return { rows: [] };
         }
@@ -100,11 +106,7 @@ describe("tasks snapshot integration", () => {
           return { rows: [{ id: 31 }] };
         }
 
-        if (
-          statement.startsWith(
-            "UPDATE checklist_items SET content = $1, completed = $2, position = $3 WHERE id = $4",
-          )
-        ) {
+        if (statement.startsWith("UPDATE checklist_items SET\n")) {
           return { rows: [] };
         }
 
@@ -116,15 +118,14 @@ describe("tasks snapshot integration", () => {
           return { rows: [{ id: 41 }] };
         }
 
-        if (
-          statement.startsWith(
-            "UPDATE task_comments SET content = $1, position = $2 WHERE id = $3",
-          )
-        ) {
+        if (statement.startsWith("UPDATE task_comments SET\n")) {
           return { rows: [] };
         }
 
-        if (statement.includes("FROM tasks WHERE id = $1")) {
+        if (
+          statement.includes("FROM tasks t") &&
+          statement.includes("COALESCE((SELECT subtasks FROM agg_subtasks)")
+        ) {
           return {
             rows: [
               {
@@ -134,72 +135,42 @@ describe("tasks snapshot integration", () => {
                 due_date: "2026-12-01",
                 position: 1000,
                 completed: false,
-              },
-            ],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM subtasks WHERE task_id = $1 ORDER BY id ASC",
-          )
-        ) {
-          return {
-            rows: [{ id: 11, task_id: 1, content: "更新サブタスク" }],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM checklist_items WHERE task_id = $1 AND subtask_id IS NULL ORDER BY position ASC",
-          )
-        ) {
-          return {
-            rows: [
-              {
-                id: 21,
-                task_id: 1,
-                subtask_id: null,
-                content: "更新チェック",
-                completed: false,
-                position: 1000,
-              },
-            ],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM task_comments WHERE task_id = $1 ORDER BY position ASC, created_at ASC, id ASC",
-          )
-        ) {
-          return {
-            rows: [
-              {
-                id: 41,
-                task_id: 1,
-                content: "更新コメント",
-                created_at: "2026-04-18T00:00:00.000Z",
-                position: 1000,
-              },
-            ],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM checklist_items WHERE subtask_id = ANY($1::int[]) ORDER BY subtask_id ASC, position ASC",
-          )
-        ) {
-          return {
-            rows: [
-              {
-                id: 31,
-                task_id: null,
-                subtask_id: 11,
-                content: "更新サブチェック",
-                completed: true,
-                position: 1000,
+                subtasks: [
+                  {
+                    id: 11,
+                    task_id: 1,
+                    content: "更新サブタスク",
+                    checklists: [
+                      {
+                        id: 31,
+                        task_id: null,
+                        subtask_id: 11,
+                        content: "更新サブチェック",
+                        completed: true,
+                        position: 1000,
+                      },
+                    ],
+                  },
+                ],
+                checklists: [
+                  {
+                    id: 21,
+                    task_id: 1,
+                    subtask_id: null,
+                    content: "更新チェック",
+                    completed: false,
+                    position: 1000,
+                  },
+                ],
+                comments: [
+                  {
+                    id: 41,
+                    task_id: 1,
+                    content: "更新コメント",
+                    created_at: "2026-04-18T00:00:00.000Z",
+                    position: 1000,
+                  },
+                ],
               },
             ],
           };
@@ -321,7 +292,8 @@ describe("tasks snapshot integration", () => {
         return { rows: [] };
       }
       if (
-        statement.startsWith("SELECT id FROM tasks WHERE id = $1 FOR UPDATE")
+        statement.includes("JOIN rows r ON r.id = c.row_id") &&
+        statement.includes("FOR UPDATE")
       ) {
         return { rows: [] };
       }
@@ -331,7 +303,6 @@ describe("tasks snapshot integration", () => {
     const res = await request(createApp()).put("/api/tasks/999/snapshot").send({
       content: "更新タスク",
       due_date: null,
-      completed: false,
       completed: false,
       checklists: [],
       subtasks: [],

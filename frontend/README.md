@@ -11,6 +11,7 @@ Kando のフロントエンド（React + TypeScript + Vite）です。
 
 ## 主な画面機能
 
+- ログイン / ユーザー登録画面（JWT 認証）
 - かんばん表示とリスト表示の切り替え
 - カラム・タスクのドラッグ&ドロップ並び替え
 - タスク横断検索（本文、サブタスク、チェックリスト、コメント）
@@ -46,8 +47,8 @@ npm run preview
 
 ## 環境変数
 
-| 変数名         | 説明                        | 既定値                      |
-| -------------- | --------------------------- | --------------------------- |
+| 変数名         | 説明                        | 既定値 |
+| -------------- | --------------------------- | ------ |
 | `VITE_API_URL` | バックエンド API ベース URL | `/api` |
 
 `.env.local` 例:
@@ -58,6 +59,7 @@ VITE_API_URL=/api
 
 ## ローカル保存される設定
 
+- `kando-auth-token`: 認証 JWT トークン
 - `kando-theme`: テーマ（`light` / `dark`）
 - `kando-due-soon-days`: 期限間近と判定する日数（`0`〜`30`）
 
@@ -87,9 +89,9 @@ VITE_API_URL=/api
 ```text
 frontend/
 └── src/
-    ├── api/          # API クライアント
-    ├── components/   # 画面コンポーネント
-    ├── hooks/        # 状態管理フック
+    ├── api/          # API クライアント（boardApi.ts）
+    ├── components/   # 画面コンポーネント（LoginScreen 含む）
+    ├── hooks/        # 状態管理フック（useAuth、useBoard）
     ├── test/         # ユニットテスト
     ├── types/        # 型定義
     └── utils/        # 日付/検索などの純粋関数

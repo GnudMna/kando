@@ -44,6 +44,11 @@ function setupConnectedClient(): MockedClient {
 function createApp() {
   const app = express();
   app.use(express.json());
+  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  app.use((_req, _res, next) => {
+    (_req as express.Request & { userId?: number }).userId = 99;
+    next();
+  });
   app.use("/api/task-comments", taskCommentsRouter);
   app.use(errorHandler);
   return app;
@@ -69,7 +74,7 @@ describe("task-comments router integration", () => {
     const client = setupConnectedClient();
     client.query
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: 10 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 10 }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ next_position: 1000 }] })
       .mockResolvedValueOnce({
         rows: [
@@ -98,11 +103,13 @@ describe("task-comments router integration", () => {
     });
 
     expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
-    expect(client.query).toHaveBeenNthCalledWith(
-      2,
-      "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
-      [10],
-    );
+    const [lockSql, lockParams] = client.query.mock.calls[1] as [
+      string,
+      unknown[],
+    ];
+    expect(lockSql).toContain("FOR UPDATE");
+    expect(lockSql).toContain("r.user_id = $2");
+    expect(lockParams).toEqual([10, 99]);
     expect(client.query).toHaveBeenNthCalledWith(
       3,
       "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM task_comments WHERE task_id = $1",
@@ -157,7 +164,7 @@ describe("task-comments router integration", () => {
 
     const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("UPDATE task_comments SET content = $1");
-    expect(params).toEqual(["更新後コメント", 3]);
+    expect(params).toEqual(["更新後コメント", 3, 99]);
   });
 
   it("PUT /api/task-comments/:id は position のみ更新できる", async () => {
@@ -188,7 +195,7 @@ describe("task-comments router integration", () => {
 
     const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("UPDATE task_comments SET position = $1");
-    expect(params).toEqual([2500, 3]);
+    expect(params).toEqual([2500, 3, 99]);
   });
 
   it("PUT /api/task-comments/:id は更新対象が空なら 400 を返す", async () => {
@@ -206,10 +213,10 @@ describe("task-comments router integration", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
-    expect(mockedPool.query).toHaveBeenCalledWith(
-      "DELETE FROM task_comments WHERE id = $1",
-      [3],
-    );
+    const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("DELETE FROM task_comments WHERE id = $1");
+    expect(sql).toContain("r.user_id = $2");
+    expect(params).toEqual([3, 99]);
   });
 
   it("DELETE /api/task-comments/:id は対象が存在しない場合 404 を返す", async () => {
@@ -219,9 +226,9 @@ describe("task-comments router integration", () => {
 
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: "Comment not found" });
-    expect(mockedPool.query).toHaveBeenCalledWith(
-      "DELETE FROM task_comments WHERE id = $1",
-      [999],
-    );
+    const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("DELETE FROM task_comments WHERE id = $1");
+    expect(sql).toContain("r.user_id = $2");
+    expect(params).toEqual([999, 99]);
   });
 });

@@ -27,6 +27,11 @@ const mockedPool = pool as unknown as MockedPool;
 function createApp() {
   const app = express();
   app.use(express.json());
+  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  app.use((_req, _res, next) => {
+    (_req as express.Request & { userId?: number }).userId = 99;
+    next();
+  });
   app.use("/api/board", boardRouter);
   app.use(errorHandler);
   return app;
@@ -56,119 +61,95 @@ describe("board router integration", () => {
   });
 
   it("GET /api/board は対象行配下のみを取得して階層を返す", async () => {
+    const expectedRow = {
+      id: 2,
+      title: "行2",
+      position: 2000,
+      columns: [
+        {
+          id: 10,
+          title: "Todo",
+          position: 1000,
+          row_id: 2,
+          tasks: [
+            {
+              id: 100,
+              column_id: 10,
+              content: "Task",
+              due_date: null,
+              position: 1000,
+              completed: false,
+              subtasks: [],
+              checklists: [],
+              comments: [],
+            },
+          ],
+        },
+      ],
+    };
+
     mockedPool.query
       .mockResolvedValueOnce({
         rows: [{ id: 2, title: "行2", position: 2000 }],
       })
-      .mockResolvedValueOnce({
-        rows: [{ id: 10, title: "Todo", position: 1000, row_id: 2 }],
-      })
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: 100,
-            column_id: 10,
-            content: "Task",
-            due_date: null,
-            position: 1000,
-            completed: false,
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [expectedRow] });
 
     const res = await request(createApp()).get(
       "/api/board?row_id=2&limit=1&offset=0",
     );
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([
-      {
-        id: 2,
-        title: "行2",
-        position: 2000,
-        columns: [
-          {
-            id: 10,
-            title: "Todo",
-            position: 1000,
-            row_id: 2,
-            tasks: [
-              {
-                id: 100,
-                column_id: 10,
-                content: "Task",
-                due_date: null,
-                position: 1000,
-                completed: false,
-                subtasks: [],
-                checklists: [],
-                comments: [],
-              },
-            ],
-          },
-        ],
-      },
-    ]);
+    expect(res.body).toEqual([expectedRow]);
 
-    expect(mockedPool.query).toHaveBeenCalledTimes(6);
+    expect(mockedPool.query).toHaveBeenCalledTimes(2);
 
     const [rowsSql, rowsParams] = mockedPool.query.mock.calls[0] as [
       string,
       unknown[],
     ];
     expect(rowsSql).toContain("SELECT * FROM rows");
-    expect(rowsSql).toContain("WHERE id = $1");
-    expect(rowsSql).toContain("LIMIT $2");
-    expect(rowsSql).toContain("OFFSET $3");
-    expect(rowsParams).toEqual([2, 1, 0]);
+    expect(rowsSql).toContain("WHERE user_id = $1");
+    expect(rowsSql).toContain("AND id = $2");
+    expect(rowsSql).toContain("LIMIT $3");
+    expect(rowsSql).toContain("OFFSET $4");
+    expect(rowsParams).toEqual([99, 2, 1, 0]);
 
-    const [columnsSql, columnsParams] = mockedPool.query.mock.calls[1] as [
+    const [cteSql, cteParams] = mockedPool.query.mock.calls[1] as [
       string,
       unknown[],
     ];
-    expect(columnsSql).toContain("FROM columns WHERE row_id = ANY");
-    expect(columnsParams).toEqual([[2]]);
-
-    const [tasksSql, tasksParams] = mockedPool.query.mock.calls[2] as [
-      string,
-      unknown[],
-    ];
-    expect(tasksSql).toContain("FROM tasks WHERE column_id = ANY");
-    expect(tasksParams).toEqual([[10]]);
+    expect(cteSql).toContain("WITH");
+    expect(cteSql).toContain("agg_cols");
+    expect(cteSql).toContain("ANY($1::int[])");
+    expect(cteParams).toEqual([[2]]);
   });
 
   it("GET /api/board は tasks が空なら下位テーブル取得を省略する", async () => {
+    const expectedRow = {
+      id: 2,
+      title: "行2",
+      position: 2000,
+      columns: [
+        {
+          id: 10,
+          title: "Todo",
+          position: 1000,
+          row_id: 2,
+          tasks: [],
+        },
+      ],
+    };
+
     mockedPool.query
       .mockResolvedValueOnce({
         rows: [{ id: 2, title: "行2", position: 2000 }],
       })
-      .mockResolvedValueOnce({
-        rows: [{ id: 10, title: "Todo", position: 1000, row_id: 2 }],
-      })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [expectedRow] });
 
     const res = await request(createApp()).get("/api/board?row_id=2");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([
-      {
-        id: 2,
-        title: "行2",
-        position: 2000,
-        columns: [
-          {
-            id: 10,
-            title: "Todo",
-            position: 1000,
-            row_id: 2,
-            tasks: [],
-          },
-        ],
-      },
-    ]);
-    expect(mockedPool.query).toHaveBeenCalledTimes(3);
+    expect(res.body).toEqual([expectedRow]);
+    expect(mockedPool.query).toHaveBeenCalledTimes(2);
   });
 });

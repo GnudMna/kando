@@ -33,7 +33,7 @@ describe("boardApi", () => {
     expect(result).toEqual(mockRows);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/board?row_id=1&limit=5&offset=10",
-      undefined,
+      { headers: {} },
     );
   });
 
@@ -61,6 +61,7 @@ describe("boardApi", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/rows/123", {
       method: "DELETE",
+      headers: {},
     });
   });
 

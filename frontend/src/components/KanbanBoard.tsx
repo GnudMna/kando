@@ -1,6 +1,14 @@
 // かんばんボードのメインコンポーネント
 // 行・カラム・タスクのレンダリング、ドラッグ＆ドロップ、各種操作ダイアログを管理する
-import { useState, useCallback, useMemo, useEffect, useId } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useId,
+  lazy,
+  Suspense,
+} from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
 import { createPortal } from "react-dom";
@@ -15,9 +23,14 @@ import {
   GripVertical,
 } from "lucide-react";
 import { TaskCard } from "./TaskCard";
-import { TaskEditModal } from "./TaskEditModal";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ListView } from "./ListView";
+
+const TaskEditModal = lazy(() =>
+  import("./TaskEditModal").then((m) => ({ default: m.TaskEditModal })),
+);
+const ListView = lazy(() =>
+  import("./ListView").then((m) => ({ default: m.ListView })),
+);
 import { useBoard } from "../hooks/useBoard";
 import type { Row, Task } from "../types";
 import { getDueHighlight } from "../utils/dueDate";
@@ -282,6 +295,16 @@ export function KanbanBoard() {
     },
     [copyTask],
   );
+
+  /**
+   * タスク編集モーダルを開くハンドラー。安定した参照を保持し TaskCard の memo を有効にする。
+   * @param task - 編集対象タスク
+   * @param colId - タスクが属するカラム ID
+   * @returns なし
+   */
+  const handleEditTask = useCallback((task: Task, colId: number) => {
+    setEditingTask({ task, colId, isNew: false });
+  }, []);
 
   const boardStats = useMemo(() => {
     let totalColumns = 0;
@@ -672,13 +695,7 @@ export function KanbanBoard() {
                                                 onDeleteTask={handleDeleteTask}
                                                 onCopyTask={handleCopyTask}
                                                 onTaskUpdated={updateTask}
-                                                onEditTask={(t) =>
-                                                  setEditingTask({
-                                                    task: t,
-                                                    colId: column.id,
-                                                    isNew: false,
-                                                  })
-                                                }
+                                                onEditTask={handleEditTask}
                                               />
                                             </div>
                                           );
@@ -725,26 +742,28 @@ export function KanbanBoard() {
           </div>
         </DragDropContext>
       ) : (
-        <ListView
-          rows={activeRows}
-          dueSoonDays={dueSoonDays}
-          onRowHeaderRender={renderRowHeader}
-          onTaskClick={(task, colId) =>
-            setEditingTask({ task, colId, isNew: false })
-          }
-          onDeleteTask={handleDeleteTask}
-          onAddTask={handleAddTask}
-        />
+        <Suspense fallback={null}>
+          <ListView
+            rows={activeRows}
+            taskDueHighlights={taskDueHighlights}
+            onRowHeaderRender={renderRowHeader}
+            onTaskClick={handleEditTask}
+            onDeleteTask={handleDeleteTask}
+            onAddTask={handleAddTask}
+          />
+        </Suspense>
       )}
 
       {editingTask && (
-        <TaskEditModal
-          task={editingTask.task}
-          onClose={handleCloseTaskModal}
-          onTaskUpdated={(updatedTask) => {
-            updateTask(updatedTask);
-          }}
-        />
+        <Suspense fallback={null}>
+          <TaskEditModal
+            task={editingTask.task}
+            onClose={handleCloseTaskModal}
+            onTaskUpdated={(updatedTask) => {
+              updateTask(updatedTask);
+            }}
+          />
+        </Suspense>
       )}
 
       {confirmState && (

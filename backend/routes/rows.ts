@@ -7,6 +7,7 @@ import {
   updateRowTitle,
 } from "../services/rowsService.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     const { title, position } = req.body as { title: string; position: number };
     try {
-      const row = await createRow(title, position);
+      const row = await createRow(title, position, req.userId!);
       res.json(row);
     } catch (err) {
       next(err);
@@ -55,6 +56,7 @@ router.post(
       const rowWithDefaultColumns = await createRowWithDefaultColumns(
         title,
         position,
+        req.userId!,
       );
       res.json(rowWithDefaultColumns);
     } catch (err) {
@@ -84,10 +86,9 @@ router.put(
     }
     const { title } = req.body as { title: string };
     try {
-      const row = await updateRowTitle(id, title);
+      const row = await updateRowTitle(id, title, req.userId!);
       if (!row) {
-        res.status(404).json({ error: "Row not found" });
-        return;
+        throw new NotFoundError("Row not found");
       }
       res.json(row);
     } catch (err) {
@@ -113,10 +114,9 @@ router.delete(
       return;
     }
     try {
-      const deleted = await deleteRow(id);
+      const deleted = await deleteRow(id, req.userId!);
       if (!deleted) {
-        res.status(404).json({ error: "Row not found" });
-        return;
+        throw new NotFoundError("Row not found");
       }
       res.json({ success: true });
     } catch (err) {

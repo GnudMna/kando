@@ -11,6 +11,15 @@ async function runMigrations(): Promise<void> {
   try {
     await client.query("BEGIN");
 
+    // ユーザーテーブルを作成する（認証用）
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
     // 行（プロジェクト単位）テーブルを作成する
     await client.query(`
       CREATE TABLE IF NOT EXISTS rows (
@@ -18,6 +27,10 @@ async function runMigrations(): Promise<void> {
         title VARCHAR(255) NOT NULL,
         position FLOAT NOT NULL
       );
+    `);
+    // rows テーブルに user_id 列を追加する（認証対応マイグレーション）
+    await client.query(`
+      ALTER TABLE rows ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
     `);
     // ステータス列テーブルを作成する
     await client.query(`
@@ -124,6 +137,9 @@ async function runMigrations(): Promise<void> {
     // ボード取得のスケーラビリティ向上のため、親参照と並び順の複合インデックスを作成する
     await client.query(
       "CREATE INDEX IF NOT EXISTS idx_rows_position ON rows (position)",
+    );
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_rows_user_id ON rows (user_id)",
     );
     await client.query(
       "CREATE INDEX IF NOT EXISTS idx_columns_row_id_position ON columns (row_id, position)",

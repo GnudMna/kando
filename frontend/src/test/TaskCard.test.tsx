@@ -68,6 +68,7 @@ describe("TaskCard", () => {
     columnId: 10,
     dueHighlight: { status: "none" as const, daysUntilDue: null },
     onDeleteTask: vi.fn(),
+    onCopyTask: vi.fn(),
     onTaskUpdated: vi.fn(),
     onEditTask: vi.fn(),
   };
@@ -84,7 +85,7 @@ describe("TaskCard", () => {
   it("タスクをクリックすると onEditTask が呼ばれること", () => {
     render(<TaskCard {...defaultProps} />);
     fireEvent.click(screen.getByText("テストタスク"));
-    expect(defaultProps.onEditTask).toHaveBeenCalledWith(baseTask);
+    expect(defaultProps.onEditTask).toHaveBeenCalledWith(baseTask, 10);
   });
 
   it("チェックリスト項目が表示されること", () => {

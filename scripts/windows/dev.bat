@@ -2,25 +2,31 @@
 REM ========================================================================
 REM Script Name : dev.bat
 REM Description : Windows用の開発モード実行スクリプト
-REM Usage       : dev.bat
+REM Usage       : dev.bat [--install|-i]
 REM ========================================================================
 
 REM カレントディレクトリをプロジェクトのルートに変更
 set SCRIPT_DIR=%~dp0
 call "%SCRIPT_DIR%..\common\cd-project-root.bat"
 
+REM 引数を解析
+set INSTALL=false
+if "%~1"=="--install" set INSTALL=true
+if "%~1"=="-i" set INSTALL=true
 echo Kandoを開発モードで起動します...
 echo.
 
-REM 依存関係をインストール
-echo ワークスペースの依存関係をインストールしています...
-call npm ci
-if errorlevel 1 (
-    echo 依存関係のインストールに失敗しました
-    pause
-    exit /b 1
+REM 依存関係をインストール（--install / -i オプション指定時のみ）
+if "%INSTALL%"=="true" (
+    echo ワークスペースの依存関係をインストールしています...
+    call npm ci
+    if errorlevel 1 (
+        echo 依存関係のインストールに失敗しました
+        pause
+        exit /b 1
+    )
+    echo.
 )
-echo.
 
 REM バックエンドの DB マイグレーションを実行
 echo バックエンドの DB マイグレーションを実行しています...
