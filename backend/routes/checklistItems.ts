@@ -3,6 +3,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbChecklistItem } from "../types.js";
+import { HttpError } from "../errors.js";
 import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
@@ -98,7 +99,7 @@ router.post(
       } else {
         const subtaskId = parentRefs.subtaskId;
         if (subtaskId === null) {
-          throw new Error("Invalid checklist parent refs");
+          throw new HttpError(500, "Invalid checklist parent refs");
         }
         const parentRow = await client.query(
           "SELECT id FROM subtasks WHERE id = $1 FOR UPDATE",
@@ -145,7 +146,7 @@ router.put(
   validateBody({
     content: { type: "string", notEmpty: true, maxLength: 500 },
     completed: { type: "boolean" },
-    position: { type: "number", finite: true },
+    position: { type: "number", finite: true, integer: true, positive: true },
   }),
   /**
    * チェックリスト項目を更新する。
