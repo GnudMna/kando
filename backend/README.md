@@ -4,6 +4,7 @@ Kando のバックエンド API（Express + TypeScript + PostgreSQL）です。
 
 ## 役割
 
+- ユーザー登録・ログイン・ JWT 発行（`/api/auth`）
 - ボード階層（rows -> columns -> tasks -> subtasks/checklists/comments）の取得
 - 行・カラム・タスク・サブタスク・チェックリスト・コメントの CRUD
 - タスク編集内容の一括保存（`PUT /api/tasks/:id/snapshot`）
@@ -68,7 +69,8 @@ npm run migrate
 
 このマイグレーションは以下を実施します。
 
-- テーブル作成（rows, columns, tasks, subtasks, checklist_items, task_comments）
+- テーブル作成（users, rows, columns, tasks, subtasks, checklist_items, task_comments）
+- `rows` テーブルへの `user_id` 列追加（認証対応）
 - 既存 DB 向け `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
 - 一覧取得最適化のインデックス作成
 - 初回起動時の初期データ投入
@@ -81,6 +83,20 @@ npm run migrate
 | -------- | --------------- | ---------------------------- |
 | `GET`    | `/api/health`   | DB 接続を含むヘルスチェック  |
 | `GET`    | `/api/liveness` | アプリが応答可能かを確認する |
+
+### 認証
+
+| メソッド | パス                 | 説明                                                 |
+| -------- | -------------------- | ---------------------------------------------------- |
+| `GET`    | `/api/auth/status`   | ユーザー登録済みかどうかを返す（認証不要）           |
+| `POST`   | `/api/auth/register` | 新規ユーザー登録・JWT 発行（パスワード 12 文字以上） |
+| `POST`   | `/api/auth/login`    | ログイン・JWT 発行                                   |
+
+補足:
+
+- `/api/auth/*` には認証レートリミットが適用される（15 分間に 10 リクエスト）
+- 発行された JWT は `Authorization: Bearer <token>` ヘッダーで送信する（有効期限 7 日）
+- 認証不要エンドポイント: `/api/health`、`/api/liveness`、`/api/auth/*`
 
 ### ボード取得
 
@@ -217,8 +233,10 @@ npm run test:coverage
 
 ```text
 backend/
-├── middleware/   # エラーハンドリング / ロギング / バリデーション
+├── middleware/   # エラーハンドリング / 認証 / ロギング / バリデーション
+├── repositories/ # DB アクセス層
 ├── routes/       # API ルーティング
+├── services/     # ビジネスロジック
 ├── tests/        # Vitest テスト
 ├── db.ts         # DB 接続と接続待機
 ├── migrate.ts    # マイグレーション

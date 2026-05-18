@@ -17,7 +17,8 @@
 
 ## ✨ 現在の機能
 
-- 🗂️ **行ベースのかんばん管理**: 行（プロジェクト）ごとに複数カラムを管理
+- � **ユーザー認証**: 登録・ログイン・ログアウトに対応（JWT ベース、有効期限 7 日）
+- �🗂️ **行ベースのかんばん管理**: 行（プロジェクト）ごとに複数カラムを管理
 - 🧱 **行作成時のデフォルト列生成**: 「未着手 / 進行中 / 完了」を自動作成
 - 🔀 **ドラッグ&ドロップ並び替え**: カラム・タスクの順序変更と列間移動に対応
 - 🧾 **リストビュー切り替え**: かんばん表示と一覧表示をワンクリックで切替
@@ -63,11 +64,12 @@ docker compose up --build
 | `POSTGRES_USER` | `kando_user` | DB ユーザー |
 | `POSTGRES_PASSWORD` | `kando_password` | DB パスワード |
 | `POSTGRES_DB` | `kanban_db` | DB 名 |
+| `AUTH_SECRET` | `dev-only-secret-change-in-production` | JWT 署名シークレット（**本番では必ず変更**） |
 
 例:
 
 ```bash
-POSTGRES_USER=my_user POSTGRES_PASSWORD=my_pass POSTGRES_DB=my_db docker compose up --build
+POSTGRES_USER=my_user POSTGRES_PASSWORD=my_pass POSTGRES_DB=my_db AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build
 ```
 
 ---
@@ -84,6 +86,7 @@ POSTGRES_USER=my_user POSTGRES_PASSWORD=my_pass POSTGRES_DB=my_db docker compose
 
 ```bash
 export DATABASE_URL=postgres://kando_user:kando_password@localhost:5432/kanban_db
+export AUTH_SECRET=your-secret-key  # 本番環境では必須
 ```
 
 フロントエンドの API 参照先を変える場合（任意）:
@@ -215,6 +218,7 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 主要ベースパス:
 
 - `/api/health`
+- `/api/auth` （認証: `/status`, `/register`, `/login`）
 - `/api/board`
 - `/api/rows`
 - `/api/columns`
@@ -225,6 +229,7 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 
 特記事項:
 
+- `/api/auth/*` 以外の全 API エンドポイントは JWT 認証が必要（`Authorization: Bearer <token>`）
 - `GET /api/board` は `row_id`, `limit`, `offset` クエリに対応
 - `PUT /api/tasks/:id/snapshot` でタスク編集内容を一括保存
 
@@ -245,7 +250,9 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 .
 ├── backend/              # Express API
 │   ├── middleware/
+│   ├── repositories/
 │   ├── routes/
+│   ├── services/
 │   ├── tests/
 │   ├── migrate.ts
 │   └── server.ts
@@ -256,7 +263,10 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 │       ├── components/
 │       ├── hooks/
 │       ├── test/
+│       ├── types/
 │       └── utils/
+├── packages/
+│   └── types/            # バックエンド・フロントエンド共有型定義
 ├── package.json          # ルート npm workspace と開発スクリプト
 ├── package-lock.json     # ルート workspace lock
 ├── scripts/              # 開発・運用スクリプト（linux/windows）
