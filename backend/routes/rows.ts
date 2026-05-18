@@ -7,6 +7,7 @@ import {
   updateRowTitle,
 } from "../services/rowsService.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
@@ -87,8 +88,7 @@ router.put(
     try {
       const row = await updateRowTitle(id, title, req.userId!);
       if (!row) {
-        res.status(404).json({ error: "Row not found" });
-        return;
+        throw new NotFoundError("Row not found");
       }
       res.json(row);
     } catch (err) {
@@ -116,8 +116,7 @@ router.delete(
     try {
       const deleted = await deleteRow(id, req.userId!);
       if (!deleted) {
-        res.status(404).json({ error: "Row not found" });
-        return;
+        throw new NotFoundError("Row not found");
       }
       res.json({ success: true });
     } catch (err) {

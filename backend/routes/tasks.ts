@@ -14,7 +14,8 @@ import type {
   TaskSnapshotPayload,
 } from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
-import { HttpError } from "../errors.js";
+import { HttpError, NotFoundError } from "../errors.js";
+import { pushToGroupMap } from "../utils/groupMap.js";
 
 const router = Router();
 const TASK_RETURNING_COLUMNS =
@@ -327,22 +328,6 @@ function idsToDelete(existingIds: Set<number>, keepIds: Set<number>): number[] {
     }
   }
   return ids;
-}
-
-/**
- * Map<K, V[]> のキーごと配列へ値を追記する共通ヘルパー。
- * @param map - 追記対象のグループ化 Map
- * @param key - グループキー
- * @param value - 追加する値
- * @returns なし
- */
-function pushToGroupMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
-  const bucket = map.get(key);
-  if (bucket) {
-    bucket.push(value);
-    return;
-  }
-  map.set(key, [value]);
 }
 
 /**
@@ -665,8 +650,7 @@ router.post(
         [column_id, req.userId!],
       );
       if (!colCheck.rows[0]) {
-        res.status(404).json({ error: "Column not found" });
-        return;
+        throw new NotFoundError("Column not found");
       }
       const result = await pool.query<DbTask>(
         `INSERT INTO tasks (column_id, content, due_date, position) VALUES ($1, $2, $3, $4) RETURNING ${TASK_RETURNING_COLUMNS}`,
@@ -790,8 +774,7 @@ router.put(
         values,
       );
       if (!result.rows[0]) {
-        res.status(404).json({ error: "Task not found" });
-        return;
+        throw new NotFoundError("Task not found");
       }
       res.json(result.rows[0]);
     } catch (err) {
@@ -1006,8 +989,7 @@ router.put(
         [column_id, req.userId!],
       );
       if (!destCheck.rows[0]) {
-        res.status(404).json({ error: "Column not found" });
-        return;
+        throw new NotFoundError("Column not found");
       }
       const result = await pool.query<DbTask>(
         `UPDATE tasks SET column_id = $1, position = $2
@@ -1019,8 +1001,7 @@ router.put(
         [column_id, position, id, req.userId!],
       );
       if (!result.rows[0]) {
-        res.status(404).json({ error: "Task not found" });
-        return;
+        throw new NotFoundError("Task not found");
       }
       res.json(result.rows[0]);
     } catch (err) {
@@ -1060,17 +1041,13 @@ router.post(
         [id, req.userId!],
       );
       if (!ownerCheck.rows[0]) {
-        await client.query("ROLLBACK");
-        res.status(404).json({ error: "Task not found" });
-        return;
+        throw new NotFoundError("Task not found");
       }
 
       // 元タスクを取得
       const srcTask = await fetchTaskSnapshot(client, id);
       if (!srcTask) {
-        await client.query("ROLLBACK");
-        res.status(404).json({ error: "Task not found" });
-        return;
+        throw new NotFoundError("Task not found");
       }
 
       // 同一カラムの末尾 position を計算
@@ -1190,8 +1167,7 @@ router.delete(
         [id, req.userId!],
       );
       if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ error: "Task not found" });
-        return;
+        throw new NotFoundError("Task not found");
       }
       res.json({ success: true });
     } catch (err) {
