@@ -3,10 +3,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import type { PoolClient } from "pg";
 import { pool } from "../db.js";
 import type {
-  DbChecklistItem,
-  DbSubtask,
   DbTask,
-  DbTaskComment,
   Task,
   TaskSnapshotChecklistPayload,
   TaskSnapshotSubtaskPayload,
@@ -15,7 +12,6 @@ import type {
 } from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
 import { HttpError, NotFoundError } from "../errors.js";
-import { pushToGroupMap } from "../utils/groupMap.js";
 
 const router = Router();
 const TASK_RETURNING_COLUMNS =
@@ -534,8 +530,8 @@ async function syncTaskComments(
 }
 
 /**
- * 1件のタスクと関連子要素（サブタスク・チェックリスト・コメント）を再取得し、
- * API レスポンスのスナップショット形式へ組み立てて返す。
+ * 1件のタスクと関連子要素（サブタスク・チェックリスト・コメント）を単一 CTE クエリで
+ * 再取得し、API レスポンスのスナップショット形式へ組み立てて返す。
  * @param client - トランザクション内の DB クライアント
  * @param taskId - 取得対象タスク ID
  * @returns スナップショット形式タスク。未存在なら `null`
@@ -544,53 +540,89 @@ async function fetchTaskSnapshot(
   client: PoolClient,
   taskId: number,
 ): Promise<Task | null> {
-  const taskResult = await client.query<DbTask>(
-    `SELECT ${TASK_RETURNING_COLUMNS} FROM tasks WHERE id = $1`,
+  const result = await client.query<
+    DbTask & {
+      subtasks: Task["subtasks"];
+      checklists: Task["checklists"];
+      comments: Task["comments"];
+    }
+  >(
+    `WITH
+       sub_cl AS (
+         SELECT
+           ci.subtask_id,
+           json_agg(
+             json_build_object(
+               'id', ci.id,
+               'task_id', ci.task_id,
+               'subtask_id', ci.subtask_id,
+               'content', ci.content,
+               'completed', ci.completed,
+               'position', ci.position
+             ) ORDER BY ci.position ASC
+           ) AS checklists
+         FROM checklist_items ci
+         WHERE ci.subtask_id IN (SELECT id FROM subtasks WHERE task_id = $1)
+         GROUP BY ci.subtask_id
+       ),
+       agg_subtasks AS (
+         SELECT json_agg(
+           json_build_object(
+             'id', s.id,
+             'task_id', s.task_id,
+             'content', s.content,
+             'checklists', COALESCE(sc.checklists, '[]'::json)
+           ) ORDER BY s.id ASC
+         ) AS subtasks
+         FROM subtasks s
+         LEFT JOIN sub_cl sc ON sc.subtask_id = s.id
+         WHERE s.task_id = $1
+       ),
+       task_cl AS (
+         SELECT json_agg(
+           json_build_object(
+             'id', ci.id,
+             'task_id', ci.task_id,
+             'subtask_id', ci.subtask_id,
+             'content', ci.content,
+             'completed', ci.completed,
+             'position', ci.position
+           ) ORDER BY ci.position ASC
+         ) AS checklists
+         FROM checklist_items ci
+         WHERE ci.task_id = $1 AND ci.subtask_id IS NULL
+       ),
+       task_cmt AS (
+         SELECT json_agg(
+           json_build_object(
+             'id', tc.id,
+             'task_id', tc.task_id,
+             'content', tc.content,
+             'created_at', tc.created_at,
+             'position', tc.position
+           ) ORDER BY tc.position ASC, tc.created_at ASC, tc.id ASC
+         ) AS comments
+         FROM task_comments tc
+         WHERE tc.task_id = $1
+       )
+     SELECT
+       t.id,
+       t.column_id,
+       t.content,
+       t.due_date::text AS due_date,
+       t.position,
+       t.completed,
+       COALESCE((SELECT subtasks FROM agg_subtasks), '[]'::json) AS subtasks,
+       COALESCE((SELECT checklists FROM task_cl), '[]'::json) AS checklists,
+       COALESCE((SELECT comments FROM task_cmt), '[]'::json) AS comments
+     FROM tasks t
+     WHERE t.id = $1`,
     [taskId],
   );
-  const task = taskResult.rows[0];
-  if (!task) return null;
 
-  const subtasksResult = await client.query<DbSubtask>(
-    "SELECT * FROM subtasks WHERE task_id = $1 ORDER BY id ASC",
-    [taskId],
-  );
-
-  const taskChecklistResult = await client.query<DbChecklistItem>(
-    "SELECT * FROM checklist_items WHERE task_id = $1 AND subtask_id IS NULL ORDER BY position ASC",
-    [taskId],
-  );
-
-  const commentsResult = await client.query<DbTaskComment>(
-    "SELECT * FROM task_comments WHERE task_id = $1 ORDER BY position ASC, created_at ASC, id ASC",
-    [taskId],
-  );
-
-  let subtaskChecklistRows: DbChecklistItem[] = [];
-  const subtaskIds = subtasksResult.rows.map((subtask) => subtask.id);
-  if (subtaskIds.length > 0) {
-    const subtaskChecklistResult = await client.query<DbChecklistItem>(
-      "SELECT * FROM checklist_items WHERE subtask_id = ANY($1::int[]) ORDER BY subtask_id ASC, position ASC",
-      [subtaskIds],
-    );
-    subtaskChecklistRows = subtaskChecklistResult.rows;
-  }
-
-  const checklistBySubtaskId = new Map<number, DbChecklistItem[]>();
-  for (const checklist of subtaskChecklistRows) {
-    if (checklist.subtask_id === null) continue;
-    pushToGroupMap(checklistBySubtaskId, checklist.subtask_id, checklist);
-  }
-
-  return {
-    ...task,
-    checklists: taskChecklistResult.rows,
-    comments: commentsResult.rows,
-    subtasks: subtasksResult.rows.map((subtask) => ({
-      ...subtask,
-      checklists: checklistBySubtaskId.get(subtask.id) ?? [],
-    })),
-  };
+  const row = result.rows[0];
+  if (!row) return null;
+  return row as Task;
 }
 
 // 新しいタスクを作成する: POST /api/tasks
@@ -961,7 +993,7 @@ router.put(
       integer: true,
       positive: true,
     },
-    position: { type: "number", required: true, integer: true, positive: true },
+    position: { type: "number", required: true, positive: true }, // 隣接タスクとの位置関係を示すために小数点となる場合がある
   }),
   /**
    * タスクを別カラムへ移動する。

@@ -882,7 +882,6 @@ body::after {
   position: relative;
   box-shadow: var(--task-shadow);
   transition:
-    transform 0.18s ease,
     box-shadow 0.18s ease,
     border-color 0.18s ease;
 }

@@ -4,13 +4,13 @@ import { Plus, Trash2 } from "lucide-react";
 import type { Row, Task } from "../types";
 import {
   formatDueDate,
-  getDueHighlight,
   getDueStatusLabel,
+  type DueHighlightResult,
 } from "../utils/dueDate";
 
 interface Props {
   rows: Row[];
-  dueSoonDays: number;
+  taskDueHighlights: Map<number, DueHighlightResult>;
   onRowHeaderRender: (row: Row) => React.ReactNode;
   onTaskClick: (task: Task, colId: number) => void;
   onDeleteTask: (colId: number, taskId: number) => void;
@@ -22,7 +22,7 @@ interface Props {
  * 全タスクを行 → ステータス列の半平リスト形式で表示する。
  * サブタスクとチェックリストもインデント付きで列挙する。
  * @param rows - ボード全体の行データ
- * @param dueSoonDays - 期限間近として扱う日数しきい値
+ * @param taskDueHighlights - タスク ID → 期限強調結果の事前計算済みマップ
  * @param onRowHeaderRender - 行ヘッダーのレンダリング関数
  * @param onTaskClick - タスククリック時のコールバック
  * @param onDeleteTask - タスク削除コールバック
@@ -31,7 +31,7 @@ interface Props {
  */
 export function ListView({
   rows,
-  dueSoonDays,
+  taskDueHighlights,
   onRowHeaderRender,
   onTaskClick,
   onDeleteTask,
@@ -55,19 +55,16 @@ export function ListView({
             {row.columns.flatMap((column) =>
               column.tasks.flatMap((task) => [
                 (() => {
-                  const dueHighlight = getDueHighlight(
-                    task.due_date,
-                    dueSoonDays,
-                    undefined,
-                    task.completed,
-                  );
-                  const dueLabel = getDueStatusLabel(dueHighlight);
+                  const dueHighlight = taskDueHighlights.get(task.id);
+                  const dueLabel = dueHighlight
+                    ? getDueStatusLabel(dueHighlight)
+                    : null;
                   const rowDueClass =
-                    dueHighlight.status === "none"
+                    !dueHighlight || dueHighlight.status === "none"
                       ? ""
                       : ` task-${dueHighlight.status}`;
                   const dueDateClass =
-                    dueHighlight.status === "none"
+                    !dueHighlight || dueHighlight.status === "none"
                       ? ""
                       : ` list-due-date-${dueHighlight.status}`;
 
@@ -89,7 +86,7 @@ export function ListView({
                             <span className={`list-due-date${dueDateClass}`}>
                               {formatDueDate(task.due_date)}
                             </span>
-                            {dueLabel && (
+                            {dueLabel && dueHighlight && (
                               <span
                                 className={`list-due-state list-due-state-${dueHighlight.status}`}
                               >
