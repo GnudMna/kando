@@ -8,6 +8,8 @@ import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
 
+const POSITION_INCREMENT = 1000;
+
 type ChecklistParentValidationResult =
   | { ok: true; taskId: number | null; subtaskId: number | null }
   | { ok: false; error: string };
@@ -77,7 +79,7 @@ router.post(
       await client.query("BEGIN");
 
       // 同一親への同時追加を直列化して position の重複採番を防ぐ。
-      let nextPosition = 1000;
+      let nextPosition = POSITION_INCREMENT;
       if (parentRefs.taskId !== null) {
         const parentRow = await client.query(
           "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
@@ -92,10 +94,11 @@ router.post(
         const nextPositionResult = await client.query<{
           next_position: number;
         }>(
-          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE task_id = $1",
+          `SELECT COALESCE(MAX(position), 0) + ${POSITION_INCREMENT} AS next_position FROM checklist_items WHERE task_id = $1`,
           [parentRefs.taskId],
         );
-        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+        nextPosition =
+          nextPositionResult.rows[0]?.next_position ?? POSITION_INCREMENT;
       } else {
         const subtaskId = parentRefs.subtaskId;
         if (subtaskId === null) {
@@ -114,15 +117,16 @@ router.post(
         const nextPositionResult = await client.query<{
           next_position: number;
         }>(
-          "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE subtask_id = $1",
+          `SELECT COALESCE(MAX(position), 0) + ${POSITION_INCREMENT} AS next_position FROM checklist_items WHERE subtask_id = $1`,
           [subtaskId],
         );
-        nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
+        nextPosition =
+          nextPositionResult.rows[0]?.next_position ?? POSITION_INCREMENT;
       }
 
       const result = await client.query<DbChecklistItem>(
         "INSERT INTO checklist_items (task_id, subtask_id, content, position) VALUES ($1, $2, $3, $4) RETURNING *",
-        [parentRefs.taskId, parentRefs.subtaskId, content, nextPosition],
+        [parentRefs.taskId, parentRefs.subtaskId, content.trim(), nextPosition],
       );
 
       await client.query("COMMIT");
@@ -191,7 +195,7 @@ router.put(
     }
     if (content !== undefined) {
       fields.push(`content = $${idx++}`);
-      vals.push(content);
+      vals.push(content.trim());
     }
     if (position !== undefined) {
       fields.push(`position = $${idx++}`);
