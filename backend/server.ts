@@ -52,6 +52,9 @@ if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
 
 app.disable("x-powered-by");
 
+// リバースプロキシ（nginx等）からの X-Forwarded-For を信頼する
+app.set("trust proxy", 1);
+
 // セキュリティヘッダーを付与する
 app.use(helmet());
 
