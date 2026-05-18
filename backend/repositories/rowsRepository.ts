@@ -1,8 +1,17 @@
 import type { Pool, PoolClient } from "pg";
 import type { DbColumn, DbRow } from "../types.js";
 
+/** Pool または PoolClient の両方を受け付けるユニオン型。トランザクション外・内の両方で利用できる。 */
 export type Queryable = Pool | PoolClient;
 
+/**
+ * 行を DB に挿入して新規レコードを返す。
+ * @param client - クエリ実行クライアント
+ * @param title - 行タイトル
+ * @param position - 表示順
+ * @param userId - 所有者ユーザー ID
+ * @returns 挿入された行レコード
+ */
 export async function insertRow(
   client: Queryable,
   title: string,
@@ -16,6 +25,14 @@ export async function insertRow(
   return result.rows[0];
 }
 
+/**
+ * カラムを DB に挿入して新規レコードを返す。
+ * @param client - クエリ実行クライアント
+ * @param title - カラムタイトル
+ * @param position - 表示順
+ * @param row_id - 所属行 ID
+ * @returns 挿入されたカラムレコード
+ */
 export async function insertColumn(
   client: Queryable,
   title: string,
@@ -29,6 +46,14 @@ export async function insertColumn(
   return result.rows[0];
 }
 
+/**
+ * 行タイトルを更新して更新後レコードを返す。
+ * @param client - クエリ実行クライアント
+ * @param id - 行 ID
+ * @param title - 新しいタイトル
+ * @param userId - 所有者ユーザー ID（権限確認に使用）
+ * @returns 更新後の行レコード。対象が見つからない場合は `null`
+ */
 export async function updateRowTitle(
   client: Queryable,
   id: number,
@@ -42,6 +67,13 @@ export async function updateRowTitle(
   return result.rows[0] ?? null;
 }
 
+/**
+ * 行を DB から削除する（配下カラム・タスクも CASCADE で削除される）。
+ * @param client - クエリ実行クライアント
+ * @param id - 行 ID
+ * @param userId - 所有者ユーザー ID（権限確認に使用）
+ * @returns 削除に成功した場合は `true`、対象が見つからない場合は `false`
+ */
 export async function deleteRow(
   client: Queryable,
   id: number,
