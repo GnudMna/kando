@@ -416,7 +416,7 @@ export const login = (
  * 新規ユーザーを登録し JWT を取得する。
  * 既存の未割り当てデータは登録ユーザーへ移行される。
  * @param username - ユーザー名
- * @param password - パスワード（8文字以上）
+ * @param password - パスワード（12文字以上）
  * @returns トークンを含むオブジェクトを解決する Promise
  */
 export const register = (
