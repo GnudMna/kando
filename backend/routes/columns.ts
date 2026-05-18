@@ -7,6 +7,7 @@ import {
   updateColumnTitle,
 } from "../services/columnsService.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
@@ -34,8 +35,7 @@ router.post(
     try {
       const column = await createColumn(title, position, row_id, req.userId!);
       if (!column) {
-        res.status(404).json({ error: "Row not found" });
-        return;
+        throw new NotFoundError("Row not found");
       }
       res.json(column);
     } catch (err) {
@@ -67,8 +67,7 @@ router.put(
     try {
       const column = await updateColumnTitle(id, title, req.userId!);
       if (!column) {
-        res.status(404).json({ error: "Column not found" });
-        return;
+        throw new NotFoundError("Column not found");
       }
       res.json(column);
     } catch (err) {
@@ -100,8 +99,7 @@ router.put(
     try {
       const column = await moveColumn(id, position, req.userId!);
       if (!column) {
-        res.status(404).json({ error: "Column not found" });
-        return;
+        throw new NotFoundError("Column not found");
       }
       res.json(column);
     } catch (err) {
@@ -129,8 +127,7 @@ router.delete(
     try {
       const deleted = await deleteColumn(id, req.userId!);
       if (!deleted) {
-        res.status(404).json({ error: "Column not found" });
-        return;
+        throw new NotFoundError("Column not found");
       }
       res.json({ success: true });
     } catch (err) {

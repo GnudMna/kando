@@ -2,6 +2,7 @@
 // rows → columns → tasks → subtasks → checklist_items の順にネストして返す
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
+import { pushToGroupMap } from "../utils/groupMap.js";
 import type {
   DbRow,
   DbColumn,
@@ -82,22 +83,6 @@ function parseNonNegativeIntQuery(
     throw new BoardQueryError(`'${fieldName}' must be a non-negative integer`);
   }
   return value;
-}
-
-/**
- * Map<K, V[]> のキーごと配列に値を追加する共通ヘルパー。
- * @param map - 追記対象のグループ化 Map
- * @param key - グループキー
- * @param value - 追加する値
- * @returns なし
- */
-function pushToGroupMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
-  const bucket = map.get(key);
-  if (bucket) {
-    bucket.push(value);
-    return;
-  }
-  map.set(key, [value]);
 }
 
 type NestedSubtask = DbSubtask & { checklists: DbChecklistItem[] };

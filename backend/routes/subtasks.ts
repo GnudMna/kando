@@ -3,6 +3,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbSubtask } from "../types.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
@@ -40,8 +41,7 @@ router.post(
         [task_id, req.userId!],
       );
       if (!taskCheck.rows[0]) {
-        res.status(404).json({ error: "Task not found" });
-        return;
+        throw new NotFoundError("Task not found");
       }
       const result = await pool.query<DbSubtask>(
         "INSERT INTO subtasks (task_id, content) VALUES ($1, $2) RETURNING *",
@@ -92,8 +92,7 @@ router.put(
         [content, id, req.userId!],
       );
       if (!result.rows[0]) {
-        res.status(404).json({ error: "Subtask not found" });
-        return;
+        throw new NotFoundError("Subtask not found");
       }
       res.json(result.rows[0]);
     } catch (err) {
@@ -129,8 +128,7 @@ router.delete(
         [id, req.userId!],
       );
       if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ error: "Subtask not found" });
-        return;
+        throw new NotFoundError("Subtask not found");
       }
       res.json({ success: true });
     } catch (err) {

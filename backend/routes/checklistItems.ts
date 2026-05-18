@@ -3,7 +3,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbChecklistItem } from "../types.js";
-import { HttpError } from "../errors.js";
+import { HttpError, NotFoundError } from "../errors.js";
 import { parseId, validateBody } from "../middleware/validate.js";
 
 const router = Router();
@@ -90,10 +90,7 @@ router.post(
           [parentRefs.taskId, req.userId!],
         );
         if (parentRow.rowCount === 0) {
-          await client.query("ROLLBACK");
-          client.release();
-          res.status(404).json({ error: "Task not found" });
-          return;
+          throw new NotFoundError("Task not found");
         }
         const nextPositionResult = await client.query<{
           next_position: number;
@@ -118,10 +115,7 @@ router.post(
           [subtaskId, req.userId!],
         );
         if (parentRow.rowCount === 0) {
-          await client.query("ROLLBACK");
-          client.release();
-          res.status(404).json({ error: "Subtask not found" });
-          return;
+          throw new NotFoundError("Subtask not found");
         }
         const nextPositionResult = await client.query<{
           next_position: number;
@@ -240,8 +234,7 @@ router.put(
         vals,
       );
       if (!result.rows[0]) {
-        res.status(404).json({ error: "Checklist item not found" });
-        return;
+        throw new NotFoundError("Checklist item not found");
       }
       res.json(result.rows[0]);
     } catch (err) {
@@ -287,8 +280,7 @@ router.delete(
         [id, req.userId!],
       );
       if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ error: "Checklist item not found" });
-        return;
+        throw new NotFoundError("Checklist item not found");
       }
       res.json({ success: true });
     } catch (err) {

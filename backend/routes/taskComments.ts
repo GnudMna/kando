@@ -3,6 +3,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbTaskComment } from "../types.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
@@ -44,8 +45,7 @@ router.post(
       );
       if ((taskCheck.rowCount ?? 0) === 0) {
         await client.query("ROLLBACK");
-        res.status(404).json({ error: "Task not found" });
-        return;
+        throw new NotFoundError("Task not found");
       }
       const nextPositionResult = await client.query<{ next_position: number }>(
         "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM task_comments WHERE task_id = $1",
@@ -147,8 +147,7 @@ router.put(
         vals,
       );
       if (!result.rows[0]) {
-        res.status(404).json({ error: "Comment not found" });
-        return;
+        throw new NotFoundError("Comment not found");
       }
       res.json(result.rows[0]);
     } catch (err) {
@@ -185,8 +184,7 @@ router.delete(
         [id, req.userId!],
       );
       if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ error: "Comment not found" });
-        return;
+        throw new NotFoundError("Comment not found");
       }
       res.json({ success: true });
     } catch (err) {
