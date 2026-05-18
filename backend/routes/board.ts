@@ -220,6 +220,10 @@ router.get(
       const rowQueryParams: number[] = [];
       const rowWhereClauses: string[] = [];
 
+      // 認証済みユーザーの行のみを取得する
+      rowQueryParams.push(req.userId!);
+      rowWhereClauses.push(`user_id = $${rowQueryParams.length}`);
+
       if (rowIdFilter !== null) {
         rowQueryParams.push(rowIdFilter);
         rowWhereClauses.push(`id = $${rowQueryParams.length}`);

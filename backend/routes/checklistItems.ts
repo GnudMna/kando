@@ -81,9 +81,13 @@ router.post(
       // 同一親への同時追加を直列化して position の重複採番を防ぐ。
       let nextPosition = POSITION_INCREMENT;
       if (parentRefs.taskId !== null) {
+        // 親タスクの所有権を確認しつつロックを取得する
         const parentRow = await client.query(
-          "SELECT id FROM tasks WHERE id = $1 FOR UPDATE",
-          [parentRefs.taskId],
+          `SELECT t.id FROM tasks t
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
+          [parentRefs.taskId, req.userId!],
         );
         if (parentRow.rowCount === 0) {
           await client.query("ROLLBACK");
@@ -104,9 +108,14 @@ router.post(
         if (subtaskId === null) {
           throw new HttpError(500, "Invalid checklist parent refs");
         }
+        // 親サブタスクの所有権を確認しつつロックを取得する
         const parentRow = await client.query(
-          "SELECT id FROM subtasks WHERE id = $1 FOR UPDATE",
-          [subtaskId],
+          `SELECT s.id FROM subtasks s
+           JOIN tasks t ON t.id = s.task_id
+           JOIN columns c ON c.id = t.column_id
+           JOIN rows r ON r.id = c.row_id
+           WHERE s.id = $1 AND r.user_id = $2 FOR UPDATE`,
+          [subtaskId, req.userId!],
         );
         if (parentRow.rowCount === 0) {
           await client.query("ROLLBACK");
@@ -209,9 +218,25 @@ router.put(
     }
 
     vals.push(id);
+    vals.push(req.userId!);
     try {
       const result = await pool.query<DbChecklistItem>(
-        `UPDATE checklist_items SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+        `UPDATE checklist_items SET ${fields.join(", ")} WHERE id = $${idx}
+         AND (
+           (task_id IS NOT NULL AND task_id IN (
+             SELECT t.id FROM tasks t
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $${idx + 1}
+           )) OR
+           (subtask_id IS NOT NULL AND subtask_id IN (
+             SELECT s.id FROM subtasks s
+             JOIN tasks t ON t.id = s.task_id
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $${idx + 1}
+           ))
+         ) RETURNING *`,
         vals,
       );
       if (!result.rows[0]) {
@@ -243,8 +268,23 @@ router.delete(
     }
     try {
       const result = await pool.query(
-        "DELETE FROM checklist_items WHERE id = $1",
-        [id],
+        `DELETE FROM checklist_items WHERE id = $1
+         AND (
+           (task_id IS NOT NULL AND task_id IN (
+             SELECT t.id FROM tasks t
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $2
+           )) OR
+           (subtask_id IS NOT NULL AND subtask_id IN (
+             SELECT s.id FROM subtasks s
+             JOIN tasks t ON t.id = s.task_id
+             JOIN columns c ON c.id = t.column_id
+             JOIN rows r ON r.id = c.row_id
+             WHERE r.user_id = $2
+           ))
+         )`,
+        [id, req.userId!],
       );
       if ((result.rowCount ?? 0) === 0) {
         res.status(404).json({ error: "Checklist item not found" });

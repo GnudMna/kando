@@ -32,10 +32,15 @@ describe("rowsService", () => {
     const row: DbRow = { id: 1, title: "新しい行", position: 1000 };
     vi.mocked(repository.insertRow).mockResolvedValue(row);
 
-    const result = await service.createRow("新しい行", 1000);
+    const result = await service.createRow("新しい行", 1000, 99);
 
     expect(result).toBe(row);
-    expect(repository.insertRow).toHaveBeenCalledWith(pool, "新しい行", 1000);
+    expect(repository.insertRow).toHaveBeenCalledWith(
+      pool,
+      "新しい行",
+      1000,
+      99,
+    );
   });
 
   it("createRowWithDefaultColumns はトランザクションで行とカラムを作成する", async () => {
@@ -61,7 +66,11 @@ describe("rowsService", () => {
 
     client.query.mockResolvedValue({ rows: [] });
 
-    const result = await service.createRowWithDefaultColumns("新しい行", 2000);
+    const result = await service.createRowWithDefaultColumns(
+      "新しい行",
+      2000,
+      99,
+    );
 
     expect(result.id).toBe(11);
     expect(result.columns).toHaveLength(3);
@@ -74,18 +83,23 @@ describe("rowsService", () => {
     const row: DbRow = { id: 1, title: "変更後", position: 1000 };
     vi.mocked(repository.updateRowTitle).mockResolvedValue(row);
 
-    const result = await service.updateRowTitle(1, "変更後");
+    const result = await service.updateRowTitle(1, "変更後", 99);
 
     expect(result).toBe(row);
-    expect(repository.updateRowTitle).toHaveBeenCalledWith(pool, 1, "変更後");
+    expect(repository.updateRowTitle).toHaveBeenCalledWith(
+      pool,
+      1,
+      "変更後",
+      99,
+    );
   });
 
   it("deleteRow は repository を呼び出して削除結果を返す", async () => {
     vi.mocked(repository.deleteRow).mockResolvedValue(true);
 
-    const result = await service.deleteRow(1);
+    const result = await service.deleteRow(1, 99);
 
     expect(result).toBe(true);
-    expect(repository.deleteRow).toHaveBeenCalledWith(pool, 1);
+    expect(repository.deleteRow).toHaveBeenCalledWith(pool, 1, 99);
   });
 });

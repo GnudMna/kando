@@ -329,6 +329,17 @@ body::after {
   backdrop-filter: blur(8px);
 }
 
+.app-header-right {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.app-header-right .theme-toggle {
+  margin-left: 0;
+}
+
 .app-main {
   padding: 1.4rem clamp(1rem, 4vw, 3.75rem) 0;
 }
@@ -1803,4 +1814,112 @@ body::after {
   .list-view-col-task-deep {
     padding-left: 2.35rem;
   }
+}
+
+/* ── ログイン画面 ───────────────────────────────────── */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 22rem;
+  background: var(--modal-bg);
+  border: 1px solid var(--modal-border);
+  border-radius: 20px;
+  padding: 2.2rem 2rem 2rem;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(12px);
+  animation: fade-up 320ms ease both;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: 2rem;
+}
+
+.login-logo {
+  width: 2.2rem;
+  height: 2.2rem;
+}
+
+.login-title {
+  font-size: 1.9rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.login-input {
+  font-size: 0.93rem;
+  padding: 0.62rem 0.75rem;
+}
+
+.login-error {
+  font-size: 0.82rem;
+  color: var(--error-text);
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+}
+
+.login-submit {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.92rem;
+  margin-top: 0.25rem;
+}
+
+.login-hint {
+  font-size: 0.78rem;
+  opacity: 0.65;
+  margin-left: 0.35rem;
+}
+
+.login-switch {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.login-switch-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+.login-switch-btn:hover {
+  opacity: 0.8;
+}
+
+.login-switch-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

@@ -20,6 +20,27 @@ export interface FetchBoardOptions {
   offset?: number;
 }
 
+/** 現在の認証トークン（null = 未認証または認証不要） */
+let _authToken: string | null = null;
+/** 401 受信時に呼び出すコールバック */
+let _onUnauthorized: (() => void) | null = null;
+
+/**
+ * 認証トークンを設定する。
+ * @param token - JWT トークン。null で認証情報をクリア
+ */
+export function setAuthToken(token: string | null): void {
+  _authToken = token;
+}
+
+/**
+ * 401 Unauthorized 受信時のコールバックを登録する。
+ * @param callback - ログアウト処理など呼び出したい関数
+ */
+export function setOnUnauthorized(callback: () => void): void {
+  _onUnauthorized = callback;
+}
+
 /**
  * 指定の URL に fetch リクエストを送信する汎用ラッパー。
  * @param url - リクエスト先 URL
@@ -28,8 +49,17 @@ export interface FetchBoardOptions {
  * @throws HTTP エラーまたはネットワークエラー時に Error をスロー
  */
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
+  const headers: Record<string, string> = {
+    ...((options?.headers as Record<string, string>) ?? {}),
+  };
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`;
+  }
+  const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
+    if (res.status === 401 && _onUnauthorized) {
+      _onUnauthorized();
+    }
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error ?? `HTTP ${res.status}`);
   }
@@ -345,3 +375,60 @@ export const updateChecklistItem = (
  */
 export const deleteChecklistItem = (id: number): Promise<void> =>
   request<void>(`${API_URL}/checklist-items/${id}`, { method: "DELETE" });
+
+export interface AuthStatusResult {
+  hasUsers: boolean;
+}
+
+// 認証の操作
+/**
+ * ユーザーが1人以上登録されているかをバックエンドに問い合わせる。
+ * @returns ステータス情報を解決する Promise
+ */
+export const checkStatus = (): Promise<AuthStatusResult> =>
+  fetch(`${API_URL}/auth/status`).then(async (res) => {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+    return body as AuthStatusResult;
+  });
+
+/**
+ * ユーザー名とパスワードでログインし JWT を取得する。
+ * @param username - ユーザー名
+ * @param password - パスワード
+ * @returns トークンを含むオブジェクトを解決する Promise
+ */
+export const login = (
+  username: string,
+  password: string,
+): Promise<{ token: string }> =>
+  fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  }).then(async (res) => {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+    return body as { token: string };
+  });
+
+/**
+ * 新規ユーザーを登録し JWT を取得する。
+ * 既存の未割り当てデータは登録ユーザーへ移行される。
+ * @param username - ユーザー名
+ * @param password - パスワード（8文字以上）
+ * @returns トークンを含むオブジェクトを解決する Promise
+ */
+export const register = (
+  username: string,
+  password: string,
+): Promise<{ token: string }> =>
+  fetch(`${API_URL}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  }).then(async (res) => {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+    return body as { token: string };
+  });

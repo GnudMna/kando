@@ -23,6 +23,11 @@ type Column = {
 function createApp() {
   const app = express();
   app.use(express.json());
+  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  app.use((_req, _res, next) => {
+    (_req as express.Request & { userId?: number }).userId = 99;
+    next();
+  });
   app.use("/api/columns", columnsRouter);
   app.use(errorHandler);
   return app;
@@ -56,6 +61,7 @@ describe("columns router integration", () => {
       "新カラム",
       3000,
       1,
+      99,
     );
   });
 
@@ -74,7 +80,11 @@ describe("columns router integration", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual(updated);
-    expect(mockedService.updateColumnTitle).toHaveBeenCalledWith(20, "変更後");
+    expect(mockedService.updateColumnTitle).toHaveBeenCalledWith(
+      20,
+      "変更後",
+      99,
+    );
   });
 
   it("PUT /api/columns/:id/move はカラムの表示順を更新する", async () => {
@@ -92,7 +102,7 @@ describe("columns router integration", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual(moved);
-    expect(mockedService.moveColumn).toHaveBeenCalledWith(20, 5000);
+    expect(mockedService.moveColumn).toHaveBeenCalledWith(20, 5000, 99);
   });
 
   it("DELETE /api/columns/:id はカラムを削除する", async () => {
@@ -102,6 +112,6 @@ describe("columns router integration", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
-    expect(mockedService.deleteColumn).toHaveBeenCalledWith(20);
+    expect(mockedService.deleteColumn).toHaveBeenCalledWith(20, 99);
   });
 });

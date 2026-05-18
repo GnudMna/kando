@@ -27,6 +27,11 @@ const mockedPool = pool as unknown as MockedPool;
 function createApp() {
   const app = express();
   app.use(express.json());
+  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  app.use((_req, _res, next) => {
+    (_req as express.Request & { userId?: number }).userId = 99;
+    next();
+  });
   app.use("/api/board", boardRouter);
   app.use(errorHandler);
   return app;
@@ -103,10 +108,11 @@ describe("board router integration", () => {
       unknown[],
     ];
     expect(rowsSql).toContain("SELECT * FROM rows");
-    expect(rowsSql).toContain("WHERE id = $1");
-    expect(rowsSql).toContain("LIMIT $2");
-    expect(rowsSql).toContain("OFFSET $3");
-    expect(rowsParams).toEqual([2, 1, 0]);
+    expect(rowsSql).toContain("WHERE user_id = $1");
+    expect(rowsSql).toContain("AND id = $2");
+    expect(rowsSql).toContain("LIMIT $3");
+    expect(rowsSql).toContain("OFFSET $4");
+    expect(rowsParams).toEqual([99, 2, 1, 0]);
 
     const [cteSql, cteParams] = mockedPool.query.mock.calls[1] as [
       string,
