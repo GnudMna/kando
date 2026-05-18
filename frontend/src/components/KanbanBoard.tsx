@@ -296,6 +296,16 @@ export function KanbanBoard() {
     [copyTask],
   );
 
+  /**
+   * タスク編集モーダルを開くハンドラー。安定した参照を保持し TaskCard の memo を有効にする。
+   * @param task - 編集対象タスク
+   * @param colId - タスクが属するカラム ID
+   * @returns なし
+   */
+  const handleEditTask = useCallback((task: Task, colId: number) => {
+    setEditingTask({ task, colId, isNew: false });
+  }, []);
+
   const boardStats = useMemo(() => {
     let totalColumns = 0;
     let totalTasks = 0;
@@ -685,13 +695,7 @@ export function KanbanBoard() {
                                                 onDeleteTask={handleDeleteTask}
                                                 onCopyTask={handleCopyTask}
                                                 onTaskUpdated={updateTask}
-                                                onEditTask={(t) =>
-                                                  setEditingTask({
-                                                    task: t,
-                                                    colId: column.id,
-                                                    isNew: false,
-                                                  })
-                                                }
+                                                onEditTask={handleEditTask}
                                               />
                                             </div>
                                           );
@@ -741,11 +745,9 @@ export function KanbanBoard() {
         <Suspense fallback={null}>
           <ListView
             rows={activeRows}
-            dueSoonDays={dueSoonDays}
+            taskDueHighlights={taskDueHighlights}
             onRowHeaderRender={renderRowHeader}
-            onTaskClick={(task, colId) =>
-              setEditingTask({ task, colId, isNew: false })
-            }
+            onTaskClick={handleEditTask}
             onDeleteTask={handleDeleteTask}
             onAddTask={handleAddTask}
           />

@@ -122,7 +122,10 @@ describe("tasks snapshot integration", () => {
           return { rows: [] };
         }
 
-        if (statement.includes("FROM tasks WHERE id = $1")) {
+        if (
+          statement.includes("FROM tasks t") &&
+          statement.includes("COALESCE((SELECT subtasks FROM agg_subtasks)")
+        ) {
           return {
             rows: [
               {
@@ -132,72 +135,42 @@ describe("tasks snapshot integration", () => {
                 due_date: "2026-12-01",
                 position: 1000,
                 completed: false,
-              },
-            ],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM subtasks WHERE task_id = $1 ORDER BY id ASC",
-          )
-        ) {
-          return {
-            rows: [{ id: 11, task_id: 1, content: "更新サブタスク" }],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM checklist_items WHERE task_id = $1 AND subtask_id IS NULL ORDER BY position ASC",
-          )
-        ) {
-          return {
-            rows: [
-              {
-                id: 21,
-                task_id: 1,
-                subtask_id: null,
-                content: "更新チェック",
-                completed: false,
-                position: 1000,
-              },
-            ],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM task_comments WHERE task_id = $1 ORDER BY position ASC, created_at ASC, id ASC",
-          )
-        ) {
-          return {
-            rows: [
-              {
-                id: 41,
-                task_id: 1,
-                content: "更新コメント",
-                created_at: "2026-04-18T00:00:00.000Z",
-                position: 1000,
-              },
-            ],
-          };
-        }
-
-        if (
-          statement.startsWith(
-            "SELECT * FROM checklist_items WHERE subtask_id = ANY($1::int[]) ORDER BY subtask_id ASC, position ASC",
-          )
-        ) {
-          return {
-            rows: [
-              {
-                id: 31,
-                task_id: null,
-                subtask_id: 11,
-                content: "更新サブチェック",
-                completed: true,
-                position: 1000,
+                subtasks: [
+                  {
+                    id: 11,
+                    task_id: 1,
+                    content: "更新サブタスク",
+                    checklists: [
+                      {
+                        id: 31,
+                        task_id: null,
+                        subtask_id: 11,
+                        content: "更新サブチェック",
+                        completed: true,
+                        position: 1000,
+                      },
+                    ],
+                  },
+                ],
+                checklists: [
+                  {
+                    id: 21,
+                    task_id: 1,
+                    subtask_id: null,
+                    content: "更新チェック",
+                    completed: false,
+                    position: 1000,
+                  },
+                ],
+                comments: [
+                  {
+                    id: 41,
+                    task_id: 1,
+                    content: "更新コメント",
+                    created_at: "2026-04-18T00:00:00.000Z",
+                    position: 1000,
+                  },
+                ],
               },
             ],
           };

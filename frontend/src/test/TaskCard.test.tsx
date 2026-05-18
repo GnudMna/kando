@@ -85,7 +85,7 @@ describe("TaskCard", () => {
   it("タスクをクリックすると onEditTask が呼ばれること", () => {
     render(<TaskCard {...defaultProps} />);
     fireEvent.click(screen.getByText("テストタスク"));
-    expect(defaultProps.onEditTask).toHaveBeenCalledWith(baseTask);
+    expect(defaultProps.onEditTask).toHaveBeenCalledWith(baseTask, 10);
   });
 
   it("チェックリスト項目が表示されること", () => {
