@@ -84,7 +84,7 @@ app.use(
       ? allowedOrigins.length > 0
         ? allowedOrigins
         : false
-      : (process.env.CORS_ORIGIN ?? "*"),
+      : (process.env.CORS_ORIGIN ?? "http://localhost:5173"),
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     optionsSuccessStatus: 204,
   }),
@@ -104,6 +104,18 @@ const limiter = rateLimit({
   message: { error: "Too many requests, please try again later" },
 });
 app.use("/api", limiter);
+
+// 認証エンドポイント専用のレートリミット: ブルートフォース攻撃対策として 15 分間に 10 リクエストまで
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+});
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/status", authLimiter);
 
 // ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
 app.get("/api/liveness", (_req, res) => {

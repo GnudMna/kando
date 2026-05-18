@@ -98,7 +98,7 @@ export function LoginScreen({
           <div className="login-field">
             <label htmlFor={passwordInputId} className="modal-label">
               パスワード
-              {isRegister && <span className="login-hint">（8文字以上）</span>}
+              {isRegister && <span className="login-hint">（12文字以上）</span>}
             </label>
             <input
               id={passwordInputId}

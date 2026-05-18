@@ -69,10 +69,10 @@ router.post(
       password: string;
     };
 
-    if (password.length < 8) {
+    if (password.length < 12) {
       res
         .status(400)
-        .json({ error: "パスワードは8文字以上で入力してください" });
+        .json({ error: "パスワードは12文字以上で入力してください" });
       return;
     }
 
