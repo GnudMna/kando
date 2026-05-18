@@ -7,6 +7,12 @@ import { tempId } from "../utils/localId";
 
 const URL_REGEX = /https?:\/\/[^\s<>'"]+/g;
 
+/**
+ * 文字列を改行で分割し、`<br>` 要素を挿入した ReactNode 配列を返す。
+ * @param segment - 改行分割する文字列
+ * @param keyPrefix - key 属性のプレフィックス（重複回避に使用）
+ * @returns 改行配置済みの ReactNode 配列
+ */
 function renderLineBreaks(segment: string, keyPrefix: string): ReactNode[] {
   return segment
     .split("\n")
@@ -15,6 +21,11 @@ function renderLineBreaks(segment: string, keyPrefix: string): ReactNode[] {
     );
 }
 
+/**
+ * テキスト内の URL をクリック可能な `<a>` リンクに変換した ReactNode 配列を返す。
+ * @param text - リンク展開する元のテキスト
+ * @returns URL を `<a>` に置換した ReactNode 配列
+ */
 function renderTextWithLinks(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
@@ -49,6 +60,11 @@ function renderTextWithLinks(text: string): ReactNode[] {
 
 type CommentSortMode = "oldest" | "newest" | "manual";
 
+/**
+ * ISO 日時文字列を `ja-JP` ロケールの表示文字列に変換する。
+ * @param value - 変換対象の ISO 日時文字列
+ * @returns ロケール変換済み表示文字列。変換できない場合は `"時刻不明"`
+ */
 function formatCommentTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -69,6 +85,13 @@ interface CommentSectionProps {
   onCommentsChange: (comments: LocalTaskComment[]) => void;
 }
 
+/**
+ * コメントの表示・追加・編集・削除・並び替えを担当するコンポーネント。
+ * @param comments - 表示・編集対象のコメント配列
+ * @param taskId - 親タスク ID（新規コメント作成時に使用）
+ * @param onCommentsChange - コメント配列を更新するコールバック
+ * @returns コメントセクションの JSX 要素
+ */
 export function CommentSection({
   comments,
   taskId,
@@ -87,6 +110,10 @@ export function CommentSection({
   const [newCommentContent, setNewCommentContent] = useState("");
   const [addingComment, setAddingComment] = useState(false);
 
+  /**
+   * 入力テキストから新規コメントを作成してリストに追加する。
+   * @returns なし
+   */
   const addComment = () => {
     const content = newCommentContent.trim();
     if (!content) return;
@@ -103,11 +130,23 @@ export function CommentSection({
     setAddingComment(false);
   };
 
+  /**
+   * コメントのインライン編集を開始する。
+   * @param commentId - 編集対象コメント ID
+   * @param content - 編集初期内容
+   * @returns なし
+   */
   const beginCommentEdit = (commentId: number | TempId, content: string) => {
     setEditingCommentId(commentId);
     setEditingCommentContent(content);
   };
 
+  /**
+   * 編集内容をコメント配列に保存してインライン編集を終了する。
+   * 内容が空の場合は保存せず履歴を維持する。
+   * @param commentId - 保存対象コメント ID
+   * @returns なし
+   */
   const saveCommentEdit = (commentId: number | TempId) => {
     const content = editingCommentContent.trim();
     if (!content) {
@@ -124,11 +163,20 @@ export function CommentSection({
     setEditingCommentContent("");
   };
 
+  /**
+   * インライン編集をキャンセルして編集状態をリセットする。
+   * @returns なし
+   */
   const cancelCommentEdit = () => {
     setEditingCommentId(null);
     setEditingCommentContent("");
   };
 
+  /**
+   * 指定 ID のコメントをリストから削除する。
+   * @param commentId - 削除対象コメント ID
+   * @returns なし
+   */
   const removeComment = (commentId: number | TempId) => {
     onCommentsChange(comments.filter((comment) => comment.id !== commentId));
     if (editingCommentId === commentId) {
@@ -136,6 +184,10 @@ export function CommentSection({
     }
   };
 
+  /**
+   * ソートモードに応じた表示用コメント配列を返す。
+   * manual モードは元の順を保持し、oldest/newest は作成日時でソートする。
+   */
   const visibleComments = useMemo(() => {
     const withIndex = comments.map((comment, index) => ({
       comment,
@@ -160,6 +212,12 @@ export function CommentSection({
     });
   }, [comments, commentSortMode]);
 
+  /**
+   * 手動ソートモードのときだけコメントの順序を入れ替える。
+   * @param fromIndex - 移動元インデックス
+   * @param toIndex - 移動先インデックス
+   * @returns なし
+   */
   const moveCommentInManualMode = (fromIndex: number, toIndex: number) => {
     if (commentSortMode !== "manual" || fromIndex === toIndex) return;
 
