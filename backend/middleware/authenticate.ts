@@ -7,8 +7,9 @@ const AUTH_SECRET = process.env.AUTH_SECRET;
 
 /**
  * JWT 認証ミドルウェア。
- * Authorization: Bearer <token> ヘッダーを検証し、
- * 有効な場合は req.userId にユーザー ID を設定して next() を呼ぶ。
+ * 1. `token` HttpOnly Cookie を優先して検証する。
+ * 2. Cookie がない場合は Authorization: Bearer <token> ヘッダーにフォールバックする。
+ * 有効なトークンが見つかった場合は req.userId にユーザー ID を設定して next() を呼ぶ。
  * 無効または未設定の場合は 401 を返す。
  */
 export async function authenticate(
@@ -21,13 +22,18 @@ export async function authenticate(
     return;
   }
 
+  // Cookie 優先、なければ Authorization ヘッダーにフォールバック
+  const cookieToken = req.cookies?.token as string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  const token =
+    cookieToken ??
+    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined);
+
+  if (!token) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const token = authHeader.slice(7);
   const secretKey = new TextEncoder().encode(AUTH_SECRET);
 
   try {

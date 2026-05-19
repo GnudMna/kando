@@ -33,7 +33,7 @@ describe("boardApi", () => {
     expect(result).toEqual(mockRows);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/board?row_id=1&limit=5&offset=10",
-      { headers: {} },
+      { credentials: "include", headers: {} },
     );
   });
 
@@ -49,6 +49,7 @@ describe("boardApi", () => {
     expect(result).toEqual(createdRow);
     expect(fetchMock).toHaveBeenCalledWith("/api/rows", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "New Row", position: 2000 }),
     });
@@ -61,6 +62,7 @@ describe("boardApi", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/rows/123", {
       method: "DELETE",
+      credentials: "include",
       headers: {},
     });
   });

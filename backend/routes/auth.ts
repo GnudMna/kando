@@ -4,6 +4,7 @@ import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import { pool } from "../db.js";
 import { validateBody } from "../middleware/validate.js";
+import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
 
@@ -11,6 +12,8 @@ const router = Router();
 const AUTH_SECRET = process.env.AUTH_SECRET;
 /** JWT の有効期限 */
 const TOKEN_EXPIRY = "7d";
+/** Cookie の有効期限（ms）*/
+const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** bcrypt コスト係数 */
 const BCRYPT_ROUNDS = 12;
 /**
@@ -19,6 +22,30 @@ const BCRYPT_ROUNDS = 12;
  */
 const DUMMY_HASH =
   "$2b$12$RJj.qfAEo4xN8xoHk1BzVOXIEFeSPPJVrMrRJdaUh7B2pq2jJz6.";
+
+/**
+ * JWT を署名して HttpOnly Cookie としてレスポンスにセットするヘルパー。
+ */
+async function signAndSetCookie(
+  res: import("express").Response,
+  userId: number,
+): Promise<void> {
+  const secretKey = new TextEncoder().encode(AUTH_SECRET!);
+  const token = await new SignJWT({})
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(String(userId))
+    .setIssuedAt()
+    .setExpirationTime(TOKEN_EXPIRY)
+    .sign(secretKey);
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE_MS,
+    path: "/",
+  });
+}
 
 /**
  * GET /api/auth/status
@@ -55,7 +82,7 @@ router.post(
       type: "string",
       required: true,
       notEmpty: true,
-      maxLength: 200,
+      maxLength: 72,
     },
   }),
   async (req, res, next) => {
@@ -114,15 +141,8 @@ router.post(
 
         await client.query("COMMIT");
 
-        const secretKey = new TextEncoder().encode(AUTH_SECRET);
-        const token = await new SignJWT({})
-          .setProtectedHeader({ alg: "HS256" })
-          .setSubject(String(userId))
-          .setIssuedAt()
-          .setExpirationTime(TOKEN_EXPIRY)
-          .sign(secretKey);
-
-        res.status(201).json({ token });
+        await signAndSetCookie(res, userId);
+        res.status(201).json({ ok: true });
       } catch (err) {
         try {
           await client.query("ROLLBACK");
@@ -156,7 +176,7 @@ router.post(
       type: "string",
       required: true,
       notEmpty: true,
-      maxLength: 200,
+      maxLength: 72,
     },
   }),
   async (req, res, next) => {
@@ -188,19 +208,35 @@ router.post(
         return;
       }
 
-      const secretKey = new TextEncoder().encode(AUTH_SECRET);
-      const token = await new SignJWT({})
-        .setProtectedHeader({ alg: "HS256" })
-        .setSubject(String(user.id))
-        .setIssuedAt()
-        .setExpirationTime(TOKEN_EXPIRY)
-        .sign(secretKey);
-
-      res.json({ token });
+      await signAndSetCookie(res, user.id);
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
   },
 );
+
+/**
+ * POST /api/auth/logout
+ * HttpOnly Cookie を削除してログアウトする。
+ */
+router.post("/logout", (_req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+  res.json({ ok: true });
+});
+
+/**
+ * GET /api/auth/verify
+ * Cookie の JWT を検証し、認証済みなら 200 を返す。
+ * フロントエンドの初期表示時に認証状態を確認するために使用する。
+ */
+router.get("/verify", authenticate, (_req, res) => {
+  res.json({ ok: true });
+});
 
 export default router;

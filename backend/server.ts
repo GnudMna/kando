@@ -2,6 +2,7 @@
 // 各種ミドルウェアのセットアップ、ルーティング登録、サーバー起動を担う
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { pool, waitForDbWithRetry } from "./db.js";
@@ -91,11 +92,14 @@ app.use(
       : (process.env.CORS_ORIGIN ?? "http://localhost:5173"),
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     optionsSuccessStatus: 204,
+    credentials: true,
   }),
 );
 
 // リクエストボディをJSONとして解析する（100kB上限でDoSを防ぐ）
 app.use(express.json({ limit: "100kb" }));
+// Cookie を解析する（HttpOnly JWT Cookie の読み取りに使用）
+app.use(cookieParser());
 // リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
 app.use(requestLogger);
 
