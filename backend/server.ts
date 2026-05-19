@@ -16,6 +16,7 @@ import tasksRouter from "./routes/tasks.js";
 import subtasksRouter from "./routes/subtasks.js";
 import checklistItemsRouter from "./routes/checklistItems.js";
 import taskCommentsRouter from "./routes/taskComments.js";
+import memosRouter from "./routes/memos.js";
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -160,6 +161,7 @@ app.use("/api/tasks", tasksRouter);
 app.use("/api/subtasks", subtasksRouter);
 app.use("/api/checklist-items", checklistItemsRouter);
 app.use("/api/task-comments", taskCommentsRouter);
+app.use("/api/memos", memosRouter);
 
 // グローバルエラーハンドラーを登録する（最後に配置する必要がある）
 app.use(errorHandler);

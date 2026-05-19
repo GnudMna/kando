@@ -8,9 +8,11 @@ import type {
   ChecklistItem,
   TaskComment,
   TaskSnapshotPayload,
+  Memo,
 } from "@kando/types";
 
 export type { TaskSnapshotPayload } from "@kando/types";
+export type { Memo } from "@kando/types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -431,4 +433,63 @@ export const register = (
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
     return body as { token: string };
+  });
+
+// メモの操作
+/**
+ * メモ一覧を取得する。
+ * @returns メモ配列を解決する Promise
+ */
+export const fetchMemos = (): Promise<Memo[]> =>
+  request<Memo[]>(`${API_URL}/memos`);
+
+/**
+ * 新しいメモを作成する。
+ * @param title - タイトル
+ * @param content - 内容
+ * @returns 作成したメモを解決する Promise
+ */
+export const createMemo = (title: string, content: string): Promise<Memo> =>
+  request<Memo>(`${API_URL}/memos`, json("POST", { title, content }));
+
+/**
+ * メモを更新する。
+ * @param id - メモ ID
+ * @param patch - 更新フィールド
+ * @returns 更新後メモを解決する Promise
+ */
+export const updateMemo = (
+  id: number,
+  patch: { title?: string; content?: string },
+): Promise<Memo> => request<Memo>(`${API_URL}/memos/${id}`, json("PUT", patch));
+
+/**
+ * メモを削除する。
+ * @param id - メモ ID
+ * @returns 完了時に解決される Promise
+ */
+export const deleteMemo = (id: number): Promise<void> =>
+  request<void>(`${API_URL}/memos/${id}`, { method: "DELETE" });
+
+/**
+ * タスクをメモに関連付ける。
+ * @param memoId - メモ ID
+ * @param taskId - タスク ID
+ * @returns 更新後メモを解決する Promise
+ */
+export const linkMemoTask = (memoId: number, taskId: number): Promise<Memo> =>
+  request<Memo>(
+    `${API_URL}/memos/${memoId}/tasks`,
+    json("POST", { task_id: taskId }),
+  );
+
+/**
+ * タスクとメモの関連付けを解除する。
+ * @param memoId - メモ ID
+ * @param taskId - タスク ID
+ * @returns 更新後メモを解決する Promise
+ */
+export const unlinkMemoTask = (memoId: number, taskId: number): Promise<Memo> =>
+  request<Memo>(`${API_URL}/memos/${memoId}/tasks/${taskId}`, {
+    method: "DELETE",
   });
