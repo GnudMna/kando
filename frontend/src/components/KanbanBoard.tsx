@@ -8,9 +8,11 @@ import {
   useId,
   lazy,
   Suspense,
+  memo,
+  useRef,
 } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import type { DropResult } from "@hello-pangea/dnd";
+import type { DropResult, DraggableProvided } from "@hello-pangea/dnd";
 import { createPortal } from "react-dom";
 import {
   Plus,
@@ -32,7 +34,7 @@ const ListView = lazy(() =>
   import("./ListView").then((m) => ({ default: m.ListView })),
 );
 import { useBoard } from "../hooks/useBoard";
-import type { Row, Task } from "../types";
+import type { Row, Column, Task } from "../types";
 import { getDueHighlight } from "../utils/dueDate";
 import type { DueHighlightResult } from "../utils/dueDate";
 import { countTasks, filterRowsByTaskQuery } from "../utils/taskSearch";
@@ -72,6 +74,186 @@ interface ConfirmState {
   onConfirm: () => void;
 }
 
+// ---- BoardColumn ----------------------------------------------------------------
+// カラムヘッダー（インライン編集）とタスク一覧を管理する memoized コンポーネント。
+// KanbanBoard の無関係な state 変化（モーダル開閉など）による再レンダリングを防ぐ。
+
+interface BoardColumnProps {
+  column: Column;
+  rowId: number;
+  colProvided: DraggableProvided;
+  onRenameColumn: (colId: number, title: string) => Promise<void>;
+  onRemoveColumn: (colId: number) => Promise<void>;
+  onAddTask: (colId: number, rowId: number) => Promise<void>;
+  onDeleteTask: (colId: number, taskId: number) => Promise<void>;
+  onCopyTask: (colId: number, taskId: number) => Promise<void>;
+  onTaskUpdated: (task: Task) => void;
+  onEditTask: (task: Task, colId: number) => void;
+  taskDueHighlights: Map<number, DueHighlightResult>;
+  dueSoonDays: number;
+  confirmAction: (message: string, onConfirm: () => void) => void;
+}
+
+const BoardColumn = memo(function BoardColumn({
+  column,
+  rowId,
+  colProvided,
+  onRenameColumn,
+  onRemoveColumn,
+  onAddTask,
+  onDeleteTask,
+  onCopyTask,
+  onTaskUpdated,
+  onEditTask,
+  taskDueHighlights,
+  dueSoonDays,
+  confirmAction,
+}: BoardColumnProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(column.title);
+
+  const {
+    innerRef: columnInnerRef,
+    draggableProps: columnDraggableProps,
+    dragHandleProps: columnDragHandleProps,
+  } = colProvided;
+
+  const handleSave = async () => {
+    const title = editTitle.trim();
+    if (title) await onRenameColumn(column.id, title);
+    setIsEditing(false);
+  };
+
+  const handleStartEditing = () => {
+    setEditTitle(column.title);
+    setIsEditing(true);
+  };
+
+  return (
+    <div
+      className="column-container"
+      ref={columnInnerRef}
+      {...columnDraggableProps}
+    >
+      <div className="column-header">
+        <div
+          {...columnDragHandleProps}
+          className="column-drag-handle"
+          title="ドラッグして並び替え"
+        >
+          <GripVertical size={14} />
+        </div>
+        {isEditing ? (
+          <input
+            autoFocus
+            className="column-title-input"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onBlur={() => void handleSave()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleSave();
+              if (e.key === "Escape") setIsEditing(false);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="column-title board-title-button"
+            title="クリックして編集"
+            onClick={handleStartEditing}
+          >
+            {column.title}
+          </button>
+        )}
+        <button
+          type="button"
+          className="action-btn"
+          aria-label={`列「${column.title}」を削除`}
+          onClick={() =>
+            confirmAction(
+              `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
+              () => void onRemoveColumn(column.id),
+            )
+          }
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+      <Droppable droppableId={column.id.toString()} type="task">
+        {(taskProvided) => (
+          <div
+            className="column-body"
+            ref={taskProvided.innerRef}
+            {...taskProvided.droppableProps}
+          >
+            {column.tasks.map((task, index) => (
+              <Draggable
+                draggableId={`task-${task.id}`}
+                index={index}
+                key={`task-${task.id}`}
+              >
+                {(taskDragProvided, taskDragSnapshot) => {
+                  const dueHighlight =
+                    taskDueHighlights.get(task.id) ??
+                    getDueHighlight(
+                      task.due_date,
+                      dueSoonDays,
+                      undefined,
+                      task.completed,
+                    );
+                  const dueTaskClass =
+                    dueHighlight.status === "none"
+                      ? ""
+                      : ` task-${dueHighlight.status}`;
+                  const completedClass = task.completed
+                    ? " task-completed"
+                    : "";
+                  const taskCardNode = (
+                    <div
+                      className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}${completedClass}`}
+                      ref={taskDragProvided.innerRef}
+                      {...taskDragProvided.draggableProps}
+                      {...taskDragProvided.dragHandleProps}
+                    >
+                      <TaskCard
+                        task={task}
+                        columnId={column.id}
+                        dueHighlight={dueHighlight}
+                        onDeleteTask={onDeleteTask}
+                        onCopyTask={onCopyTask}
+                        onTaskUpdated={onTaskUpdated}
+                        onEditTask={onEditTask}
+                      />
+                    </div>
+                  );
+
+                  if (taskDragSnapshot.isDragging && taskDragPortalTarget) {
+                    return createPortal(taskCardNode, taskDragPortalTarget);
+                  }
+
+                  return taskCardNode;
+                }}
+              </Draggable>
+            ))}
+            {taskProvided.placeholder}
+          </div>
+        )}
+      </Droppable>
+      <div className="column-add-task">
+        <button
+          type="button"
+          className="btn column-add-task-btn"
+          onClick={() => void onAddTask(column.id, rowId)}
+        >
+          <Plus size={16} /> タスクを追加
+        </button>
+      </div>
+    </div>
+  );
+});
+
+// ---------------------------------------------------------------------------------
+
 /**
  * かんばんボードのメインコンポーネント。
  * 行・カラム・タスクのレンダリング、ドラッグ&ドロップ操作、カンバンビュー・リストビューの切り替え、
@@ -107,11 +289,15 @@ export function KanbanBoard() {
     return normalizeDueSoonDays(Number(stored));
   });
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
-  // インライン編集中の行・カラムを管理する
+  // インライン編集中の行を管理する
   const [editingRow, setEditingRow] = useState<InlineEditState | null>(null);
-  const [editingCol, setEditingCol] = useState<InlineEditState | null>(null);
   // 確認ダイアログの表示状態を管理する
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  // kando:open-task イベントハンドラ内で最新の rows を参照するための ref
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
   const dueSoonDaysInputId = useId();
   const taskSearchInputId = useId();
 
@@ -246,17 +432,6 @@ export function KanbanBoard() {
   }, [editingRow, renameRow]);
 
   /**
-   * カラム名インライン編集を確定する。内容が空の場合は保存しない。
-   * @returns 保存処理完了時に解決される Promise
-   */
-  const handleSaveColTitle = useCallback(async () => {
-    if (!editingCol) return;
-    const title = editingCol.title.trim();
-    if (title) await renameColumn(editingCol.id, title);
-    setEditingCol(null);
-  }, [editingCol, renameColumn]);
-
-  /**
    * タスクを追加して編集モーダルを自動開く。
    * @param colId - タスクを追加するカラム ID
    * @param rowId - カラムが所属する行 ID
@@ -307,10 +482,11 @@ export function KanbanBoard() {
   }, []);
 
   // MemoPanel からの kando:open-task イベントでタスク編集モーダルを開く
+  // rowsRef を使い rows が変わるたびにリスナーを再登録しないようにする
   useEffect(() => {
     const handler = (e: Event) => {
       const taskId = (e as CustomEvent<{ taskId: number }>).detail.taskId;
-      for (const row of rows) {
+      for (const row of rowsRef.current) {
         for (const col of row.columns) {
           const task = col.tasks.find((t) => t.id === taskId);
           if (task) {
@@ -322,7 +498,7 @@ export function KanbanBoard() {
     };
     window.addEventListener("kando:open-task", handler);
     return () => window.removeEventListener("kando:open-task", handler);
-  }, [rows]);
+  }, []);
 
   const boardStats = useMemo(() => {
     let totalColumns = 0;
@@ -369,55 +545,58 @@ export function KanbanBoard() {
    * @param row - 描画対象の行
    * @returns 行ヘッダーの JSX 要素
    */
-  const renderRowHeader = (row: Row) => (
-    <div className="board-row-header">
-      {editingRow?.id === row.id ? (
-        <input
-          autoFocus
-          className="board-row-title-input"
-          value={editingRow.title}
-          onChange={(e) =>
-            setEditingRow({ ...editingRow, title: e.target.value })
-          }
-          onBlur={() => void handleSaveRowTitle()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void handleSaveRowTitle();
-            if (e.key === "Escape") setEditingRow(null);
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className="board-row-title board-title-button"
-          title="クリックして編集"
-          onClick={() => setEditingRow({ id: row.id, title: row.title })}
-        >
-          {row.title}
-        </button>
-      )}
-      <div className="board-row-header-actions">
-        <button
-          type="button"
-          className="btn btn-compact"
-          onClick={() => void handleAddColumn(row.id)}
-        >
-          <Plus size={14} /> ステータスを追加
-        </button>
-        <button
-          type="button"
-          className="action-btn"
-          aria-label={`行「${row.title}」を削除`}
-          onClick={() =>
-            confirmAction(
-              `「${row.title}」行を削除しますか？配下のすべてのタスクも削除されます。`,
-              () => void removeRow(row.id),
-            )
-          }
-        >
-          <Trash2 size={16} />
-        </button>
+  const renderRowHeader = useCallback(
+    (row: Row) => (
+      <div className="board-row-header">
+        {editingRow?.id === row.id ? (
+          <input
+            autoFocus
+            className="board-row-title-input"
+            value={editingRow.title}
+            onChange={(e) =>
+              setEditingRow({ ...editingRow, title: e.target.value })
+            }
+            onBlur={() => void handleSaveRowTitle()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleSaveRowTitle();
+              if (e.key === "Escape") setEditingRow(null);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="board-row-title board-title-button"
+            title="クリックして編集"
+            onClick={() => setEditingRow({ id: row.id, title: row.title })}
+          >
+            {row.title}
+          </button>
+        )}
+        <div className="board-row-header-actions">
+          <button
+            type="button"
+            className="btn btn-compact"
+            onClick={() => void handleAddColumn(row.id)}
+          >
+            <Plus size={14} /> ステータスを追加
+          </button>
+          <button
+            type="button"
+            className="action-btn"
+            aria-label={`行「${row.title}」を削除`}
+            onClick={() =>
+              confirmAction(
+                `「${row.title}」行を削除しますか？配下のすべてのタスクも削除されます。`,
+                () => void removeRow(row.id),
+              )
+            }
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
-    </div>
+    ),
+    [editingRow, handleSaveRowTitle, handleAddColumn, confirmAction, removeRow],
   );
 
   if (isLoading) {
@@ -603,151 +782,21 @@ export function KanbanBoard() {
                           index={colIndex}
                         >
                           {(colProvided) => (
-                            <div
-                              className="column-container"
-                              ref={colProvided.innerRef}
-                              {...colProvided.draggableProps}
-                            >
-                              <div className="column-header">
-                                <div
-                                  {...colProvided.dragHandleProps}
-                                  className="column-drag-handle"
-                                  title="ドラッグして並び替え"
-                                >
-                                  <GripVertical size={14} />
-                                </div>
-                                {editingCol?.id === column.id ? (
-                                  <input
-                                    autoFocus
-                                    className="column-title-input"
-                                    value={editingCol.title}
-                                    onChange={(e) =>
-                                      setEditingCol({
-                                        ...editingCol,
-                                        title: e.target.value,
-                                      })
-                                    }
-                                    onBlur={() => void handleSaveColTitle()}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter")
-                                        void handleSaveColTitle();
-                                      if (e.key === "Escape")
-                                        setEditingCol(null);
-                                    }}
-                                  />
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="column-title board-title-button"
-                                    title="クリックして編集"
-                                    onClick={() =>
-                                      setEditingCol({
-                                        id: column.id,
-                                        title: column.title,
-                                      })
-                                    }
-                                  >
-                                    {column.title}
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  className="action-btn"
-                                  aria-label={`列「${column.title}」を削除`}
-                                  onClick={() =>
-                                    confirmAction(
-                                      `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
-                                      () => void removeColumn(column.id),
-                                    )
-                                  }
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                              <Droppable
-                                droppableId={column.id.toString()}
-                                type="task"
-                              >
-                                {(taskProvided) => (
-                                  <div
-                                    className="column-body"
-                                    ref={taskProvided.innerRef}
-                                    {...taskProvided.droppableProps}
-                                  >
-                                    {column.tasks.map((task, index) => (
-                                      <Draggable
-                                        draggableId={`task-${task.id}`}
-                                        index={index}
-                                        key={`task-${task.id}`}
-                                      >
-                                        {(
-                                          taskDragProvided,
-                                          taskDragSnapshot,
-                                        ) => {
-                                          const dueHighlight =
-                                            taskDueHighlights.get(task.id) ??
-                                            getDueHighlight(
-                                              task.due_date,
-                                              dueSoonDays,
-                                              undefined,
-                                              task.completed,
-                                            );
-                                          const dueTaskClass =
-                                            dueHighlight.status === "none"
-                                              ? ""
-                                              : ` task-${dueHighlight.status}`;
-                                          const completedClass = task.completed
-                                            ? " task-completed"
-                                            : "";
-                                          const taskCardNode = (
-                                            <div
-                                              className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}${completedClass}`}
-                                              ref={taskDragProvided.innerRef}
-                                              {...taskDragProvided.draggableProps}
-                                              {...taskDragProvided.dragHandleProps}
-                                            >
-                                              <TaskCard
-                                                task={task}
-                                                columnId={column.id}
-                                                dueHighlight={dueHighlight}
-                                                onDeleteTask={handleDeleteTask}
-                                                onCopyTask={handleCopyTask}
-                                                onTaskUpdated={updateTask}
-                                                onEditTask={handleEditTask}
-                                              />
-                                            </div>
-                                          );
-
-                                          if (
-                                            taskDragSnapshot.isDragging &&
-                                            taskDragPortalTarget
-                                          ) {
-                                            return createPortal(
-                                              taskCardNode,
-                                              taskDragPortalTarget,
-                                            );
-                                          }
-
-                                          return taskCardNode;
-                                        }}
-                                      </Draggable>
-                                    ))}
-                                    {taskProvided.placeholder}
-                                  </div>
-                                )}
-                              </Droppable>
-                              <div className="column-add-task">
-                                <button
-                                  type="button"
-                                  className="btn column-add-task-btn"
-                                  onClick={() =>
-                                    void handleAddTask(column.id, row.id)
-                                  }
-                                >
-                                  <Plus size={16} /> タスクを追加
-                                </button>
-                              </div>
-                            </div>
+                            <BoardColumn
+                              column={column}
+                              rowId={row.id}
+                              colProvided={colProvided}
+                              onRenameColumn={renameColumn}
+                              onRemoveColumn={removeColumn}
+                              onAddTask={handleAddTask}
+                              onDeleteTask={handleDeleteTask}
+                              onCopyTask={handleCopyTask}
+                              onTaskUpdated={updateTask}
+                              onEditTask={handleEditTask}
+                              taskDueHighlights={taskDueHighlights}
+                              dueSoonDays={dueSoonDays}
+                              confirmAction={confirmAction}
+                            />
                           )}
                         </Draggable>
                       ))}
