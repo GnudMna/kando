@@ -306,6 +306,24 @@ export function KanbanBoard() {
     setEditingTask({ task, colId, isNew: false });
   }, []);
 
+  // MemoPanel からの kando:open-task イベントでタスク編集モーダルを開く
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const taskId = (e as CustomEvent<{ taskId: number }>).detail.taskId;
+      for (const row of rows) {
+        for (const col of row.columns) {
+          const task = col.tasks.find((t) => t.id === taskId);
+          if (task) {
+            setEditingTask({ task, colId: col.id, isNew: false });
+            return;
+          }
+        }
+      }
+    };
+    window.addEventListener("kando:open-task", handler);
+    return () => window.removeEventListener("kando:open-task", handler);
+  }, [rows]);
+
   const boardStats = useMemo(() => {
     let totalColumns = 0;
     let totalTasks = 0;

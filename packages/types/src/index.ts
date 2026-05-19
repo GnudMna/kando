@@ -157,3 +157,25 @@ export interface TaskSnapshotPayload {
   /** コメント */
   comments: TaskSnapshotCommentPayload[];
 }
+
+/** DB の `memos` テーブルに対応するメモレコード。 */
+export interface DbMemo {
+  /** メモの一意 ID */
+  id: number;
+  /** 所有ユーザーの ID */
+  user_id: number;
+  /** メモタイトル */
+  title: string;
+  /** メモ内容 */
+  content: string;
+  /** 作成日時（ISO 8601 形式） */
+  created_at: string;
+  /** 更新日時（ISO 8601 形式） */
+  updated_at: string;
+}
+
+/** API レスポンスで使用するメモ型。 */
+export interface Memo extends DbMemo {
+  /** 紐付くタスクの一覧 */
+  tasks: { id: number; content: string }[];
+}

@@ -159,6 +159,31 @@ async function runMigrations(): Promise<void> {
     await client.query(
       "CREATE INDEX IF NOT EXISTS idx_task_comments_task_id_position_created ON task_comments (task_id, position, created_at, id)",
     );
+    // メモテーブルを作成する
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS memos (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_memos_user_id_updated ON memos (user_id, updated_at DESC)",
+    );
+    // タスクとメモの中間テーブルを作成する（多対多）
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_memo_links (
+        task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        memo_id INTEGER NOT NULL REFERENCES memos(id) ON DELETE CASCADE,
+        PRIMARY KEY (task_id, memo_id)
+      );
+    `);
+    await client.query(
+      "CREATE INDEX IF NOT EXISTS idx_task_memo_links_memo_id ON task_memo_links (memo_id)",
+    );
 
     // 既存データが有効な場合は制約を validate して完全適用する
     const { rowCount: invalidChecklistRefs } = await client.query(`

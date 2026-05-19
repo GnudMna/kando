@@ -1,10 +1,11 @@
 // アプリケーションのルートコンポーネント
 // ヘッダーとメインコンテンツ（かんばんボード）を配置する
 import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, NotebookPen } from "lucide-react";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen } from "./components/LoginScreen";
+import { MemoPanel } from "./components/MemoPanel";
 import { useAuth } from "./hooks/useAuth";
 
 type ThemeMode = "dark" | "light";
@@ -23,6 +24,19 @@ function App() {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     return stored === "light" || stored === "dark" ? stored : "dark";
   });
+
+  const [memoOpen, setMemoOpen] = useState(false);
+  const [selectedMemoId, setSelectedMemoId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const memoId = (e as CustomEvent<{ memoId: number }>).detail.memoId;
+      setSelectedMemoId(memoId);
+      setMemoOpen(true);
+    };
+    window.addEventListener("kando:open-memo", handler);
+    return () => window.removeEventListener("kando:open-memo", handler);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -92,6 +106,18 @@ function App() {
               <button
                 type="button"
                 className="btn theme-toggle"
+                onClick={() => setMemoOpen((prev) => !prev)}
+                aria-label="メモ帳を開く"
+                aria-expanded={memoOpen}
+              >
+                <NotebookPen size={16} />
+                メモ帳
+              </button>
+            )}
+            {status === "authenticated" && (
+              <button
+                type="button"
+                className="btn theme-toggle"
                 onClick={logout}
                 aria-label="ログアウト"
               >
@@ -106,6 +132,15 @@ function App() {
           <KanbanBoard />
         </ErrorBoundary>
       </main>
+      {memoOpen && status === "authenticated" && (
+        <MemoPanel
+          onClose={() => {
+            setMemoOpen(false);
+            setSelectedMemoId(null);
+          }}
+          initialMemoId={selectedMemoId ?? undefined}
+        />
+      )}
     </div>
   );
 }
