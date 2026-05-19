@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../repositories/columnsRepository.js", () => ({
-  insertColumn: vi.fn(),
   updateColumnTitle: vi.fn(),
   moveColumn: vi.fn(),
   deleteColumn: vi.fn(),
@@ -16,6 +15,10 @@ vi.mock("../db.js", () => ({
 import * as repository from "../repositories/columnsRepository.js";
 import * as service from "../services/columnsService.js";
 import { pool } from "../db.js";
+
+const INSERT_SELECT_QUERY = `INSERT INTO columns (title, position, row_id)
+     SELECT $1, $2, id FROM rows WHERE id = $3 AND user_id = $4
+     RETURNING id, title, position, row_id`;
 
 type MockFn = ReturnType<typeof vi.fn>;
 type MockedPool = { query: MockFn };
@@ -33,39 +36,36 @@ describe("columnsService", () => {
     vi.clearAllMocks();
   });
 
-  it("createColumn は repository を呼び出してカラムを返す", async () => {
+  it("createColumn は INSERT...SELECT クエリを発行してカラムを返す", async () => {
     const column: Column = {
       id: 10,
       title: "新カラム",
       position: 1000,
       row_id: 1,
     };
-    // 行の所有権チェッククエリが行を返すようモックする
-    mockedPool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
-    vi.mocked(repository.insertColumn).mockResolvedValue(column);
+    // INSERT...SELECT が行を返すようモックする（所有権確認と挿入を1クエリで処理）
+    mockedPool.query.mockResolvedValueOnce({ rows: [column] });
 
     const result = await service.createColumn("新カラム", 1000, 1, 99);
 
-    expect(result).toBe(column);
-    expect(mockedPool.query).toHaveBeenCalledWith(
-      "SELECT id FROM rows WHERE id = $1 AND user_id = $2",
-      [1, 99],
-    );
-    expect(repository.insertColumn).toHaveBeenCalledWith(
-      pool,
+    expect(result).toEqual(column);
+    expect(mockedPool.query).toHaveBeenCalledWith(INSERT_SELECT_QUERY, [
       "新カラム",
       1000,
       1,
-    );
+      99,
+    ]);
+    expect(mockedPool.query).toHaveBeenCalledTimes(1);
   });
 
   it("createColumn は所有権チェックが失敗したら null を返す", async () => {
+    // INSERT...SELECT が何も返さない場合（row が見つからない）は null
     mockedPool.query.mockResolvedValueOnce({ rows: [] });
 
     const result = await service.createColumn("新カラム", 1000, 1, 99);
 
     expect(result).toBeNull();
-    expect(repository.insertColumn).not.toHaveBeenCalled();
+    expect(mockedPool.query).toHaveBeenCalledTimes(1);
   });
 
   it("updateColumnTitle は repository を呼び出して更新結果を返す", async () => {

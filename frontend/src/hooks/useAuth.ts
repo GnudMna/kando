@@ -1,9 +1,7 @@
 // 認証状態を管理するカスタムフック
 import { useState, useEffect, useCallback } from "react";
 import * as api from "../api/boardApi";
-import { setAuthToken, setOnUnauthorized } from "../api/boardApi";
-
-const TOKEN_STORAGE_KEY = "kando-auth-token";
+import { setOnUnauthorized } from "../api/boardApi";
 
 export type AuthStatus =
   | "checking" // 認証要否を確認中
@@ -22,26 +20,15 @@ export interface UseAuthReturn {
 
 /**
  * 認証状態を管理するカスタムフック。
- * - マウント時にバックエンドのユーザー登録状況を確認する
- * - ユーザー未登録の場合は登録画面を表示する
- * - トークンを localStorage に保存し、再ロード後も維持する
+ * - マウント時に Cookie の JWT を検証して認証状態を決定する
+ * - トークンは HttpOnly Cookie で管理し、JS からは操作しない
  */
 export function useAuth(): UseAuthReturn {
-  // localStorage にトークンがあれば即座に authenticated で開始する（同期チェック）
-  const [status, setStatus] = useState<AuthStatus>(() => {
-    const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (storedToken) {
-      setAuthToken(storedToken);
-      return "authenticated";
-    }
-    return "checking";
-  });
+  const [status, setStatus] = useState<AuthStatus>("checking");
   const [error, setError] = useState<string | null>(null);
 
   // 401 受信時に強制ログアウトするコールバックを登録する
   const handleUnauthorized = useCallback(() => {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    setAuthToken(null);
     setStatus("unauthenticated");
   }, []);
 
@@ -49,25 +36,38 @@ export function useAuth(): UseAuthReturn {
     setOnUnauthorized(handleUnauthorized);
   }, [handleUnauthorized]);
 
-  // トークン未保存の場合: ユーザーが登録されているかをサーバーに問い合わせる
+  // マウント時: Cookie の JWT を検証し、無効なら登録状況を確認する
   useEffect(() => {
-    if (status !== "checking") return;
-    api
-      .checkStatus()
-      .then((result) => {
-        setStatus(result.hasUsers ? "unauthenticated" : "unregistered");
-      })
-      .catch(() => {
-        setStatus("unauthenticated");
-      });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    let cancelled = false;
+
+    (async () => {
+      const authenticated = await api.verify();
+      if (cancelled) return;
+
+      if (authenticated) {
+        setStatus("authenticated");
+        return;
+      }
+
+      try {
+        const result = await api.checkStatus();
+        if (!cancelled) {
+          setStatus(result.hasUsers ? "unauthenticated" : "unregistered");
+        }
+      } catch {
+        if (!cancelled) setStatus("unauthenticated");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     setError(null);
     try {
-      const result = await api.login(username, password);
-      localStorage.setItem(TOKEN_STORAGE_KEY, result.token);
-      setAuthToken(result.token);
+      await api.login(username, password);
       setStatus("authenticated");
     } catch (err) {
       setError(err instanceof Error ? err.message : "ログインに失敗しました");
@@ -77,9 +77,7 @@ export function useAuth(): UseAuthReturn {
   const register = useCallback(async (username: string, password: string) => {
     setError(null);
     try {
-      const result = await api.register(username, password);
-      localStorage.setItem(TOKEN_STORAGE_KEY, result.token);
-      setAuthToken(result.token);
+      await api.register(username, password);
       setStatus("authenticated");
     } catch (err) {
       setError(
@@ -89,8 +87,7 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    setAuthToken(null);
+    void api.logout();
     setStatus("unauthenticated");
   }, []);
 
