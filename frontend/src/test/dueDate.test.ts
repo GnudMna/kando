@@ -6,69 +6,50 @@ import {
   getDueHighlight,
   getDueStatusLabel,
   normalizeDueDateValue,
+  type DueHighlightResult,
 } from "../utils/dueDate";
 
 describe("dueDate utils", () => {
   // 日付差分計算が安定するよう固定日時を利用する
   const now = new Date(2026, 3, 18, 9, 0, 0);
 
-  it("期限なしの場合は強調しない", () => {
-    expect(getDueHighlight(null, 3, now)).toEqual({
-      status: "none",
-      daysUntilDue: null,
-    });
-  });
+  type DueHighlightTestCase = [
+    string | null,
+    "none" | "overdue" | "soon",
+    number | null,
+  ];
 
-  it("期限切れタスクを overdue 判定する", () => {
-    expect(getDueHighlight("2026-04-16", 3, now)).toEqual({
-      status: "overdue",
-      daysUntilDue: -2,
-    });
-  });
+  it.each<DueHighlightTestCase>([
+    [null, "none", null],
+    ["2026-04-16", "overdue", -2],
+    ["2026-04-20", "soon", 2],
+    ["2026-04-23", "none", 5],
+    ["2026-02-31", "none", null],
+    ["2026-04-20T00:00:00.000Z", "soon", 2],
+  ])(
+    "getDueHighlight(%s) returns { status: %s, daysUntilDue: %s }",
+    (value, status, daysUntilDue) => {
+      expect(getDueHighlight(value, 3, now)).toEqual({
+        status,
+        daysUntilDue,
+      });
+    },
+  );
 
-  it("閾値以内の期限を soon 判定する", () => {
-    expect(getDueHighlight("2026-04-20", 3, now)).toEqual({
-      status: "soon",
-      daysUntilDue: 2,
-    });
-  });
+  const statusLabelCases: [DueHighlightResult, string | null][] = [
+    [{ status: "overdue", daysUntilDue: -1 }, "1日遅れ"],
+    [{ status: "soon", daysUntilDue: 0 }, "今日が期限"],
+    [{ status: "soon", daysUntilDue: 1 }, "明日が期限"],
+    [{ status: "soon", daysUntilDue: 4 }, "あと4日"],
+    [{ status: "none", daysUntilDue: 2 }, null],
+  ];
 
-  it("閾値外の期限は強調しない", () => {
-    expect(getDueHighlight("2026-04-23", 3, now)).toEqual({
-      status: "none",
-      daysUntilDue: 5,
-    });
-  });
-
-  it("不正な日付文字列は強調しない", () => {
-    expect(getDueHighlight("2026-02-31", 7, now)).toEqual({
-      status: "none",
-      daysUntilDue: null,
-    });
-  });
-
-  it("ISO 形式の期限文字列も判定できる", () => {
-    expect(getDueHighlight("2026-04-20T00:00:00.000Z", 3, now)).toEqual({
-      status: "soon",
-      daysUntilDue: 2,
-    });
-  });
-
-  it("状態に応じたラベルを返す", () => {
-    expect(getDueStatusLabel({ status: "overdue", daysUntilDue: -1 })).toBe(
-      "1日遅れ",
-    );
-    expect(getDueStatusLabel({ status: "soon", daysUntilDue: 0 })).toBe(
-      "今日が期限",
-    );
-    expect(getDueStatusLabel({ status: "soon", daysUntilDue: 1 })).toBe(
-      "明日が期限",
-    );
-    expect(getDueStatusLabel({ status: "soon", daysUntilDue: 4 })).toBe(
-      "あと4日",
-    );
-    expect(getDueStatusLabel({ status: "none", daysUntilDue: 2 })).toBeNull();
-  });
+  it.each(statusLabelCases)(
+    "getDueStatusLabel(%o) returns %s",
+    (input, expected) => {
+      expect(getDueStatusLabel(input)).toBe(expected);
+    },
+  );
 
   it("formatDueDate は YYYY-MM-DD を日本語日付に整形する", () => {
     expect(formatDueDate("2026-04-18")).toBe("2026/04/18");
