@@ -2,75 +2,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { TaskCard } from "../components/TaskCard";
-import type { Task } from "../types";
 import * as api from "../api/boardApi";
+import {
+  baseTask,
+  createTaskCardProps,
+  taskWithChecklists,
+  taskWithSubtasks,
+} from "./testUtils";
 
 vi.mock("../api/boardApi");
 
-const baseTask: Task = {
-  id: 1,
-  column_id: 10,
-  content: "テストタスク",
-  due_date: null,
-  position: 1000,
-  completed: false,
-  subtasks: [],
-  checklists: [],
-  comments: [],
-};
-
-const taskWithChecklists: Task = {
-  ...baseTask,
-  checklists: [
-    {
-      id: 101,
-      task_id: 1,
-      subtask_id: null,
-      content: "チェック項目A",
-      completed: false,
-      position: 1000,
-    },
-    {
-      id: 102,
-      task_id: 1,
-      subtask_id: null,
-      content: "チェック項目B",
-      completed: true,
-      position: 2000,
-    },
-  ],
-};
-
-const taskWithSubtasks: Task = {
-  ...baseTask,
-  subtasks: [
-    {
-      id: 201,
-      task_id: 1,
-      content: "サブタスク1",
-      checklists: [
-        {
-          id: 301,
-          task_id: null,
-          subtask_id: 201,
-          content: "サブチェック",
-          completed: false,
-          position: 1000,
-        },
-      ],
-    },
-  ],
-};
-
 describe("TaskCard", () => {
-  const defaultProps = {
-    task: baseTask,
-    columnId: 10,
-    dueHighlight: { status: "none" as const, daysUntilDue: null },
-    onDeleteTask: vi.fn(),
-    onCopyTask: vi.fn(),
-    onTaskUpdated: vi.fn(),
-    onEditTask: vi.fn(),
+  const renderTaskCard = (
+    overrides?: Partial<ReturnType<typeof createTaskCardProps>>,
+  ) => {
+    const props = createTaskCardProps(overrides);
+    render(<TaskCard {...props} />);
+    return props;
   };
 
   beforeEach(() => {
@@ -78,40 +26,32 @@ describe("TaskCard", () => {
   });
 
   it("タスク内容が表示されること", () => {
-    render(<TaskCard {...defaultProps} />);
+    renderTaskCard();
     expect(screen.getByText("テストタスク")).toBeInTheDocument();
   });
 
   it("タスクをクリックすると onEditTask が呼ばれること", () => {
-    render(<TaskCard {...defaultProps} />);
+    const props = renderTaskCard();
     fireEvent.click(screen.getByText("テストタスク"));
-    expect(defaultProps.onEditTask).toHaveBeenCalledWith(baseTask, 10);
+    expect(props.onEditTask).toHaveBeenCalledWith(baseTask, 10);
   });
 
   it("チェックリスト項目が表示されること", () => {
-    render(<TaskCard {...defaultProps} task={taskWithChecklists} />);
+    renderTaskCard({ task: taskWithChecklists });
     expect(screen.getByText("チェック項目A")).toBeInTheDocument();
     expect(screen.getByText("チェック項目B")).toBeInTheDocument();
   });
 
   it("期限がある場合に期限が表示されること", () => {
-    render(
-      <TaskCard
-        {...defaultProps}
-        task={{ ...baseTask, due_date: "2026-05-21" }}
-      />,
-    );
+    renderTaskCard({ task: { ...baseTask, due_date: "2026-05-21" } });
     expect(screen.getByText(/2026\/05\/21/)).toBeInTheDocument();
   });
 
   it("期限切れ状態のラベルが表示されること", () => {
-    render(
-      <TaskCard
-        {...defaultProps}
-        task={{ ...baseTask, due_date: "2026-05-21" }}
-        dueHighlight={{ status: "overdue", daysUntilDue: -2 }}
-      />,
-    );
+    renderTaskCard({
+      task: { ...baseTask, due_date: "2026-05-21" },
+      dueHighlight: { status: "overdue", daysUntilDue: -2 },
+    });
     expect(screen.getByText("2日遅れ")).toBeInTheDocument();
   });
 
@@ -127,13 +67,7 @@ describe("TaskCard", () => {
     vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
 
     const onTaskUpdated = vi.fn();
-    render(
-      <TaskCard
-        {...defaultProps}
-        task={taskWithChecklists}
-        onTaskUpdated={onTaskUpdated}
-      />,
-    );
+    renderTaskCard({ task: taskWithChecklists, onTaskUpdated });
 
     // 未完了のチェックリストボタンをクリック
     fireEvent.click(
@@ -161,13 +95,7 @@ describe("TaskCard", () => {
       new Error("network error"),
     );
     const onTaskUpdated = vi.fn();
-    render(
-      <TaskCard
-        {...defaultProps}
-        task={taskWithChecklists}
-        onTaskUpdated={onTaskUpdated}
-      />,
-    );
+    renderTaskCard({ task: taskWithChecklists, onTaskUpdated });
     fireEvent.click(
       screen.getByRole("button", {
         name: "チェックリスト「チェック項目A」を完了にする",
@@ -180,7 +108,7 @@ describe("TaskCard", () => {
   });
 
   it("削除ボタンをクリックすると確認ダイアログが表示されること", () => {
-    render(<TaskCard {...defaultProps} />);
+    renderTaskCard();
     const deleteBtn = screen.getByRole("button", {
       name: "タスク「テストタスク」を削除",
     });
@@ -192,25 +120,25 @@ describe("TaskCard", () => {
   });
 
   it("確認ダイアログで削除を確定すると onDeleteTask が呼ばれること", () => {
-    render(<TaskCard {...defaultProps} />);
+    const props = renderTaskCard();
     fireEvent.click(
       screen.getByRole("button", { name: "タスク「テストタスク」を削除" }),
     );
     fireEvent.click(screen.getByText("削除する"));
-    expect(defaultProps.onDeleteTask).toHaveBeenCalledWith(10, 1);
+    expect(props.onDeleteTask).toHaveBeenCalledWith(10, 1);
   });
 
   it("確認ダイアログでキャンセルすると onDeleteTask が呼ばれないこと", () => {
-    render(<TaskCard {...defaultProps} />);
+    const props = renderTaskCard();
     fireEvent.click(
       screen.getByRole("button", { name: "タスク「テストタスク」を削除" }),
     );
     fireEvent.click(screen.getByText("キャンセル"));
-    expect(defaultProps.onDeleteTask).not.toHaveBeenCalled();
+    expect(props.onDeleteTask).not.toHaveBeenCalled();
   });
 
   it("サブタスクが表示されること", () => {
-    render(<TaskCard {...defaultProps} task={taskWithSubtasks} />);
+    renderTaskCard({ task: taskWithSubtasks });
     expect(screen.getByText("サブタスク1")).toBeInTheDocument();
     expect(screen.getByText("サブチェック")).toBeInTheDocument();
   });
@@ -227,13 +155,7 @@ describe("TaskCard", () => {
     vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
     const onTaskUpdated = vi.fn();
 
-    render(
-      <TaskCard
-        {...defaultProps}
-        task={taskWithSubtasks}
-        onTaskUpdated={onTaskUpdated}
-      />,
-    );
+    renderTaskCard({ task: taskWithSubtasks, onTaskUpdated });
 
     fireEvent.click(
       screen.getByRole("button", {
