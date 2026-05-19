@@ -1,5 +1,6 @@
 // リストビューコンポーネント
 // かんばんビューの代替表示。全タスクをリスト形式（行→ステータス列で表示）で表示する
+import { memo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { Row, Task } from "../types";
 import {
@@ -29,7 +30,7 @@ interface Props {
  * @param onAddTask - タスク追加コールバック
  * @returns リストビューの JSX 要素
  */
-export function ListView({
+export const ListView = memo(function ListView({
   rows,
   taskDueHighlights,
   onRowHeaderRender,
@@ -192,4 +193,4 @@ export function ListView({
       ))}
     </div>
   );
-}
+});
