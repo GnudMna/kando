@@ -2,7 +2,6 @@ import { pool } from "../db.js";
 import type { DbColumn } from "../types.js";
 import {
   deleteColumn as deleteColumnQuery,
-  insertColumn as insertColumnQuery,
   moveColumn as moveColumnQuery,
   updateColumnTitle as updateColumnTitleQuery,
 } from "../repositories/columnsRepository.js";
@@ -21,13 +20,14 @@ export async function createColumn(
   row_id: number,
   userId: number,
 ): Promise<DbColumn | null> {
-  // 親行がユーザーのものであることを確認してから挿入する
-  const check = await pool.query<{ id: number }>(
-    "SELECT id FROM rows WHERE id = $1 AND user_id = $2",
-    [row_id, userId],
+  // 所有権確認と INSERT を1クエリに統合してラウンドトリップを削減する
+  const result = await pool.query<DbColumn>(
+    `INSERT INTO columns (title, position, row_id)
+     SELECT $1, $2, id FROM rows WHERE id = $3 AND user_id = $4
+     RETURNING id, title, position, row_id`,
+    [title, position, row_id, userId],
   );
-  if (!check.rows[0]) return null;
-  return insertColumnQuery(pool, title, position, row_id);
+  return result.rows[0] ?? null;
 }
 
 /**

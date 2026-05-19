@@ -2,6 +2,7 @@
 // 各種ミドルウェアのセットアップ、ルーティング登録、サーバー起動を担う
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { pool, waitForDbWithRetry } from "./db.js";
@@ -16,6 +17,7 @@ import tasksRouter from "./routes/tasks.js";
 import subtasksRouter from "./routes/subtasks.js";
 import checklistItemsRouter from "./routes/checklistItems.js";
 import taskCommentsRouter from "./routes/taskComments.js";
+import memosRouter from "./routes/memos.js";
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -90,11 +92,14 @@ app.use(
       : (process.env.CORS_ORIGIN ?? "http://localhost:5173"),
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     optionsSuccessStatus: 204,
+    credentials: true,
   }),
 );
 
 // リクエストボディをJSONとして解析する（100kB上限でDoSを防ぐ）
 app.use(express.json({ limit: "100kb" }));
+// Cookie を解析する（HttpOnly JWT Cookie の読み取りに使用）
+app.use(cookieParser());
 // リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
 app.use(requestLogger);
 
@@ -160,6 +165,7 @@ app.use("/api/tasks", tasksRouter);
 app.use("/api/subtasks", subtasksRouter);
 app.use("/api/checklist-items", checklistItemsRouter);
 app.use("/api/task-comments", taskCommentsRouter);
+app.use("/api/memos", memosRouter);
 
 // グローバルエラーハンドラーを登録する（最後に配置する必要がある）
 app.use(errorHandler);

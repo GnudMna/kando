@@ -8,9 +8,11 @@ import type {
   ChecklistItem,
   TaskComment,
   TaskSnapshotPayload,
+  Memo,
 } from "@kando/types";
 
 export type { TaskSnapshotPayload } from "@kando/types";
+export type { Memo } from "@kando/types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -20,64 +22,53 @@ export interface FetchBoardOptions {
   offset?: number;
 }
 
-/** 現在の認証トークン（null = 未認証または認証不要） */
-let _authToken: string | null = null;
-/** 401 受信時に呼び出すコールバック */
-let _onUnauthorized: (() => void) | null = null;
-
 /**
- * 認証トークンを設定する。
- * @param token - JWT トークン。null で認証情報をクリア
+ * バックエンド API クライアント。
+ * - 認証は HttpOnly Cookie で行う（トークンを JS で保持しない）
+ * - 401 受信時にコールバックを呼ぶ（ログアウト処理）
  */
-export function setAuthToken(token: string | null): void {
-  _authToken = token;
+class BoardApiClient {
+  private onUnauthorized: (() => void) | null = null;
+
+  setOnUnauthorized(callback: () => void): void {
+    this.onUnauthorized = callback;
+  }
+
+  async request<T>(url: string, options?: RequestInit): Promise<T> {
+    const res = await fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...((options?.headers as Record<string, string>) ?? {}),
+      },
+    });
+    if (!res.ok) {
+      if (res.status === 401 && this.onUnauthorized) {
+        this.onUnauthorized();
+      }
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error ?? `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  }
+
+  json(method: string, body: unknown): RequestInit {
+    return {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    };
+  }
 }
+
+const client = new BoardApiClient();
 
 /**
  * 401 Unauthorized 受信時のコールバックを登録する。
  * @param callback - ログアウト処理など呼び出したい関数
  */
 export function setOnUnauthorized(callback: () => void): void {
-  _onUnauthorized = callback;
-}
-
-/**
- * 指定の URL に fetch リクエストを送信する汎用ラッパー。
- * @param url - リクエスト先 URL
- * @param options - fetch に渡す RequestInit オプション
- * @returns レスポンス JSON を型引数 T として解決する Promise
- * @throws HTTP エラーまたはネットワークエラー時に Error をスロー
- */
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    ...((options?.headers as Record<string, string>) ?? {}),
-  };
-  if (_authToken) {
-    headers["Authorization"] = `Bearer ${_authToken}`;
-  }
-  const res = await fetch(url, { ...options, headers });
-  if (!res.ok) {
-    if (res.status === 401 && _onUnauthorized) {
-      _onUnauthorized();
-    }
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error ?? `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-/**
- * JSON ボディ付きリクエストの RequestInit を生成するヘルパー。
- * @param method - HTTP メソッド（'POST' | 'PUT' など）
- * @param body - シリアライズするリクエストボディ
- * @returns Content-Type: application/json を含む RequestInit
- */
-function json(method: string, body: unknown): RequestInit {
-  return {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  };
+  client.setOnUnauthorized(callback);
 }
 
 /**
@@ -100,7 +91,7 @@ export const fetchBoard = (options?: FetchBoardOptions): Promise<Row[]> => {
 
   const query = params.toString();
   const url = query ? `${API_URL}/board?${query}` : `${API_URL}/board`;
-  return request<Row[]>(url);
+  return client.request<Row[]>(url);
 };
 
 // 行（プロジェクト）の操作
@@ -111,7 +102,10 @@ export const fetchBoard = (options?: FetchBoardOptions): Promise<Row[]> => {
  * @returns 作成した行を解決する Promise
  */
 export const createRow = (title: string, position: number): Promise<Row> =>
-  request<Row>(`${API_URL}/rows`, json("POST", { title, position }));
+  client.request<Row>(
+    `${API_URL}/rows`,
+    client.json("POST", { title, position }),
+  );
 
 /**
  * 行とデフォルト3カラムを一括作成する。
@@ -123,9 +117,9 @@ export const createRowWithDefaultColumns = (
   title: string,
   position: number,
 ): Promise<Row> =>
-  request<Row>(
+  client.request<Row>(
     `${API_URL}/rows/with-default-columns`,
-    json("POST", { title, position }),
+    client.json("POST", { title, position }),
   );
 
 /**
@@ -135,7 +129,7 @@ export const createRowWithDefaultColumns = (
  * @returns 更新後の行を解決する Promise
  */
 export const updateRow = (id: number, title: string): Promise<Row> =>
-  request<Row>(`${API_URL}/rows/${id}`, json("PUT", { title }));
+  client.request<Row>(`${API_URL}/rows/${id}`, client.json("PUT", { title }));
 
 /**
  * 行を削除する（配下のカラム・タスクも連鎖削除）。
@@ -143,7 +137,7 @@ export const updateRow = (id: number, title: string): Promise<Row> =>
  * @returns 完了時に解決される Promise
  */
 export const deleteRow = (id: number): Promise<void> =>
-  request<void>(`${API_URL}/rows/${id}`, { method: "DELETE" });
+  client.request<void>(`${API_URL}/rows/${id}`, { method: "DELETE" });
 
 // カラム（ステータス列）の操作
 /**
@@ -158,9 +152,9 @@ export const createColumn = (
   position: number,
   row_id: number,
 ): Promise<Column> =>
-  request<Column>(
+  client.request<Column>(
     `${API_URL}/columns`,
-    json("POST", { title, position, row_id }),
+    client.json("POST", { title, position, row_id }),
   );
 
 /**
@@ -170,7 +164,10 @@ export const createColumn = (
  * @returns 更新後のカラムを解決する Promise
  */
 export const updateColumn = (id: number, title: string): Promise<Column> =>
-  request<Column>(`${API_URL}/columns/${id}`, json("PUT", { title }));
+  client.request<Column>(
+    `${API_URL}/columns/${id}`,
+    client.json("PUT", { title }),
+  );
 
 /**
  * カラムを削除する（配下タスクも連鎖削除）。
@@ -178,7 +175,7 @@ export const updateColumn = (id: number, title: string): Promise<Column> =>
  * @returns 完了時に解決される Promise
  */
 export const deleteColumn = (id: number): Promise<void> =>
-  request<void>(`${API_URL}/columns/${id}`, { method: "DELETE" });
+  client.request<void>(`${API_URL}/columns/${id}`, { method: "DELETE" });
 
 /**
  * カラムの表示順を更新する。
@@ -187,7 +184,10 @@ export const deleteColumn = (id: number): Promise<void> =>
  * @returns 更新後のカラムを解決する Promise
  */
 export const moveColumn = (id: number, position: number): Promise<Column> =>
-  request<Column>(`${API_URL}/columns/${id}/move`, json("PUT", { position }));
+  client.request<Column>(
+    `${API_URL}/columns/${id}/move`,
+    client.json("PUT", { position }),
+  );
 
 // タスクの操作
 /**
@@ -204,9 +204,9 @@ export const createTask = (
   position: number,
   due_date: string | null = null,
 ): Promise<Task> =>
-  request<Task>(
+  client.request<Task>(
     `${API_URL}/tasks`,
-    json("POST", { column_id, content, position, due_date }),
+    client.json("POST", { column_id, content, position, due_date }),
   );
 
 /**
@@ -218,7 +218,8 @@ export const createTask = (
 export const updateTask = (
   id: number,
   patch: { content?: string; due_date?: string | null; completed?: boolean },
-): Promise<Task> => request<Task>(`${API_URL}/tasks/${id}`, json("PUT", patch));
+): Promise<Task> =>
+  client.request<Task>(`${API_URL}/tasks/${id}`, client.json("PUT", patch));
 
 /**
  * タスク編集モーダルの内容を一括保存する。
@@ -230,7 +231,10 @@ export const saveTaskSnapshot = (
   id: number,
   payload: TaskSnapshotPayload,
 ): Promise<Task> =>
-  request<Task>(`${API_URL}/tasks/${id}/snapshot`, json("PUT", payload));
+  client.request<Task>(
+    `${API_URL}/tasks/${id}/snapshot`,
+    client.json("PUT", payload),
+  );
 
 /**
  * タスクを別のカラムへ移動する。
@@ -244,9 +248,9 @@ export const moveTask = (
   column_id: number,
   position: number,
 ): Promise<Task> =>
-  request<Task>(
+  client.request<Task>(
     `${API_URL}/tasks/${id}/move`,
-    json("PUT", { column_id, position }),
+    client.json("PUT", { column_id, position }),
   );
 
 /**
@@ -255,7 +259,7 @@ export const moveTask = (
  * @returns 完了時に解決される Promise
  */
 export const deleteTask = (id: number): Promise<void> =>
-  request<void>(`${API_URL}/tasks/${id}`, { method: "DELETE" });
+  client.request<void>(`${API_URL}/tasks/${id}`, { method: "DELETE" });
 
 /**
  * タスクをコピーする（サブタスク・チェックリスト・コメントも複製）。
@@ -263,7 +267,7 @@ export const deleteTask = (id: number): Promise<void> =>
  * @returns 複製後タスクを解決する Promise
  */
 export const copyTask = (id: number): Promise<Task> =>
-  request<Task>(`${API_URL}/tasks/${id}/copy`, { method: "POST" });
+  client.request<Task>(`${API_URL}/tasks/${id}/copy`, { method: "POST" });
 
 // タスクコメントの操作
 /**
@@ -276,9 +280,9 @@ export const createTaskComment = (
   task_id: number,
   content: string,
 ): Promise<TaskComment> =>
-  request<TaskComment>(
+  client.request<TaskComment>(
     `${API_URL}/task-comments`,
-    json("POST", { task_id, content }),
+    client.json("POST", { task_id, content }),
   );
 
 /**
@@ -291,7 +295,10 @@ export const updateTaskComment = (
   id: number,
   patch: { content?: string; position?: number },
 ): Promise<TaskComment> =>
-  request<TaskComment>(`${API_URL}/task-comments/${id}`, json("PUT", patch));
+  client.request<TaskComment>(
+    `${API_URL}/task-comments/${id}`,
+    client.json("PUT", patch),
+  );
 
 /**
  * タスクコメントを削除する。
@@ -299,7 +306,7 @@ export const updateTaskComment = (
  * @returns 完了時に解決される Promise
  */
 export const deleteTaskComment = (id: number): Promise<void> =>
-  request<void>(`${API_URL}/task-comments/${id}`, { method: "DELETE" });
+  client.request<void>(`${API_URL}/task-comments/${id}`, { method: "DELETE" });
 
 // サブタスクの操作
 /**
@@ -312,7 +319,10 @@ export const createSubtask = (
   task_id: number,
   content: string,
 ): Promise<Subtask> =>
-  request<Subtask>(`${API_URL}/subtasks`, json("POST", { task_id, content }));
+  client.request<Subtask>(
+    `${API_URL}/subtasks`,
+    client.json("POST", { task_id, content }),
+  );
 
 /**
  * サブタスクの内容を更新する。
@@ -321,7 +331,10 @@ export const createSubtask = (
  * @returns 更新後サブタスクを解決する Promise
  */
 export const updateSubtask = (id: number, content: string): Promise<Subtask> =>
-  request<Subtask>(`${API_URL}/subtasks/${id}`, json("PUT", { content }));
+  client.request<Subtask>(
+    `${API_URL}/subtasks/${id}`,
+    client.json("PUT", { content }),
+  );
 
 /**
  * サブタスクを削除する（配下チェックリストも連鎖削除）。
@@ -329,7 +342,7 @@ export const updateSubtask = (id: number, content: string): Promise<Subtask> =>
  * @returns 完了時に解決される Promise
  */
 export const deleteSubtask = (id: number): Promise<void> =>
-  request<void>(`${API_URL}/subtasks/${id}`, { method: "DELETE" });
+  client.request<void>(`${API_URL}/subtasks/${id}`, { method: "DELETE" });
 
 // チェックリスト項目の操作
 /**
@@ -344,9 +357,9 @@ export const createChecklistItem = (
   task_id?: number | null,
   subtask_id?: number | null,
 ): Promise<ChecklistItem> =>
-  request<ChecklistItem>(
+  client.request<ChecklistItem>(
     `${API_URL}/checklist-items`,
-    json("POST", {
+    client.json("POST", {
       task_id: task_id ?? null,
       subtask_id: subtask_id ?? null,
       content,
@@ -363,9 +376,9 @@ export const updateChecklistItem = (
   id: number,
   patch: { completed?: boolean; content?: string; position?: number },
 ): Promise<ChecklistItem> =>
-  request<ChecklistItem>(
+  client.request<ChecklistItem>(
     `${API_URL}/checklist-items/${id}`,
-    json("PUT", patch),
+    client.json("PUT", patch),
   );
 
 /**
@@ -374,7 +387,9 @@ export const updateChecklistItem = (
  * @returns 完了時に解決される Promise
  */
 export const deleteChecklistItem = (id: number): Promise<void> =>
-  request<void>(`${API_URL}/checklist-items/${id}`, { method: "DELETE" });
+  client.request<void>(`${API_URL}/checklist-items/${id}`, {
+    method: "DELETE",
+  });
 
 export interface AuthStatusResult {
   hasUsers: boolean;
@@ -386,49 +401,125 @@ export interface AuthStatusResult {
  * @returns ステータス情報を解決する Promise
  */
 export const checkStatus = (): Promise<AuthStatusResult> =>
-  fetch(`${API_URL}/auth/status`).then(async (res) => {
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
-    return body as AuthStatusResult;
-  });
+  fetch(`${API_URL}/auth/status`, { credentials: "include" }).then(
+    async (res) => {
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+      return body as AuthStatusResult;
+    },
+  );
 
 /**
- * ユーザー名とパスワードでログインし JWT を取得する。
+ * Cookie の JWT を検証し、認証済みなら true を返す。
+ * 未認証（401）なら false を返す。ネットワークエラー時も false。
+ * @returns 認証済みかどうか
+ */
+export const verify = (): Promise<boolean> =>
+  fetch(`${API_URL}/auth/verify`, { credentials: "include" })
+    .then((res) => res.ok)
+    .catch(() => false);
+
+/**
+ * ユーザー名とパスワードでログインする。Cookie に JWT がセットされる。
  * @param username - ユーザー名
  * @param password - パスワード
- * @returns トークンを含むオブジェクトを解決する Promise
  */
-export const login = (
-  username: string,
-  password: string,
-): Promise<{ token: string }> =>
+export const login = (username: string, password: string): Promise<void> =>
   fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ username, password }),
   }).then(async (res) => {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
-    return body as { token: string };
   });
 
 /**
- * 新規ユーザーを登録し JWT を取得する。
+ * 新規ユーザーを登録する。Cookie に JWT がセットされる。
  * 既存の未割り当てデータは登録ユーザーへ移行される。
  * @param username - ユーザー名
  * @param password - パスワード（12文字以上）
- * @returns トークンを含むオブジェクトを解決する Promise
  */
-export const register = (
-  username: string,
-  password: string,
-): Promise<{ token: string }> =>
+export const register = (username: string, password: string): Promise<void> =>
   fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ username, password }),
   }).then(async (res) => {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
-    return body as { token: string };
+  });
+
+/**
+ * ログアウトする。バックエンドの Cookie をクリアする。
+ */
+export const logout = (): Promise<void> =>
+  fetch(`${API_URL}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  }).then(() => undefined);
+
+// メモの操作
+/**
+ * メモ一覧を取得する。
+ * @returns メモ配列を解決する Promise
+ */
+export const fetchMemos = (): Promise<Memo[]> =>
+  client.request<Memo[]>(`${API_URL}/memos`);
+
+/**
+ * 新しいメモを作成する。
+ * @param title - タイトル
+ * @param content - 内容
+ * @returns 作成したメモを解決する Promise
+ */
+export const createMemo = (title: string, content: string): Promise<Memo> =>
+  client.request<Memo>(
+    `${API_URL}/memos`,
+    client.json("POST", { title, content }),
+  );
+
+/**
+ * メモを更新する。
+ * @param id - メモ ID
+ * @param patch - 更新フィールド
+ * @returns 更新後メモを解決する Promise
+ */
+export const updateMemo = (
+  id: number,
+  patch: { title?: string; content?: string },
+): Promise<Memo> =>
+  client.request<Memo>(`${API_URL}/memos/${id}`, client.json("PUT", patch));
+
+/**
+ * メモを削除する。
+ * @param id - メモ ID
+ * @returns 完了時に解決される Promise
+ */
+export const deleteMemo = (id: number): Promise<void> =>
+  client.request<void>(`${API_URL}/memos/${id}`, { method: "DELETE" });
+
+/**
+ * タスクをメモに関連付ける。
+ * @param memoId - メモ ID
+ * @param taskId - タスク ID
+ * @returns 更新後メモを解決する Promise
+ */
+export const linkMemoTask = (memoId: number, taskId: number): Promise<Memo> =>
+  client.request<Memo>(
+    `${API_URL}/memos/${memoId}/tasks`,
+    client.json("POST", { task_id: taskId }),
+  );
+
+/**
+ * タスクとメモの関連付けを解除する。
+ * @param memoId - メモ ID
+ * @param taskId - タスク ID
+ * @returns 更新後メモを解決する Promise
+ */
+export const unlinkMemoTask = (memoId: number, taskId: number): Promise<Memo> =>
+  client.request<Memo>(`${API_URL}/memos/${memoId}/tasks/${taskId}`, {
+    method: "DELETE",
   });

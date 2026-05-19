@@ -1,5 +1,5 @@
 // タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
-import { useId, useState, useRef } from "react";
+import { useId, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -11,7 +11,9 @@ import {
   GripVertical,
   CircleCheck,
   Circle,
+  FileText,
 } from "lucide-react";
+import { useDraggable } from "../hooks/useDraggable";
 import type {
   Task,
   LocalTask,
@@ -19,6 +21,7 @@ import type {
   LocalChecklistItem,
   TempId,
 } from "../types";
+import type { Memo } from "../api/boardApi";
 import * as api from "../api/boardApi";
 import { formatDueDate, normalizeDueDateValue } from "../utils/dueDate";
 import { POSITION_GAP } from "../utils/constants";
@@ -70,9 +73,52 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // 保存中エラーとローディング状態
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // 関連メモ状態
+  const [allMemos, setAllMemos] = useState<Memo[] | null>(null);
+  const [linkedMemoIds, setLinkedMemoIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [memoLinkError, setMemoLinkError] = useState<string | null>(null);
+  const [showMemoPicker, setShowMemoPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const modalTitleId = useId();
   const taskContentInputId = useId();
   const taskDueDateInputId = useId();
+
+  // モーダルマウント時にメモ一覧を取得する
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .fetchMemos()
+      .then((memos) => {
+        if (cancelled) return;
+        setAllMemos(memos);
+        const linked = new Set(
+          memos
+            .filter((m) => m.tasks.some((t) => t.id === task.id))
+            .map((m) => m.id),
+        );
+        setLinkedMemoIds(linked);
+      })
+      .catch(() => {
+        if (!cancelled) setAllMemos([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [task.id]);
+
+  // ピッカー外クリックで閉じる
+  useEffect(() => {
+    if (!showMemoPicker) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowMemoPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMemoPicker]);
 
   /**
    * ローカルの編集内容を API に保存してモーダルを閉じる。
@@ -322,16 +368,36 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
     });
   };
 
+  const { containerRef, onHandleMouseDown, posStyle, isDragged, isDragging } =
+    useDraggable();
+
   return createPortal(
-    <div className="modal-overlay">
+    <div
+      className="modal-overlay"
+      style={
+        isDragged
+          ? {
+              background: "transparent",
+              backdropFilter: "none",
+              pointerEvents: "none",
+            }
+          : undefined
+      }
+    >
       <div
         className="modal-content"
+        ref={containerRef}
+        style={{ ...posStyle, pointerEvents: "auto" }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={modalTitleId}
       >
-        <div className="modal-header">
+        <div
+          className="modal-header drag-handle"
+          onMouseDown={onHandleMouseDown}
+          style={{ cursor: isDragging ? "grabbing" : "grab" }}
+        >
           <h3 id={modalTitleId} className="modal-title">
             タスクを編集
           </h3>
@@ -735,6 +801,157 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                 <Plus size={12} /> サブタスクを追加
               </button>
             )}
+          </div>
+
+          {/* 関連メモセクション */}
+          <div className="modal-section">
+            <div className="memo-link-header">
+              <label className="modal-label">
+                <FileText
+                  size={13}
+                  aria-hidden="true"
+                  style={{ verticalAlign: "middle", marginRight: "0.3rem" }}
+                />
+                関連メモ
+              </label>
+              {allMemos !== null &&
+                allMemos.filter((m) => !linkedMemoIds.has(m.id)).length > 0 && (
+                  <div className="memo-picker-wrap" ref={pickerRef}>
+                    <button
+                      type="button"
+                      className="btn memo-picker-trigger"
+                      onClick={() => setShowMemoPicker((p) => !p)}
+                      aria-expanded={showMemoPicker}
+                      aria-haspopup="listbox"
+                    >
+                      <Plus size={13} />
+                      メモを追加
+                    </button>
+                    {showMemoPicker && (
+                      <div
+                        className="memo-picker-dropdown"
+                        role="listbox"
+                        aria-label="メモを選択"
+                      >
+                        {allMemos
+                          .filter((m) => !linkedMemoIds.has(m.id))
+                          .map((memo) => (
+                            <button
+                              key={memo.id}
+                              type="button"
+                              className="memo-picker-item"
+                              role="option"
+                              aria-selected="false"
+                              onClick={() => {
+                                setMemoLinkError(null);
+                                api
+                                  .linkMemoTask(memo.id, task.id)
+                                  .then(() => {
+                                    setLinkedMemoIds(
+                                      (prev) => new Set([...prev, memo.id]),
+                                    );
+                                    setShowMemoPicker(false);
+                                  })
+                                  .catch((err: unknown) => {
+                                    setMemoLinkError(
+                                      err instanceof Error
+                                        ? err.message
+                                        : "関連付けに失敗しました",
+                                    );
+                                  });
+                              }}
+                            >
+                              <FileText size={12} aria-hidden="true" />
+                              {memo.title.trim() || "（タイトルなし）"}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+            </div>
+
+            {allMemos === null && (
+              <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                読み込み中…
+              </p>
+            )}
+            {allMemos !== null && allMemos.length === 0 && (
+              <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                メモがありません。メモ帳からメモを作成してください。
+              </p>
+            )}
+            {memoLinkError && (
+              <p
+                style={{
+                  color: "var(--danger-color)",
+                  fontSize: "0.8rem",
+                  marginTop: "0.25rem",
+                }}
+              >
+                {memoLinkError}
+              </p>
+            )}
+            {allMemos !== null && linkedMemoIds.size > 0 && (
+              <div className="memo-linked-chips">
+                {allMemos
+                  .filter((m) => linkedMemoIds.has(m.id))
+                  .map((memo) => (
+                    <div key={memo.id} className="memo-linked-chip">
+                      <button
+                        type="button"
+                        className="memo-linked-chip-open"
+                        aria-label={`「${memo.title || "メモ"}」を開く`}
+                        onClick={() => {
+                          window.dispatchEvent(
+                            new CustomEvent("kando:open-memo", {
+                              detail: { memoId: memo.id },
+                            }),
+                          );
+                        }}
+                      >
+                        <FileText size={11} aria-hidden="true" />
+                        <span className="memo-linked-chip-title">
+                          {memo.title.trim() || "（タイトルなし）"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="memo-linked-chip-remove"
+                        aria-label={`「${memo.title || "メモ"}」の関連付けを解除`}
+                        onClick={() => {
+                          setMemoLinkError(null);
+                          api
+                            .unlinkMemoTask(memo.id, task.id)
+                            .then(() => {
+                              setLinkedMemoIds((prev) => {
+                                const next = new Set(prev);
+                                next.delete(memo.id);
+                                return next;
+                              });
+                            })
+                            .catch((err: unknown) => {
+                              setMemoLinkError(
+                                err instanceof Error
+                                  ? err.message
+                                  : "解除に失敗しました",
+                              );
+                            });
+                        }}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+            {allMemos !== null &&
+              allMemos.length > 0 &&
+              linkedMemoIds.size === 0 && (
+                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                  関連付けられたメモはありません
+                </p>
+              )}
           </div>
         </div>
 

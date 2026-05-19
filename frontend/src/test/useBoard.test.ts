@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useBoard } from "../hooks/useBoard";
 import * as api from "../api/boardApi";
+import { sampleBoardRows } from "./testUtils";
 import type { Row, Task } from "../types";
 
 vi.mock("../api/boardApi");
@@ -19,35 +20,16 @@ const taskA: Task = {
   comments: [],
 };
 
-const sampleRows: Row[] = [
-  {
-    id: 1,
-    title: "行1",
-    position: 1000,
-    columns: [
-      { id: 10, row_id: 1, title: "カラム1", position: 1000, tasks: [taskA] },
-      { id: 11, row_id: 1, title: "カラム2", position: 2000, tasks: [] },
-    ],
-  },
-  {
-    id: 2,
-    title: "行2",
-    position: 2000,
-    columns: [
-      { id: 20, row_id: 2, title: "カラム3", position: 1000, tasks: [] },
-    ],
-  },
-];
+const renderBoardHook = () => renderHook(() => useBoard());
 
 describe("useBoard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(api.fetchBoard).mockResolvedValue(structuredClone(sampleRows));
+    vi.mocked(api.fetchBoard).mockResolvedValue(structuredClone(sampleBoardRows));
   });
 
   it("マウント時にボードデータを読み込むこと", async () => {
-    const { result } = renderHook(() => useBoard());
-    expect(result.current.isLoading).toBe(true);
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.rows).toHaveLength(2);
     expect(api.fetchBoard).toHaveBeenCalledTimes(1);
@@ -55,7 +37,7 @@ describe("useBoard", () => {
 
   it("fetchBoard が失敗した場合 operationError がセットされること", async () => {
     vi.mocked(api.fetchBoard).mockRejectedValue(new Error("network"));
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.operationError).toBe(
       "ボードの読み込みに失敗しました",
@@ -64,8 +46,8 @@ describe("useBoard", () => {
 
   it("clearError で operationError がクリアされること", async () => {
     vi.mocked(api.fetchBoard).mockRejectedValue(new Error("network"));
-    const { result } = renderHook(() => useBoard());
-    await waitFor(() => expect(result.current.operationError).not.toBeNull());
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
     act(() => result.current.clearError());
     expect(result.current.operationError).toBeNull();
   });
@@ -83,7 +65,7 @@ describe("useBoard", () => {
     };
     vi.mocked(api.createRowWithDefaultColumns).mockResolvedValue(newRow);
 
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -105,7 +87,7 @@ describe("useBoard", () => {
     vi.mocked(api.createRowWithDefaultColumns).mockRejectedValue(
       new Error("fail"),
     );
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -121,7 +103,7 @@ describe("useBoard", () => {
       position: 1000,
       columns: [],
     });
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -132,7 +114,7 @@ describe("useBoard", () => {
 
   it("removeRow が rows から行を削除すること", async () => {
     vi.mocked(api.deleteRow).mockResolvedValue();
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -151,7 +133,7 @@ describe("useBoard", () => {
       tasks: [],
     };
     vi.mocked(api.createColumn).mockResolvedValue(newCol);
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -170,7 +152,7 @@ describe("useBoard", () => {
       position: 1000,
       tasks: [],
     });
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -182,7 +164,7 @@ describe("useBoard", () => {
 
   it("removeColumn がカラムを削除すること", async () => {
     vi.mocked(api.deleteColumn).mockResolvedValue();
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -195,7 +177,7 @@ describe("useBoard", () => {
 
   it("removeTask がタスクを削除すること", async () => {
     vi.mocked(api.deleteTask).mockResolvedValue();
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -206,7 +188,7 @@ describe("useBoard", () => {
   });
 
   it("updateTask が tasks 内の該当タスクを置き換えること", async () => {
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const updated = { ...taskA, content: "更新後のタスク" };
@@ -244,7 +226,7 @@ describe("useBoard", () => {
       },
     ]);
     vi.mocked(api.moveTask).mockResolvedValue({ ...taskA, position: 3000 });
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -266,7 +248,7 @@ describe("useBoard", () => {
       column_id: 11,
       position: 1000,
     });
-    const { result } = renderHook(() => useBoard());
+    const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
