@@ -77,6 +77,69 @@ interface ConfirmState {
   onConfirm: () => void;
 }
 
+interface InlineNameFormProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  className?: string;
+  inputClassName?: string;
+}
+
+/** 行・カラム追加用のインライン入力フォーム */
+function InlineNameForm({
+  label,
+  placeholder,
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+  className,
+  inputClassName = "inline-name-input",
+}: InlineNameFormProps) {
+  const trimmed = value.trim();
+
+  return (
+    <form
+      className={className ? `inline-name-form ${className}` : "inline-name-form"}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (trimmed) onSubmit();
+      }}
+    >
+      <input
+        autoFocus
+        type="text"
+        className={inputClassName}
+        placeholder={placeholder}
+        value={value}
+        aria-label={label}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+      />
+      <div className="inline-name-form-actions">
+        <button
+          type="submit"
+          className="btn btn-primary btn-compact"
+          disabled={!trimmed}
+        >
+          追加
+        </button>
+        <button type="button" className="btn btn-compact" onClick={onCancel}>
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
 // ---- BoardColumn ----------------------------------------------------------------
 // カラムヘッダー（インライン編集）とタスク一覧を管理する memoized コンポーネント。
 // KanbanBoard の無関係な state 変化（モーダル開閉など）による再レンダリングを防ぐ。
@@ -298,6 +361,12 @@ export function KanbanBoard() {
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
   // インライン編集中の行を管理する
   const [editingRow, setEditingRow] = useState<InlineEditState | null>(null);
+  const [isAddingRow, setIsAddingRow] = useState(false);
+  const [newRowTitle, setNewRowTitle] = useState("");
+  const [addingColumnRowId, setAddingColumnRowId] = useState<number | null>(
+    null,
+  );
+  const [newColumnTitle, setNewColumnTitle] = useState("");
   // 確認ダイアログの表示状態を管理する
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   // ドラッグ中に is-dragging クラスを付けて CSS トランジションを抑制するための ref
@@ -406,29 +475,50 @@ export function KanbanBoard() {
     [moveTask, moveColumn],
   );
 
-  /**
-   * 行追加ダイアログを表示して新しい行を作成する。
-   * @returns 追加処理完了時に解決される Promise
-   */
-  const handleAddRow = useCallback(async () => {
-    const title = prompt("行のタイトルを入力してください");
-    if (!title) return;
-    await addRow(title);
-  }, [addRow]);
+  const startAddRow = useCallback(() => {
+    setAddingColumnRowId(null);
+    setNewColumnTitle("");
+    setIsAddingRow(true);
+    setNewRowTitle("");
+  }, []);
+
+  const cancelAddRow = useCallback(() => {
+    setIsAddingRow(false);
+    setNewRowTitle("");
+  }, []);
 
   /**
-   * カラム名入力ダイアログを表示して新しいカラムを追加する。
-   * @param rowId - カラムを追加する行 ID
+   * インライン入力で入力した行タイトルで新しい行を作成する。
    * @returns 追加処理完了時に解決される Promise
    */
-  const handleAddColumn = useCallback(
-    async (rowId: number) => {
-      const title = prompt("ステータス名を入力してください");
-      if (!title) return;
-      await addColumn(rowId, title);
-    },
-    [addColumn],
-  );
+  const submitAddRow = useCallback(async () => {
+    const title = newRowTitle.trim();
+    if (!title) return;
+    await addRow(title);
+    cancelAddRow();
+  }, [addRow, cancelAddRow, newRowTitle]);
+
+  const startAddColumn = useCallback((rowId: number) => {
+    setAddingColumnRowId(rowId);
+    setNewColumnTitle("");
+  }, []);
+
+  const cancelAddColumn = useCallback(() => {
+    setAddingColumnRowId(null);
+    setNewColumnTitle("");
+  }, []);
+
+  /**
+   * インライン入力で入力したステータス名で新しいカラムを追加する。
+   * @returns 追加処理完了時に解決される Promise
+   */
+  const submitAddColumn = useCallback(async () => {
+    if (addingColumnRowId === null) return;
+    const title = newColumnTitle.trim();
+    if (!title) return;
+    await addColumn(addingColumnRowId, title);
+    cancelAddColumn();
+  }, [addColumn, addingColumnRowId, cancelAddColumn, newColumnTitle]);
 
   /**
    * 行名インライン編集を確定する。内容が空の場合は保存しない。
@@ -583,13 +673,26 @@ export function KanbanBoard() {
           </button>
         )}
         <div className="board-row-header-actions">
-          <button
-            type="button"
-            className="btn btn-compact"
-            onClick={() => void handleAddColumn(row.id)}
-          >
-            <Plus size={14} /> ステータスを追加
-          </button>
+          {addingColumnRowId === row.id ? (
+            <InlineNameForm
+              label="ステータス名"
+              placeholder="ステータス名を入力"
+              value={newColumnTitle}
+              onChange={setNewColumnTitle}
+              onSubmit={() => void submitAddColumn()}
+              onCancel={cancelAddColumn}
+              className="inline-name-form-row-header"
+              inputClassName="board-row-title-input"
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-compact"
+              onClick={() => startAddColumn(row.id)}
+            >
+              <Plus size={14} /> ステータスを追加
+            </button>
+          )}
           <button
             type="button"
             className="action-btn"
@@ -606,7 +709,17 @@ export function KanbanBoard() {
         </div>
       </div>
     ),
-    [editingRow, handleSaveRowTitle, handleAddColumn, confirmAction, removeRow],
+    [
+      addingColumnRowId,
+      cancelAddColumn,
+      confirmAction,
+      editingRow,
+      handleSaveRowTitle,
+      newColumnTitle,
+      removeRow,
+      startAddColumn,
+      submitAddColumn,
+    ],
   );
 
   if (isLoading) {
@@ -631,13 +744,25 @@ export function KanbanBoard() {
       )}
 
       <div className="board-toolbar">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void handleAddRow()}
-        >
-          <Plus size={16} /> 行を追加
-        </button>
+        {isAddingRow ? (
+          <InlineNameForm
+            label="行のタイトル"
+            placeholder="行のタイトルを入力"
+            value={newRowTitle}
+            onChange={setNewRowTitle}
+            onSubmit={() => void submitAddRow()}
+            onCancel={cancelAddRow}
+            className="inline-name-form-toolbar"
+          />
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={startAddRow}
+          >
+            <Plus size={16} /> 行を追加
+          </button>
+        )}
 
         <div className="board-toolbar-right">
           <div className="task-search" role="search">
@@ -746,13 +871,25 @@ export function KanbanBoard() {
           <p className="board-empty-description">
             「行を追加」から最初のワークフローを作成しましょう。
           </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => void handleAddRow()}
-          >
-            <Plus size={16} /> 最初の行を追加
-          </button>
+          {isAddingRow ? (
+            <InlineNameForm
+              label="行のタイトル"
+              placeholder="行のタイトルを入力"
+              value={newRowTitle}
+              onChange={setNewRowTitle}
+              onSubmit={() => void submitAddRow()}
+              onCancel={cancelAddRow}
+              className="inline-name-form-empty"
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={startAddRow}
+            >
+              <Plus size={16} /> 最初の行を追加
+            </button>
+          )}
         </div>
       ) : activeRows.length === 0 ? (
         <div className="board-empty-state">
