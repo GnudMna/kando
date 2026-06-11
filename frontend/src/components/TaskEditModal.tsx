@@ -28,6 +28,24 @@ import { POSITION_GAP } from "../utils/constants";
 import { tempId, isTemp } from "../utils/localId";
 import { CommentSection } from "./CommentSection";
 
+const MEMO_CACHE_TTL_MS = 30_000;
+let memoCacheValue: Memo[] | null = null;
+let memoCacheExpiry = 0;
+
+function getCachedMemos(): Memo[] | null {
+  if (memoCacheValue && Date.now() < memoCacheExpiry) return memoCacheValue;
+  return null;
+}
+
+function setCachedMemos(memos: Memo[]): void {
+  memoCacheValue = memos;
+  memoCacheExpiry = Date.now() + MEMO_CACHE_TTL_MS;
+}
+
+function invalidateMemoCache(): void {
+  memoCacheExpiry = 0;
+}
+
 interface Props {
   task: Task;
   onClose: (reason: "saved" | "dismiss") => void;
@@ -73,11 +91,17 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   // 保存中エラーとローディング状態
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  // 関連メモ状態
-  const [allMemos, setAllMemos] = useState<Memo[] | null>(null);
-  const [linkedMemoIds, setLinkedMemoIds] = useState<Set<number>>(
-    () => new Set(),
-  );
+  // 関連メモ状態（キャッシュ存在時はマウント時点で初期値として利用）
+  const [allMemos, setAllMemos] = useState<Memo[] | null>(() => getCachedMemos());
+  const [linkedMemoIds, setLinkedMemoIds] = useState<Set<number>>(() => {
+    const cached = getCachedMemos();
+    if (!cached) return new Set<number>();
+    return new Set(
+      cached
+        .filter((m) => m.tasks.some((t) => t.id === task.id))
+        .map((m) => m.id),
+    );
+  });
   const [memoLinkError, setMemoLinkError] = useState<string | null>(null);
   const [showMemoPicker, setShowMemoPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -85,13 +109,16 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   const taskContentInputId = useId();
   const taskDueDateInputId = useId();
 
-  // モーダルマウント時にメモ一覧を取得する
+  // キャッシュが古い場合のみAPIからメモ一覧を取得する
   useEffect(() => {
+    if (getCachedMemos()) return;
+
     let cancelled = false;
     api
       .fetchMemos()
       .then((memos) => {
         if (cancelled) return;
+        setCachedMemos(memos);
         setAllMemos(memos);
         const linked = new Set(
           memos
@@ -847,6 +874,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                                 api
                                   .linkMemoTask(memo.id, task.id)
                                   .then(() => {
+                                    invalidateMemoCache();
                                     setLinkedMemoIds(
                                       (prev) => new Set([...prev, memo.id]),
                                     );
@@ -924,6 +952,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                           api
                             .unlinkMemoTask(memo.id, task.id)
                             .then(() => {
+                              invalidateMemoCache();
                               setLinkedMemoIds((prev) => {
                                 const next = new Set(prev);
                                 next.delete(memo.id);

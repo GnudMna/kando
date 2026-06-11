@@ -158,6 +158,13 @@ export function getDueStatusLabel(result: DueHighlightResult): string | null {
   return `あと${result.daysUntilDue}日`;
 }
 
+const dueDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: "UTC",
+});
+
 /**
  * 期限日を `ja-JP` ロケールの表示文字列へ変換する。
  * 無効値はそのまま返し、入力値の情報を失わないようにする。
@@ -173,10 +180,5 @@ export function formatDueDate(value: string): string {
   const utcMs = parseDueDateToUtcMs(normalized);
   if (utcMs === null) return value;
 
-  return new Date(utcMs).toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "UTC",
-  });
+  return dueDateFormatter.format(utcMs);
 }

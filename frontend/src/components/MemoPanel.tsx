@@ -11,6 +11,17 @@ import {
 } from "../api/boardApi";
 import { useDraggable } from "../hooks/useDraggable";
 
+const memoDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function formatDate(iso: string): string {
+  return memoDateFormatter.format(new Date(iso));
+}
+
 interface MemoPanelProps {
   onClose: () => void;
   initialMemoId?: number;
@@ -209,14 +220,6 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
     window.addEventListener("kando:open-memo", handler);
     return () => window.removeEventListener("kando:open-memo", handler);
   }, [memos, handleSelect]);
-
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("ja-JP", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
 
   const { containerRef, onHandleMouseDown, posStyle, isDragging } =
     useDraggable();

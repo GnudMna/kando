@@ -722,7 +722,6 @@ body::after {
   border-radius: 22px;
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  backdrop-filter: blur(5px);
 }
 
 .board-row-header {
@@ -881,6 +880,7 @@ body::after {
   cursor: grab;
   position: relative;
   box-shadow: var(--task-shadow);
+  contain: layout style;
   transition:
     box-shadow 0.18s ease,
     border-color 0.18s ease;
@@ -899,6 +899,25 @@ body::after {
 .task-card-dragging {
   border-color: var(--task-hover-border);
   box-shadow: var(--task-drag-shadow);
+  will-change: transform;
+  cursor: grabbing;
+}
+
+/* ドラッグ中: ドラッグされていないカードのトランジション・ホバーを停止してrepaintを抑制 */
+.kanban-wrapper.is-dragging .task-card:not(.task-card-dragging) {
+  transition: none;
+  pointer-events: none;
+}
+
+/* ドラッグ中: カラムのホバートランジションも停止 */
+.kanban-wrapper.is-dragging .column-container {
+  transition: none;
+}
+
+/* ドラッグ中: カラムのホバー浮き上がりを抑制 */
+.kanban-wrapper.is-dragging .column-container:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .task-card.task-overdue {
