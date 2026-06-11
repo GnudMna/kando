@@ -20,6 +20,10 @@ const taskA: Task = {
   comments: [],
 };
 
+/**
+ * `useBoard` フックを Testing Library でレンダリングする。
+ * @returns `renderHook` の戻り値
+ */
 const renderBoardHook = () => renderHook(() => useBoard());
 
 describe("useBoard", () => {
@@ -28,11 +32,52 @@ describe("useBoard", () => {
     vi.mocked(api.fetchBoard).mockResolvedValue(structuredClone(sampleBoardRows));
   });
 
-  it("マウント時にボードデータを読み込むこと", async () => {
+  it("マウント時にボードデータを先頭ページのみ読み込むこと", async () => {
     const { result } = await renderBoardHook();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.rows).toHaveLength(2);
     expect(api.fetchBoard).toHaveBeenCalledTimes(1);
+    expect(api.fetchBoard).toHaveBeenCalledWith({ limit: 20 });
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  it("初回取得がページサイズと同数のとき hasMore が true になること", async () => {
+    const pageRows = Array.from({ length: 20 }, (_, index) => ({
+      id: index + 1,
+      title: `行${index + 1}`,
+      position: (index + 1) * 1000,
+      columns: [],
+    }));
+    vi.mocked(api.fetchBoard).mockResolvedValue(pageRows);
+
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.rows).toHaveLength(20);
+    expect(result.current.hasMore).toBe(true);
+  });
+
+  it("loadMoreRows が次ページを末尾に追記すること", async () => {
+    const extraRow: Row = {
+      id: 3,
+      title: "行3",
+      position: 3000,
+      columns: [],
+    };
+    vi.mocked(api.fetchBoard)
+      .mockResolvedValueOnce(structuredClone(sampleBoardRows))
+      .mockResolvedValueOnce([extraRow]);
+
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.loadMoreRows();
+    });
+
+    expect(result.current.rows).toHaveLength(3);
+    expect(api.fetchBoard).toHaveBeenLastCalledWith({ limit: 20, offset: 2 });
+    expect(result.current.hasMore).toBe(false);
   });
 
   it("fetchBoard が失敗した場合 operationError がセットされること", async () => {

@@ -2,22 +2,35 @@ import { vi } from "vitest";
 import type { Mock } from "vitest";
 import type { Row, Task } from "../types";
 
+/** Vitest でモックする `fetch` レスポンスの最小形状。 */
 export type FetchResponse = {
   ok: boolean;
   status?: number;
   json: () => Promise<unknown>;
 };
 
+/** `createFetchMock` が返す `fetch` モック関数の型。 */
 export type FetchMock = Mock<(
   request: RequestInfo,
   init?: RequestInit,
 ) => Promise<FetchResponse>>;
 
+/**
+ * `fetch` の Vitest モックを生成する。
+ * @returns 未設定の `fetch` モック関数
+ */
 export const createFetchMock = (): FetchMock => vi.fn<(
   request: RequestInfo,
   init?: RequestInit,
 ) => Promise<FetchResponse>>();
 
+/**
+ * 次の `fetch` 呼び出しに JSON レスポンスを返すようモックを設定する。
+ * @param fetchMock - 設定対象の fetch モック
+ * @param body - レスポンスボディ
+ * @param status - HTTP ステータスコード（既定: 200）
+ * @returns なし
+ */
 export const respondWithJson = <T>(
   fetchMock: FetchMock,
   body: T,
@@ -30,6 +43,13 @@ export const respondWithJson = <T>(
   });
 };
 
+/**
+ * 次の `fetch` 呼び出しにエラーレスポンスを返すようモックを設定する。
+ * @param fetchMock - 設定対象の fetch モック
+ * @param status - HTTP ステータスコード
+ * @param body - エラーレスポンスボディ
+ * @returns なし
+ */
 export const respondWithJsonError = (
   fetchMock: FetchMock,
   status: number,
@@ -42,6 +62,7 @@ export const respondWithJsonError = (
   });
 };
 
+/** `TaskCard` コンポーネントの props（テスト用）。 */
 export interface TaskCardProps {
   task: Task;
   columnId: number;
@@ -52,6 +73,7 @@ export interface TaskCardProps {
   onEditTask: (task: Task, colId: number) => void;
 }
 
+/** テスト用の最小タスクデータ。 */
 export const baseTask: Task = {
   id: 1,
   column_id: 10,
@@ -64,6 +86,7 @@ export const baseTask: Task = {
   comments: [],
 };
 
+/** チェックリスト付きのテスト用タスクデータ。 */
 export const taskWithChecklists: Task = {
   ...baseTask,
   checklists: [
@@ -86,6 +109,7 @@ export const taskWithChecklists: Task = {
   ],
 };
 
+/** サブタスク付きのテスト用タスクデータ。 */
 export const taskWithSubtasks: Task = {
   ...baseTask,
   subtasks: [
@@ -107,6 +131,11 @@ export const taskWithSubtasks: Task = {
   ],
 };
 
+/**
+ * `TaskCard` コンポーネントのテスト用 props を生成する。
+ * @param overrides - 上書きする props の一部
+ * @returns デフォルト値付きの `TaskCardProps`
+ */
 export const createTaskCardProps = (
   overrides?: Partial<TaskCardProps>,
 ): TaskCardProps => ({
@@ -120,6 +149,37 @@ export const createTaskCardProps = (
   ...overrides,
 });
 
+/**
+ * `useBoard` フックのモック戻り値を生成する。
+ * @param overrides - 上書きする戻り値プロパティ
+ * @returns サンプルボードデータ付きのモック戻り値
+ */
+export const createMockUseBoardReturn = (
+  overrides?: Record<string, unknown>,
+) => ({
+  rows: structuredClone(sampleBoardRows),
+  isLoading: false,
+  isLoadingMore: false,
+  hasMore: false,
+  operationError: null,
+  clearError: vi.fn(),
+  loadMoreRows: vi.fn().mockResolvedValue(undefined),
+  addRow: vi.fn().mockResolvedValue(undefined),
+  renameRow: vi.fn().mockResolvedValue(undefined),
+  removeRow: vi.fn().mockResolvedValue(undefined),
+  addColumn: vi.fn().mockResolvedValue(undefined),
+  renameColumn: vi.fn().mockResolvedValue(undefined),
+  removeColumn: vi.fn().mockResolvedValue(undefined),
+  addTask: vi.fn().mockResolvedValue(null),
+  removeTask: vi.fn().mockResolvedValue(undefined),
+  copyTask: vi.fn().mockResolvedValue(null),
+  updateTask: vi.fn(),
+  moveTask: vi.fn().mockResolvedValue(undefined),
+  moveColumn: vi.fn().mockResolvedValue(undefined),
+  ...overrides,
+});
+
+/** `useBoard` モック等で使うサンプルボード行データ。 */
 export const sampleBoardRows: Row[] = [
   {
     id: 1,

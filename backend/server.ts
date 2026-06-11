@@ -121,9 +121,11 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
 });
-app.use("/api/auth/login", authLimiter);
-app.use("/api/auth/register", authLimiter);
-app.use("/api/auth/status", authLimiter);
+if (process.env.E2E_TEST !== "true") {
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/register", authLimiter);
+  app.use("/api/auth/status", authLimiter);
+}
 
 // ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
 app.get("/api/liveness", (_req, res) => {
@@ -275,6 +277,7 @@ async function startServer(): Promise<void> {
       console.error("Uncaught exception:", err);
       handleSignal("SIGTERM");
     });
+    // uncaughtException と異なり rejection はログのみ（進行中リクエストを優先してプロセスを継続する）
     process.on("unhandledRejection", (reason) => {
       console.error("Unhandled rejection:", reason);
     });

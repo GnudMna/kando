@@ -125,4 +125,5 @@ router.delete(
   },
 );
 
+/** 行（プロジェクト）CRUD API の Express ルーター。 */
 export default router;

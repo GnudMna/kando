@@ -115,7 +115,8 @@ async function runMigrations(): Promise<void> {
     await client.query(`
       UPDATE checklist_items SET position = id * 1000 WHERE position = 0;
     `);
-    // checklist_items は task_id / subtask_id のどちらか一方のみを保持する
+    // checklist_items は task_id / subtask_id のどちらか一方のみを保持する。
+    // NOT VALID で追加し既存データを検証後に VALIDATE する（不正行がある環境でもマイグレーションを止めない）
     await client.query(`
       DO $$
       BEGIN

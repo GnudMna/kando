@@ -1,10 +1,14 @@
 const DATE_PREFIX_RE = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** 期限バッジの強調状態。 */
 export type DueHighlightStatus = "none" | "soon" | "overdue";
 
+/** `getDueHighlight` の計算結果。 */
 export interface DueHighlightResult {
+  /** バッジ表示状態 */
   status: DueHighlightStatus;
+  /** 期限までの残日数。表示不要時は `null` */
   daysUntilDue: number | null;
 }
 
@@ -94,7 +98,10 @@ function normalizeDueSoonDays(value: number): number {
 
 /**
  * 現在日付との差分から、期限バッジの状態と残り日数を算出する。
- * 日付比較はローカル時刻の時分秒を無視し、日単位で行う。
+ *
+ * 期限日は UTC 00:00 としてパースし、「今日」はローカル暦日を UTC ms に変換して比較する。
+ * タイムゾーン境界で off-by-one になり得るが、入力が日付のみのためこの方針を採用している。
+ *
  * @param dueDate - 期限日（`YYYY-MM-DD`）
  * @param dueSoonDays - 「期限が近い」と判定する日数しきい値
  * @param now - 比較基準日時（テスト時に差し替え可能）
@@ -119,6 +126,7 @@ export function getDueHighlight(
     return { status: "none", daysUntilDue: null };
   }
 
+  // ローカル暦日を UTC ms に変換して日単位差分を算出する（上記 JSDoc のタイムゾーン方針）
   const todayUtcMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const daysUntilDue = Math.trunc((dueUtcMs - todayUtcMs) / DAY_MS);
 
@@ -158,6 +166,13 @@ export function getDueStatusLabel(result: DueHighlightResult): string | null {
   return `あと${result.daysUntilDue}日`;
 }
 
+const dueDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: "UTC",
+});
+
 /**
  * 期限日を `ja-JP` ロケールの表示文字列へ変換する。
  * 無効値はそのまま返し、入力値の情報を失わないようにする。
@@ -173,10 +188,5 @@ export function formatDueDate(value: string): string {
   const utcMs = parseDueDateToUtcMs(normalized);
   if (utcMs === null) return value;
 
-  return new Date(utcMs).toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "UTC",
-  });
+  return dueDateFormatter.format(utcMs);
 }

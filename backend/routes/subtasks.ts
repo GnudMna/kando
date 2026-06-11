@@ -137,4 +137,5 @@ router.delete(
   },
 );
 
+/** サブタスク CRUD API の Express ルーター。 */
 export default router;

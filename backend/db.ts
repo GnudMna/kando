@@ -1,7 +1,10 @@
 // PostgreSQL接続プールと接続待機処理を管理するモジュール
 import { Pool } from "pg";
 
-// 環境変数 DATABASE_URL を元にコネクションプールを生成する
+/**
+ * PostgreSQL 接続プール。
+ * 環境変数 `DATABASE_URL` を接続文字列として使用する。
+ */
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 20,

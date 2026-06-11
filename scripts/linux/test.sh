@@ -51,11 +51,29 @@ if [ $? -ne 0 ]; then
 fi
 echo
 
-# バックエンドのテスト
-echo "バックエンドのテストを実行中..."
+# バックエンドの単体テスト
+echo "バックエンドの単体テストを実行中..."
 npm --prefix backend test
 if [ $? -ne 0 ]; then
-    echo "バックエンドのテストに失敗しました"
+    echo "バックエンドの単体テストに失敗しました"
+    exit 1
+fi
+echo
+
+# バックエンドの統合テスト
+echo "バックエンドの統合テストを実行中..."
+npm --prefix backend run test:integration
+if [ $? -ne 0 ]; then
+    echo "バックエンドの統合テストに失敗しました"
+    exit 1
+fi
+echo
+
+# バックエンドのカバレッジ
+echo "バックエンドのカバレッジを実行中..."
+npm --prefix backend run test:coverage
+if [ $? -ne 0 ]; then
+    echo "バックエンドのカバレッジチェックに失敗しました"
     exit 1
 fi
 echo
@@ -78,13 +96,23 @@ if [ $? -ne 0 ]; then
 fi
 echo
 
-# フロントエンドのテスト
-echo "フロントエンドのテストを実行中..."
+# フロントエンドの単体テスト
+echo "フロントエンドの単体テストを実行中..."
 npm --prefix frontend test
 if [ $? -ne 0 ]; then
-    echo "フロントエンドのテストに失敗しました"
+    echo "フロントエンドの単体テストに失敗しました"
+    exit 1
+fi
+echo
+
+# フロントエンドのカバレッジ
+echo "フロントエンドのカバレッジを実行中..."
+npm --prefix frontend run test:coverage
+if [ $? -ne 0 ]; then
+    echo "フロントエンドのカバレッジチェックに失敗しました"
     exit 1
 fi
 echo
 
 echo "すべての品質チェックが完了しました"
+echo "E2E テストは npm run test:e2e で別途実行できます"

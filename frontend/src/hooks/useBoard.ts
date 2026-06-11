@@ -5,6 +5,9 @@ import type { Row, Task } from "../types";
 import * as api from "../api/boardApi";
 import { POSITION_GAP } from "../utils/constants";
 
+/** 初回および追加読み込みで取得する行の最大件数 */
+const BOARD_PAGE_SIZE = 20;
+
 type ColumnLocation = {
   rowIndex: number;
   columnIndex: number;
@@ -45,13 +48,17 @@ function buildBoardIndexes(rows: Row[]): BoardIndexes {
 
 /**
  * かんばんボードの状態管理カスタムフック。
- * rows の CRUD およびタスク移動のロジックを提供する。
+ *
+ * rows の CRUD およびタスク・カラム移動のロジックを提供する。
  * マウント時に自動でボードデータを取得する。
- * @returns ボード操作に必要な state とハンドラーのコレクション
+ *
+ * @returns ボード state（`rows`, `isLoading`, `hasMore` 等）と操作ハンドラー（`addRow`, `moveTask` 等）
  */
 export function useBoard() {
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
   // 最新の rows と派生インデックスを ref で保持し、コールバックの deps から rows を除去する
   const rowsRef = useRef<Row[]>([]);
@@ -68,20 +75,44 @@ export function useBoard() {
   const clearError = useCallback(() => setOperationError(null), []);
 
   /**
-   * API からボードデータを取得して rows を更新する。
+   * API からボードデータの先頭ページを取得して rows を更新する。
    * 失敗時はコンソールエラーのみ出力し UI は維持する。
    * @returns 読み込み完了時に解決される Promise
    */
   const loadBoard = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await api.fetchBoard();
+      const data = await api.fetchBoard({ limit: BOARD_PAGE_SIZE });
       setRows(data);
+      // ちょうど PAGE_SIZE 件のときは追加ページがある可能性があると推定するヒューリスティック
+      setHasMore(data.length === BOARD_PAGE_SIZE);
     } catch (err) {
       console.error("Failed to fetch board:", err);
       setOperationError("ボードの読み込みに失敗しました");
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  /**
+   * 現在の rows 件数を offset として次のページを取得し、末尾に追記する。
+   * @returns 読み込み完了時に解決される Promise
+   */
+  const loadMoreRows = useCallback(async () => {
+    setIsLoadingMore(true);
+    try {
+      const offset = rowsRef.current.length;
+      const data = await api.fetchBoard({ limit: BOARD_PAGE_SIZE, offset });
+      if (data.length > 0) {
+        setRows((prev) => [...prev, ...data]);
+      }
+      // 取得件数が PAGE_SIZE 未満なら末尾に到達したとみなす
+      setHasMore(data.length === BOARD_PAGE_SIZE);
+    } catch (err) {
+      console.error("Failed to load more rows:", err);
+      setOperationError("追加データの読み込みに失敗しました");
+    } finally {
+      setIsLoadingMore(false);
     }
   }, []);
 
@@ -309,27 +340,51 @@ export function useBoard() {
 
   /**
    * state 内の特定タスクを更新済みデータに置き換える。
+   * boardIndexesRef を利用して対象カラムのみを再生成し、不要な再レンダリングを防ぐ。
    * API 呼び出しは呼び出し側が完了後に呼び出すこと。
    * @param updatedTask - 更新済み Task オブジェクト
    * @returns なし
    */
   const updateTask = useCallback((updatedTask: Task) => {
-    setRows((prev) =>
-      prev.map((r) => ({
-        ...r,
-        columns: r.columns.map((c) => ({
-          ...c,
-          tasks: c.tasks.map((t) =>
-            t.id === updatedTask.id ? updatedTask : t,
-          ),
-        })),
-      })),
-    );
+    setRows((prev) => {
+      const colKey = updatedTask.column_id.toString();
+      const location =
+        boardIndexesRef.current.columnLocationByDroppableId.get(colKey);
+
+      if (!location) {
+        return prev.map((r) => ({
+          ...r,
+          columns: r.columns.map((c) => ({
+            ...c,
+            tasks: c.tasks.map((t) =>
+              t.id === updatedTask.id ? updatedTask : t,
+            ),
+          })),
+        }));
+      }
+
+      const { rowIndex, columnIndex } = location;
+      const row = prev[rowIndex];
+      const col = row.columns[columnIndex];
+      const newCols = [...row.columns];
+      newCols[columnIndex] = {
+        ...col,
+        tasks: col.tasks.map((t) =>
+          t.id === updatedTask.id ? updatedTask : t,
+        ),
+      };
+      const newRows = [...prev];
+      newRows[rowIndex] = { ...row, columns: newCols };
+      return newRows;
+    });
   }, []);
 
   /**
    * カラムをドラッグ&ドロップで同一行内で並び替える。
    * 楽観的更新で UI を即時反映し、API 失敗時は元の state にロールバックする。
+   *
+   * position は隣接要素の中間値（分数キー）で採番し、全件の renumber を避ける。
+   *
    * @param rowId - カラムが属する行 ID
    * @param srcIndex - 移動元カラムインデックス
    * @param dstIndex - 移動先カラムインデックス
@@ -365,6 +420,7 @@ export function useBoard() {
       if (!movedCol) return;
       cols.splice(dstIndex, 0, movedCol);
 
+      // 分数キー: 前後の position の中間値を使い、他カラムの position を変更しない
       const prev = cols[dstIndex - 1];
       const next = cols[dstIndex + 1];
       let newPosition: number;
@@ -397,6 +453,9 @@ export function useBoard() {
   /**
    * タスクをドラッグ&ドロップで別カラムへ移動する。
    * 楽観的更新で UI を即時反映し、API 失敗時は元の state にロールバックする。
+   *
+   * position は隣接要素の中間値（分数キー）で採番し、全件の renumber を避ける。
+   *
    * @param srcDroppableId - 移動元カラム ID 文字列
    * @param dstDroppableId - 移動先カラム ID 文字列
    * @param srcIndex - 移動元のタスクリスト内インデックス
@@ -427,6 +486,7 @@ export function useBoard() {
       if (!srcCol || !dstCol) return;
 
       const isSameCol = srcDroppableId === dstDroppableId;
+      // 同一カラム内 DnD では splice 後の長さが 1 減るため上限は length - 1（@hello-pangea/dnd の index 仕様）
       const maxDstIndex = isSameCol
         ? srcCol.tasks.length - 1
         : dstCol.tasks.length;
@@ -450,7 +510,7 @@ export function useBoard() {
       if (!movedTask) return;
       dstTasks.splice(dstIndex, 0, movedTask);
 
-      // 移動後の隣タスクの position から中間値を計算する（他のタスクは変更しない）
+      // 分数キー: 前後の position の中間値を使い、他タスクの position を変更しない
       const prev = dstTasks[dstIndex - 1];
       const next = dstTasks[dstIndex + 1];
       let newPosition: number;
@@ -533,8 +593,11 @@ export function useBoard() {
   return {
     rows,
     isLoading,
+    isLoadingMore,
+    hasMore,
     operationError,
     clearError,
+    loadMoreRows,
     addRow,
     renameRow,
     removeRow,

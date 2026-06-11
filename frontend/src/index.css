@@ -722,7 +722,6 @@ body::after {
   border-radius: 22px;
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  backdrop-filter: blur(5px);
 }
 
 .board-row-header {
@@ -767,6 +766,50 @@ body::after {
   min-width: 10rem;
   padding: 0.08rem 0;
   outline: none;
+}
+
+.inline-name-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.inline-name-form-toolbar .inline-name-input {
+  min-width: 14rem;
+}
+
+.inline-name-form-empty {
+  justify-content: center;
+}
+
+.inline-name-form-row-header {
+  flex: 1;
+  min-width: min(100%, 18rem);
+}
+
+.inline-name-input {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.65rem;
+  min-width: 12rem;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.inline-name-input:focus {
+  border-color: var(--accent-alt);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-alt) 24%, transparent);
+}
+
+.inline-name-form-actions {
+  display: flex;
+  gap: 0.28rem;
+  flex-shrink: 0;
 }
 
 .board-row-header-actions {
@@ -881,6 +924,7 @@ body::after {
   cursor: grab;
   position: relative;
   box-shadow: var(--task-shadow);
+  contain: layout style;
   transition:
     box-shadow 0.18s ease,
     border-color 0.18s ease;
@@ -899,6 +943,25 @@ body::after {
 .task-card-dragging {
   border-color: var(--task-hover-border);
   box-shadow: var(--task-drag-shadow);
+  will-change: transform;
+  cursor: grabbing;
+}
+
+/* ドラッグ中: ドラッグされていないカードのトランジション・ホバーを停止してrepaintを抑制 */
+.kanban-wrapper.is-dragging .task-card:not(.task-card-dragging) {
+  transition: none;
+  pointer-events: none;
+}
+
+/* ドラッグ中: カラムのホバートランジションも停止 */
+.kanban-wrapper.is-dragging .column-container {
+  transition: none;
+}
+
+/* ドラッグ中: カラムのホバー浮き上がりを抑制 */
+.kanban-wrapper.is-dragging .column-container:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .task-card.task-overdue {
@@ -1643,6 +1706,44 @@ body::after {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-spin {
+  animation: icon-spin 0.8s linear infinite;
+}
+
+.board-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0 0.5rem;
+}
+
+.board-load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.875rem;
+  border-radius: 999px;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+.board-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 1024px) {

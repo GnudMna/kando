@@ -4,6 +4,7 @@
 import { useId } from "react";
 import { createPortal } from "react-dom";
 
+/** `ConfirmDialog` コンポーネントの props。 */
 interface Props {
   message: string;
   onConfirm: () => void;

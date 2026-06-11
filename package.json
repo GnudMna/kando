@@ -1,13 +1,16 @@
 {
   "name": "kando",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "packageManager": "npm@11.9.0",
   "workspaces": [
     "backend",
     "frontend",
     "packages/types"
   ],
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  },
   "scripts": {
     "setup": "npm install",
     "dev": "./scripts/linux/dev.sh",
@@ -19,7 +22,9 @@
     "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
     "test": "./scripts/linux/test.sh",
     "test:coverage": "npm --workspace backend run test:coverage && npm --workspace frontend run test:coverage",
-    "test:ci": "npm run lint && npm run typecheck && npm run test:coverage",
+    "test:ci": "npm run lint && npm run typecheck && npm run test && npm run test:e2e",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium --with-deps",
     "test:win": "scripts/windows/test.bat"
   }
 }

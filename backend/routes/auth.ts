@@ -24,7 +24,10 @@ const DUMMY_HASH =
   "$2b$12$RJj.qfAEo4xN8xoHk1BzVOXIEFeSPPJVrMrRJdaUh7B2pq2jJz6.";
 
 /**
- * JWT を署名して HttpOnly Cookie としてレスポンスにセットするヘルパー。
+ * JWT を署名して HttpOnly Cookie としてレスポンスにセットする。
+ * @param res - Cookie を設定する Express レスポンス
+ * @param userId - JWT の subject となるユーザー ID
+ * @returns Cookie 設定完了時に解決される Promise
  */
 async function signAndSetCookie(
   res: import("express").Response,
@@ -82,7 +85,7 @@ router.post(
       type: "string",
       required: true,
       notEmpty: true,
-      maxLength: 72,
+      maxLength: 72, // bcrypt は先頭 72 バイトのみ使用するため上限を合わせる
     },
   }),
   async (req, res, next) => {
@@ -176,7 +179,7 @@ router.post(
       type: "string",
       required: true,
       notEmpty: true,
-      maxLength: 72,
+      maxLength: 72, // bcrypt は先頭 72 バイトのみ使用するため上限を合わせる
     },
   }),
   async (req, res, next) => {
@@ -239,4 +242,5 @@ router.get("/verify", authenticate, (_req, res) => {
   res.json({ ok: true });
 });
 
+/** 認証 API（登録・ログイン・ステータス確認）の Express ルーター。 */
 export default router;

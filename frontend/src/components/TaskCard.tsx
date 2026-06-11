@@ -22,6 +22,7 @@ import {
   type DueHighlightResult,
 } from "../utils/dueDate";
 
+/** `TaskCard` コンポーネントの props。 */
 interface Props {
   task: Task;
   columnId: number;
@@ -40,6 +41,7 @@ interface Props {
  * @param columnId - タスクが属するカラム ID
  * @param dueHighlight - 期限強調状態
  * @param onDeleteTask - タスク削除コールバック
+ * @param onCopyTask - タスクコピーコールバック
  * @param onTaskUpdated - タスク更新時のコールバック
  * @param onEditTask - タスク編集開始時のコールバック
  * @returns タスクカードの JSX 要素
@@ -76,6 +78,10 @@ export const TaskCard = memo(function TaskCard({
   /**
    * チェックリスト項目の完了状態を切り替えて API に保存する。
    * 成功時は onTaskUpdated で親コンポーネントの state を更新する。
+   *
+   * カード上では個別 API で即時保存する。編集モーダル内の変更はスナップショット一括保存であり、
+   * 二系統の永続化経路がある点に注意（モーダル保存前にカードでトグルした値は個別 API 経由で反映済み）。
+   *
    * @param item - 対象チェックリスト項目（id と completed が必要）
    * @param type - 'タスク直下' なら 'task'、'サブタスク配下' なら 'subtask'
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID

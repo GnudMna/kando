@@ -15,6 +15,11 @@ import {
 
 /**
  * タスクを作成する。カラムの所有権を確認してから INSERT する。
+ * @param column_id - タスクを追加するカラム ID
+ * @param content - タスク本文
+ * @param due_date - 期限日（`YYYY-MM-DD`）。未設定は `null`
+ * @param position - カラム内の表示順
+ * @param userId - 操作ユーザーの ID
  * @returns 作成したタスク（子要素は空配列）
  * @throws NotFoundError カラムがユーザーのものでない場合
  */
@@ -50,6 +55,9 @@ type TaskPatch = {
 
 /**
  * タスクのフィールドを部分更新する。
+ * @param id - 更新対象タスク ID
+ * @param patch - 更新するフィールド（`content` / `due_date` / `completed`）
+ * @param userId - 操作ユーザーの ID
  * @returns 更新後タスク
  * @throws NotFoundError タスクがユーザーのものでない場合
  */
@@ -61,6 +69,8 @@ export async function updateTask(
   const updates: string[] = [];
   const values: Array<string | number | boolean | null> = [];
 
+  // hasOwnProperty でキーの「存在」を判定し、due_date: null（期限クリア）と
+  // キー未指定（フィールドを変更しない）を区別する
   if (Object.prototype.hasOwnProperty.call(patch, "content")) {
     updates.push(`content = $${values.length + 1}`);
     values.push(patch.content as string);
@@ -96,6 +106,14 @@ export async function updateTask(
 
 /**
  * タスク編集モーダルのスナップショットを単一トランザクションで一括保存する。
+ *
+ * サブタスクは「既存更新 → 新規 INSERT → 削除 → チェックリスト同期」の順で処理する。
+ * 削除を先に行うと FK/CASCADE で配下チェックリストが消えるため、新規行の ID 確定後に削除する。
+ *
+ * @param id - 保存対象タスク ID
+ * @param payload - モーダル全体の保存ペイロード
+ * @param due_date - 正規化済み期限日。未設定は `null`
+ * @param userId - 操作ユーザーの ID
  * @returns 保存後タスク（全子要素を含む）
  * @throws NotFoundError タスクがユーザーのものでない場合
  * @throws HttpError バリデーションエラー
@@ -186,6 +204,7 @@ export async function saveTaskSnapshot(
       });
     }
 
+    // 新規 INSERT で ID が確定してから削除する（先に DELETE すると CASCADE で子が消える）
     const subtaskIdsForDelete = idsToDelete(existingSubtaskIds, keepSubtaskIds);
     if (subtaskIdsForDelete.length > 0) {
       await client.query("DELETE FROM subtasks WHERE id = ANY($1::int[])", [
@@ -226,6 +245,10 @@ export async function saveTaskSnapshot(
 
 /**
  * タスクを別カラムへ移動する。
+ * @param id - 移動対象タスク ID
+ * @param column_id - 移動先カラム ID
+ * @param position - 移動先カラム内の表示順
+ * @param userId - 操作ユーザーの ID
  * @returns 更新後タスク
  * @throws NotFoundError タスクまたは移動先カラムがユーザーのものでない場合
  */
@@ -263,6 +286,8 @@ export async function moveTask(
 
 /**
  * タスクを同一カラムの末尾にコピーする（サブタスク・チェックリスト・コメントも複製）。
+ * @param id - コピー元タスク ID
+ * @param userId - 操作ユーザーの ID
  * @returns 複製したタスク（全子要素を含む）
  * @throws NotFoundError タスクがユーザーのものでない場合
  */
@@ -294,6 +319,7 @@ export async function copyTask(id: number, userId: number): Promise<Task> {
     const maxPos = Number(maxPosResult.rows[0]?.max ?? 0);
     const newPosition = maxPos + 1000;
 
+    // コピー先は未完了タスクとして作成し、チェックリストも completed: false で複製する
     const newTaskResult = await client.query<DbTask>(
       `INSERT INTO tasks (column_id, content, due_date, position, completed)
        VALUES ($1, $2, $3, $4, false)
@@ -373,7 +399,9 @@ export async function copyTask(id: number, userId: number): Promise<Task> {
 
 /**
  * タスクを削除する（サブタスク・チェックリストも CASCADE で削除）。
- * @returns true: 削除成功、false: 対象なし
+ * @param id - 削除対象タスク ID
+ * @param userId - 操作ユーザーの ID
+ * @returns `true`: 削除成功、`false`: 対象なし
  */
 export async function deleteTask(id: number, userId: number): Promise<boolean> {
   const result = await pool.query(

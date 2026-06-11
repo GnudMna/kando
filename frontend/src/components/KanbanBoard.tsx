@@ -10,6 +10,7 @@ import {
   Suspense,
   memo,
   useRef,
+  useDeferredValue,
 } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult, DraggableProvided } from "@hello-pangea/dnd";
@@ -23,6 +24,8 @@ import {
   AlertCircle,
   X,
   GripVertical,
+  Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -72,6 +75,74 @@ interface InlineEditState {
 interface ConfirmState {
   message: string;
   onConfirm: () => void;
+}
+
+/** 行・カラム追加用インラインフォームの props。 */
+interface InlineNameFormProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  className?: string;
+  inputClassName?: string;
+}
+
+/**
+ * 行・カラム追加用のインライン入力フォーム。
+ * @param props - フォーム props
+ * @returns インライン入力フォームの JSX 要素
+ */
+function InlineNameForm({
+  label,
+  placeholder,
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+  className,
+  inputClassName = "inline-name-input",
+}: InlineNameFormProps) {
+  const trimmed = value.trim();
+
+  return (
+    <form
+      className={className ? `inline-name-form ${className}` : "inline-name-form"}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (trimmed) onSubmit();
+      }}
+    >
+      <input
+        autoFocus
+        type="text"
+        className={inputClassName}
+        placeholder={placeholder}
+        value={value}
+        aria-label={label}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+      />
+      <div className="inline-name-form-actions">
+        <button
+          type="submit"
+          className="btn btn-primary btn-compact"
+          disabled={!trimmed}
+        >
+          追加
+        </button>
+        <button type="button" className="btn btn-compact" onClick={onCancel}>
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
 }
 
 // ---- BoardColumn ----------------------------------------------------------------
@@ -227,6 +298,7 @@ const BoardColumn = memo(function BoardColumn({
                     </div>
                   );
 
+                  // ドラッグ中のみ body へポータルし、overflow/z-index によるクリップを回避する
                   if (taskDragSnapshot.isDragging && taskDragPortalTarget) {
                     return createPortal(taskCardNode, taskDragPortalTarget);
                   }
@@ -264,8 +336,11 @@ export function KanbanBoard() {
   const {
     rows,
     isLoading,
+    isLoadingMore,
+    hasMore,
     operationError,
     clearError,
+    loadMoreRows,
     addRow,
     renameRow,
     removeRow,
@@ -282,6 +357,8 @@ export function KanbanBoard() {
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
+  // 入力は即時反映、フィルタは遅延適用してタイピング中のチラつきを抑える
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [dueSoonDays, setDueSoonDays] = useState<number>(() => {
     if (typeof window === "undefined") return DEFAULT_DUE_SOON_DAYS;
     const stored = window.localStorage.getItem(DUE_SOON_DAYS_STORAGE_KEY);
@@ -291,8 +368,16 @@ export function KanbanBoard() {
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
   // インライン編集中の行を管理する
   const [editingRow, setEditingRow] = useState<InlineEditState | null>(null);
+  const [isAddingRow, setIsAddingRow] = useState(false);
+  const [newRowTitle, setNewRowTitle] = useState("");
+  const [addingColumnRowId, setAddingColumnRowId] = useState<number | null>(
+    null,
+  );
+  const [newColumnTitle, setNewColumnTitle] = useState("");
   // 確認ダイアログの表示状態を管理する
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  // ドラッグ中に is-dragging クラスを付けて CSS トランジションを抑制するための ref
+  const boardWrapperRef = useRef<HTMLDivElement>(null);
   // kando:open-task イベントハンドラ内で最新の rows を参照するための ref
   const rowsRef = useRef(rows);
   useEffect(() => {
@@ -321,12 +406,14 @@ export function KanbanBoard() {
     return map;
   }, [rows, dueSoonDays]);
 
-  const filteredRows = useMemo(
-    () => filterRowsByTaskQuery(rows, searchQuery),
-    [rows, searchQuery],
-  );
   const isSearchActive = searchQuery.trim().length > 0;
-  const activeRows = isSearchActive ? filteredRows : rows;
+  const isDeferredSearchActive = deferredSearchQuery.trim().length > 0;
+  const filteredRows = useMemo(
+    () => filterRowsByTaskQuery(rows, deferredSearchQuery),
+    [rows, deferredSearchQuery],
+  );
+  const activeRows = isDeferredSearchActive ? filteredRows : rows;
+  // 検索中はカンバン DnD を止め、フィルタ後インデックスと実データの不整合を防ぐ
   const activeViewMode = isSearchActive ? "list" : viewMode;
   const matchedTaskCount = useMemo(
     () => countTasks(filteredRows),
@@ -396,29 +483,50 @@ export function KanbanBoard() {
     [moveTask, moveColumn],
   );
 
-  /**
-   * 行追加ダイアログを表示して新しい行を作成する。
-   * @returns 追加処理完了時に解決される Promise
-   */
-  const handleAddRow = useCallback(async () => {
-    const title = prompt("行のタイトルを入力してください");
-    if (!title) return;
-    await addRow(title);
-  }, [addRow]);
+  const startAddRow = useCallback(() => {
+    setAddingColumnRowId(null);
+    setNewColumnTitle("");
+    setIsAddingRow(true);
+    setNewRowTitle("");
+  }, []);
+
+  const cancelAddRow = useCallback(() => {
+    setIsAddingRow(false);
+    setNewRowTitle("");
+  }, []);
 
   /**
-   * カラム名入力ダイアログを表示して新しいカラムを追加する。
-   * @param rowId - カラムを追加する行 ID
+   * インライン入力で入力した行タイトルで新しい行を作成する。
    * @returns 追加処理完了時に解決される Promise
    */
-  const handleAddColumn = useCallback(
-    async (rowId: number) => {
-      const title = prompt("ステータス名を入力してください");
-      if (!title) return;
-      await addColumn(rowId, title);
-    },
-    [addColumn],
-  );
+  const submitAddRow = useCallback(async () => {
+    const title = newRowTitle.trim();
+    if (!title) return;
+    await addRow(title);
+    cancelAddRow();
+  }, [addRow, cancelAddRow, newRowTitle]);
+
+  const startAddColumn = useCallback((rowId: number) => {
+    setAddingColumnRowId(rowId);
+    setNewColumnTitle("");
+  }, []);
+
+  const cancelAddColumn = useCallback(() => {
+    setAddingColumnRowId(null);
+    setNewColumnTitle("");
+  }, []);
+
+  /**
+   * インライン入力で入力したステータス名で新しいカラムを追加する。
+   * @returns 追加処理完了時に解決される Promise
+   */
+  const submitAddColumn = useCallback(async () => {
+    if (addingColumnRowId === null) return;
+    const title = newColumnTitle.trim();
+    if (!title) return;
+    await addColumn(addingColumnRowId, title);
+    cancelAddColumn();
+  }, [addColumn, addingColumnRowId, cancelAddColumn, newColumnTitle]);
 
   /**
    * 行名インライン編集を確定する。内容が空の場合は保存しない。
@@ -520,6 +628,9 @@ export function KanbanBoard() {
 
   /**
    * タスク編集モーダルを閉じる際の後処理を行う。
+   *
+   * 「追加 → キャンセル」の場合、API で既に作成済みのタスクを削除してロールバックする。
+   *
    * @param reason - 閉じた理由（保存済み / キャンセル）
    * @returns なし
    */
@@ -573,13 +684,26 @@ export function KanbanBoard() {
           </button>
         )}
         <div className="board-row-header-actions">
-          <button
-            type="button"
-            className="btn btn-compact"
-            onClick={() => void handleAddColumn(row.id)}
-          >
-            <Plus size={14} /> ステータスを追加
-          </button>
+          {addingColumnRowId === row.id ? (
+            <InlineNameForm
+              label="ステータス名"
+              placeholder="ステータス名を入力"
+              value={newColumnTitle}
+              onChange={setNewColumnTitle}
+              onSubmit={() => void submitAddColumn()}
+              onCancel={cancelAddColumn}
+              className="inline-name-form-row-header"
+              inputClassName="board-row-title-input"
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-compact"
+              onClick={() => startAddColumn(row.id)}
+            >
+              <Plus size={14} /> ステータスを追加
+            </button>
+          )}
           <button
             type="button"
             className="action-btn"
@@ -596,7 +720,17 @@ export function KanbanBoard() {
         </div>
       </div>
     ),
-    [editingRow, handleSaveRowTitle, handleAddColumn, confirmAction, removeRow],
+    [
+      addingColumnRowId,
+      cancelAddColumn,
+      confirmAction,
+      editingRow,
+      handleSaveRowTitle,
+      newColumnTitle,
+      removeRow,
+      startAddColumn,
+      submitAddColumn,
+    ],
   );
 
   if (isLoading) {
@@ -604,7 +738,7 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="kanban-wrapper">
+    <div className="kanban-wrapper" ref={boardWrapperRef}>
       {operationError && (
         <div role="alert" className="board-error">
           <AlertCircle size={16} />
@@ -621,13 +755,25 @@ export function KanbanBoard() {
       )}
 
       <div className="board-toolbar">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void handleAddRow()}
-        >
-          <Plus size={16} /> 行を追加
-        </button>
+        {isAddingRow ? (
+          <InlineNameForm
+            label="行のタイトル"
+            placeholder="行のタイトルを入力"
+            value={newRowTitle}
+            onChange={setNewRowTitle}
+            onSubmit={() => void submitAddRow()}
+            onCancel={cancelAddRow}
+            className="inline-name-form-toolbar"
+          />
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={startAddRow}
+          >
+            <Plus size={16} /> 行を追加
+          </button>
+        )}
 
         <div className="board-toolbar-right">
           <div className="task-search" role="search">
@@ -690,7 +836,7 @@ export function KanbanBoard() {
             <span className="stat-pill">
               <strong>{boardStats.tasks}</strong> タスク
             </span>
-            {isSearchActive && (
+            {isDeferredSearchActive && (
               <span className="stat-pill">
                 <strong>{matchedTaskCount}</strong> 件ヒット
               </span>
@@ -736,13 +882,25 @@ export function KanbanBoard() {
           <p className="board-empty-description">
             「行を追加」から最初のワークフローを作成しましょう。
           </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => void handleAddRow()}
-          >
-            <Plus size={16} /> 最初の行を追加
-          </button>
+          {isAddingRow ? (
+            <InlineNameForm
+              label="行のタイトル"
+              placeholder="行のタイトルを入力"
+              value={newRowTitle}
+              onChange={setNewRowTitle}
+              onSubmit={() => void submitAddRow()}
+              onCancel={cancelAddRow}
+              className="inline-name-form-empty"
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={startAddRow}
+            >
+              <Plus size={16} /> 最初の行を追加
+            </button>
+          )}
         </div>
       ) : activeRows.length === 0 ? (
         <div className="board-empty-state">
@@ -759,7 +917,15 @@ export function KanbanBoard() {
           </button>
         </div>
       ) : activeViewMode === "kanban" ? (
-        <DragDropContext onDragEnd={(r) => void handleDragEnd(r)}>
+        <DragDropContext
+          onBeforeDragStart={() => {
+            boardWrapperRef.current?.classList.add("is-dragging");
+          }}
+          onDragEnd={(r) => {
+            boardWrapperRef.current?.classList.remove("is-dragging");
+            void handleDragEnd(r);
+          }}
+        >
           <div className="kanban-rows">
             {activeRows.map((row) => (
               <div key={row.id} className="board-row">
@@ -819,6 +985,29 @@ export function KanbanBoard() {
             onAddTask={handleAddTask}
           />
         </Suspense>
+      )}
+
+      {hasMore && rows.length > 0 && !isSearchActive && (
+        <div className="board-load-more">
+          <button
+            type="button"
+            className="btn board-load-more-btn"
+            onClick={() => void loadMoreRows()}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 size={16} className="icon-spin" />
+                読み込み中…
+              </>
+            ) : (
+              <>
+                <ChevronDown size={16} />
+                さらに読み込む
+              </>
+            )}
+          </button>
+        </div>
       )}
 
       {editingTask && (

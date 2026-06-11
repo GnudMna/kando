@@ -1,6 +1,6 @@
 {
   "name": "kando-backend",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Kando API",
   "main": "dist/server.js",
   "type": "module",
@@ -25,9 +25,9 @@
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.1",
-    "helmet": "^8.1.0",
+    "helmet": "^8.2.0",
     "jose": "^6.2.3",
-    "pg": "^8.11.3"
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -36,17 +36,17 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.3",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^4.1.4",
-    "eslint": "^10.2.0",
+    "@vitest/coverage-v8": "^4.1.8",
+    "eslint": "^10.4.1",
     "globals": "^17.5.0",
-    "prettier": "^3.8.3",
+    "prettier": "^3.8.4",
     "supertest": "^7.2.2",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.58.2",
-    "vitest": "^4.1.4"
+    "typescript-eslint": "^8.61.0",
+    "vitest": "^4.1.8"
   }
 }

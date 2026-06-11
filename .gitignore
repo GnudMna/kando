@@ -147,3 +147,7 @@ vite.config.ts.timestamp-*
 
 # Postgres data files
 pgdata
+
+# Playwright
+test-results/
+playwright-report/
