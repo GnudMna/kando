@@ -768,6 +768,50 @@ body::after {
   outline: none;
 }
 
+.inline-name-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.inline-name-form-toolbar .inline-name-input {
+  min-width: 14rem;
+}
+
+.inline-name-form-empty {
+  justify-content: center;
+}
+
+.inline-name-form-row-header {
+  flex: 1;
+  min-width: min(100%, 18rem);
+}
+
+.inline-name-input {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.65rem;
+  min-width: 12rem;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.inline-name-input:focus {
+  border-color: var(--accent-alt);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-alt) 24%, transparent);
+}
+
+.inline-name-form-actions {
+  display: flex;
+  gap: 0.28rem;
+  flex-shrink: 0;
+}
+
 .board-row-header-actions {
   display: flex;
   align-items: center;

@@ -161,17 +161,40 @@ describe("KanbanBoard", () => {
     });
   });
 
-  it("行追加で prompt の入力が addRow に渡されること", () => {
+  it("行追加フォームで入力したタイトルが addRow に渡されること", async () => {
     const addRow = vi.fn().mockResolvedValue(undefined);
-    vi.spyOn(window, "prompt").mockReturnValue("新しい行");
     vi.mocked(useBoard).mockReturnValue(
       createMockUseBoardReturn({ addRow }) as ReturnType<typeof useBoard>,
     );
 
     render(<KanbanBoard />);
     fireEvent.click(screen.getByRole("button", { name: /行を追加/ }));
+    fireEvent.change(screen.getByLabelText("行のタイトル"), {
+      target: { value: "新しい行" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "追加" }));
 
-    expect(addRow).toHaveBeenCalledWith("新しい行");
+    await waitFor(() => {
+      expect(addRow).toHaveBeenCalledWith("新しい行");
+    });
+  });
+
+  it("ステータス追加フォームで入力した名前が addColumn に渡されること", async () => {
+    const addColumn = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useBoard).mockReturnValue(
+      createMockUseBoardReturn({ addColumn }) as ReturnType<typeof useBoard>,
+    );
+
+    render(<KanbanBoard />);
+    fireEvent.click(screen.getAllByRole("button", { name: /ステータスを追加/ })[0]);
+    fireEvent.change(screen.getByLabelText("ステータス名"), {
+      target: { value: "新ステータス" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "追加" }));
+
+    await waitFor(() => {
+      expect(addColumn).toHaveBeenCalledWith(1, "新ステータス");
+    });
   });
 
   it("行削除の確認ダイアログで removeRow が呼ばれること", () => {
