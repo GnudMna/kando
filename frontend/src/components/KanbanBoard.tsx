@@ -24,6 +24,8 @@ import {
   AlertCircle,
   X,
   GripVertical,
+  Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -265,8 +267,11 @@ export function KanbanBoard() {
   const {
     rows,
     isLoading,
+    isLoadingMore,
+    hasMore,
     operationError,
     clearError,
+    loadMoreRows,
     addRow,
     renameRow,
     removeRow,
@@ -832,6 +837,29 @@ export function KanbanBoard() {
             onAddTask={handleAddTask}
           />
         </Suspense>
+      )}
+
+      {hasMore && rows.length > 0 && !isSearchActive && (
+        <div className="board-load-more">
+          <button
+            type="button"
+            className="btn board-load-more-btn"
+            onClick={() => void loadMoreRows()}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 size={16} className="icon-spin" />
+                読み込み中…
+              </>
+            ) : (
+              <>
+                <ChevronDown size={16} />
+                さらに読み込む
+              </>
+            )}
+          </button>
+        </div>
       )}
 
       {editingTask && (

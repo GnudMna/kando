@@ -5,6 +5,9 @@ import type { Row, Task } from "../types";
 import * as api from "../api/boardApi";
 import { POSITION_GAP } from "../utils/constants";
 
+/** 初回および追加読み込みで取得する行の最大件数 */
+const BOARD_PAGE_SIZE = 20;
+
 type ColumnLocation = {
   rowIndex: number;
   columnIndex: number;
@@ -52,6 +55,8 @@ function buildBoardIndexes(rows: Row[]): BoardIndexes {
 export function useBoard() {
   const [rows, setRows] = useState<Row[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
   // 最新の rows と派生インデックスを ref で保持し、コールバックの deps から rows を除去する
   const rowsRef = useRef<Row[]>([]);
@@ -68,20 +73,42 @@ export function useBoard() {
   const clearError = useCallback(() => setOperationError(null), []);
 
   /**
-   * API からボードデータを取得して rows を更新する。
+   * API からボードデータの先頭ページを取得して rows を更新する。
    * 失敗時はコンソールエラーのみ出力し UI は維持する。
    * @returns 読み込み完了時に解決される Promise
    */
   const loadBoard = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await api.fetchBoard();
+      const data = await api.fetchBoard({ limit: BOARD_PAGE_SIZE });
       setRows(data);
+      setHasMore(data.length === BOARD_PAGE_SIZE);
     } catch (err) {
       console.error("Failed to fetch board:", err);
       setOperationError("ボードの読み込みに失敗しました");
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  /**
+   * 現在の rows 件数を offset として次のページを取得し、末尾に追記する。
+   * @returns 読み込み完了時に解決される Promise
+   */
+  const loadMoreRows = useCallback(async () => {
+    setIsLoadingMore(true);
+    try {
+      const offset = rowsRef.current.length;
+      const data = await api.fetchBoard({ limit: BOARD_PAGE_SIZE, offset });
+      if (data.length > 0) {
+        setRows((prev) => [...prev, ...data]);
+      }
+      setHasMore(data.length === BOARD_PAGE_SIZE);
+    } catch (err) {
+      console.error("Failed to load more rows:", err);
+      setOperationError("追加データの読み込みに失敗しました");
+    } finally {
+      setIsLoadingMore(false);
     }
   }, []);
 
@@ -554,8 +581,11 @@ export function useBoard() {
   return {
     rows,
     isLoading,
+    isLoadingMore,
+    hasMore,
     operationError,
     clearError,
+    loadMoreRows,
     addRow,
     renameRow,
     removeRow,
