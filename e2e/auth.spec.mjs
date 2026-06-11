@@ -1,3 +1,4 @@
+/** 認証フロー（セッション再利用・ログアウト）の E2E テスト。 */
 import { test, expect } from "@playwright/test";
 import { ensureBoardVisible } from "./helpers.mjs";
 

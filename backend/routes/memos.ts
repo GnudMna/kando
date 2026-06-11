@@ -7,7 +7,12 @@ import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
-/** メモに紐付くタスク一覧を含むメモを1件取得するヘルパー。 */
+/**
+ * メモに紐付くタスク一覧を含むメモを1件取得する。
+ * @param memoId - 取得対象メモ ID
+ * @param userId - 操作ユーザー ID（所有権確認に使用）
+ * @returns メモと関連タスク一覧。該当なしは `null`
+ */
 async function getMemoWithTasks(
   memoId: number,
   userId: number,
@@ -259,4 +264,5 @@ router.delete(
   },
 );
 
+/** メモ CRUD・タスク関連付け API の Express ルーター。 */
 export default router;

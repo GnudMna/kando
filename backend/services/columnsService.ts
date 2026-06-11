@@ -1,3 +1,4 @@
+// カラムのビジネスロジックを提供するサービス層
 import { pool } from "../db.js";
 import type { DbColumn } from "../types.js";
 import {

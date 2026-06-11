@@ -1,3 +1,7 @@
+/**
+ * Playwright E2E テストの設定。
+ * 認証セットアップ → Chromium テストの 2 段階プロジェクト構成で実行する。
+ */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";

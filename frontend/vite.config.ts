@@ -1,3 +1,7 @@
+/**
+ * Vite / Vitest 設定。
+ * React プラグイン、テスト環境、本番ビルドのチャンク分割を定義する。
+ */
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 

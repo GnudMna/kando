@@ -13,6 +13,8 @@ import type React from "react";
  * mousemove 中の座標更新は setState を経由せず containerRef への直接 style 変更で行うため、
  * ドラッグ中に React の再レンダリングが一切発生しない。
  * ドラッグ終了時のみ dragPos state を同期し、再レンダリング後も正しい座標を復元する。
+ *
+ * @returns ドラッグ制御オブジェクト（`containerRef`, `onHandleMouseDown`, `posStyle`, `isDragged`, `isDragging`）
  */
 export function useDraggable() {
   const [isDragged, setIsDragged] = useState(false);
@@ -56,6 +58,7 @@ export function useDraggable() {
         const rawX = originX + ev.clientX - mouseOriginX;
         const rawY = originY + ev.clientY - mouseOriginY;
         const x = Math.max(0, Math.min(window.innerWidth - elemW, rawX));
+        // 48px は画面上部の固定ヘッダー分の余白（モーダルがヘッダー下に隠れないようにする）
         const y = Math.max(0, Math.min(window.innerHeight - 48, rawY));
 
         // setState を使わず DOM を直接変更 → React 再レンダリングなし

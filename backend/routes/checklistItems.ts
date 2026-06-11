@@ -289,4 +289,5 @@ router.delete(
   },
 );
 
+/** チェックリスト項目 CRUD API の Express ルーター。 */
 export default router;

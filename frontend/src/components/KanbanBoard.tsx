@@ -77,6 +77,7 @@ interface ConfirmState {
   onConfirm: () => void;
 }
 
+/** 行・カラム追加用インラインフォームの props。 */
 interface InlineNameFormProps {
   label: string;
   placeholder: string;
@@ -88,7 +89,11 @@ interface InlineNameFormProps {
   inputClassName?: string;
 }
 
-/** 行・カラム追加用のインライン入力フォーム */
+/**
+ * 行・カラム追加用のインライン入力フォーム。
+ * @param props - フォーム props
+ * @returns インライン入力フォームの JSX 要素
+ */
 function InlineNameForm({
   label,
   placeholder,
@@ -293,6 +298,7 @@ const BoardColumn = memo(function BoardColumn({
                     </div>
                   );
 
+                  // ドラッグ中のみ body へポータルし、overflow/z-index によるクリップを回避する
                   if (taskDragSnapshot.isDragging && taskDragPortalTarget) {
                     return createPortal(taskCardNode, taskDragPortalTarget);
                   }
@@ -351,6 +357,7 @@ export function KanbanBoard() {
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
+  // 入力は即時反映、フィルタは遅延適用してタイピング中のチラつきを抑える
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [dueSoonDays, setDueSoonDays] = useState<number>(() => {
     if (typeof window === "undefined") return DEFAULT_DUE_SOON_DAYS;
@@ -406,6 +413,7 @@ export function KanbanBoard() {
     [rows, deferredSearchQuery],
   );
   const activeRows = isDeferredSearchActive ? filteredRows : rows;
+  // 検索中はカンバン DnD を止め、フィルタ後インデックスと実データの不整合を防ぐ
   const activeViewMode = isSearchActive ? "list" : viewMode;
   const matchedTaskCount = useMemo(
     () => countTasks(filteredRows),
@@ -620,6 +628,9 @@ export function KanbanBoard() {
 
   /**
    * タスク編集モーダルを閉じる際の後処理を行う。
+   *
+   * 「追加 → キャンセル」の場合、API で既に作成済みのタスクを削除してロールバックする。
+   *
    * @param reason - 閉じた理由（保存済み / キャンセル）
    * @returns なし
    */

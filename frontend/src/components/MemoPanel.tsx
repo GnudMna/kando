@@ -18,12 +18,20 @@ const memoDateFormatter = new Intl.DateTimeFormat("ja-JP", {
   minute: "2-digit",
 });
 
+/**
+ * ISO 日時文字列をメモ一覧向けの短い表示形式へ変換する。
+ * @param iso - ISO 8601 形式の日時文字列
+ * @returns `ja-JP` ロケールの表示文字列
+ */
 function formatDate(iso: string): string {
   return memoDateFormatter.format(new Date(iso));
 }
 
+/** `MemoPanel` コンポーネントの props。 */
 interface MemoPanelProps {
+  /** パネルを閉じるコールバック */
   onClose: () => void;
+  /** 初期選択するメモ ID（任意） */
   initialMemoId?: number;
 }
 
@@ -32,6 +40,10 @@ const AUTOSAVE_DELAY_MS = 800;
 /**
  * メモ帳パネル。
  * メモの一覧・作成・編集・削除・自動保存を提供する。
+ * @param props - コンポーネント props
+ * @param props.onClose - パネルを閉じるコールバック
+ * @param props.initialMemoId - 初期選択するメモ ID（任意）
+ * @returns メモ帳パネルの JSX 要素
  */
 export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
   const [memos, setMemos] = useState<Memo[]>([]);
@@ -94,6 +106,7 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
         (editTitle !== savedRef.current.title ||
           editContent !== savedRef.current.content)
       ) {
+        // 切替の体感速度優先で await しない。失敗は握りつぶし（自動保存で再試行される想定）
         updateMemo(selectedId, {
           title: editTitle,
           content: editContent,

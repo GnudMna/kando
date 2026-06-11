@@ -381,4 +381,5 @@ router.get(
   },
 );
 
+/** ボード階層データ取得 API の Express ルーター。 */
 export default router;
