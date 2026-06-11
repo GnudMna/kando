@@ -121,9 +121,11 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
 });
-app.use("/api/auth/login", authLimiter);
-app.use("/api/auth/register", authLimiter);
-app.use("/api/auth/status", authLimiter);
+if (process.env.E2E_TEST !== "true") {
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/register", authLimiter);
+  app.use("/api/auth/status", authLimiter);
+}
 
 // ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
 app.get("/api/liveness", (_req, res) => {

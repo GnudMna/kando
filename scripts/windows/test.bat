@@ -48,11 +48,31 @@ if errorlevel 1 (
 )
 echo.
 
-REM バックエンドのテスト
-echo バックエンドのテストを実行中...
+REM バックエンドの単体テスト
+echo バックエンドの単体テストを実行中...
 call npm --prefix backend test
 if errorlevel 1 (
-    echo バックエンドのテストに失敗しました
+    echo バックエンドの単体テストに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
+REM バックエンドの統合テスト
+echo バックエンドの統合テストを実行中...
+call npm --prefix backend run test:integration
+if errorlevel 1 (
+    echo バックエンドの統合テストに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
+REM バックエンドのカバレッジ
+echo バックエンドのカバレッジを実行中...
+call npm --prefix backend run test:coverage
+if errorlevel 1 (
+    echo バックエンドのカバレッジチェックに失敗しました
     pause
     exit /b 1
 )
@@ -78,15 +98,26 @@ if errorlevel 1 (
 )
 echo.
 
-REM フロントエンドのテスト
-echo フロントエンドのテストを実行中...
+REM フロントエンドの単体テスト
+echo フロントエンドの単体テストを実行中...
 call npm --prefix frontend test
 if errorlevel 1 (
-    echo フロントエンドのテストに失敗しました
+    echo フロントエンドの単体テストに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
+REM フロントエンドのカバレッジ
+echo フロントエンドのカバレッジを実行中...
+call npm --prefix frontend run test:coverage
+if errorlevel 1 (
+    echo フロントエンドのカバレッジチェックに失敗しました
     pause
     exit /b 1
 )
 echo.
 
 echo すべての品質チェックが完了しました
+echo E2E テストは npm run test:e2e で別途実行できます
 pause

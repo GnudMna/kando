@@ -120,6 +120,31 @@ export const createTaskCardProps = (
   ...overrides,
 });
 
+export const createMockUseBoardReturn = (
+  overrides?: Record<string, unknown>,
+) => ({
+  rows: structuredClone(sampleBoardRows),
+  isLoading: false,
+  isLoadingMore: false,
+  hasMore: false,
+  operationError: null,
+  clearError: vi.fn(),
+  loadMoreRows: vi.fn().mockResolvedValue(undefined),
+  addRow: vi.fn().mockResolvedValue(undefined),
+  renameRow: vi.fn().mockResolvedValue(undefined),
+  removeRow: vi.fn().mockResolvedValue(undefined),
+  addColumn: vi.fn().mockResolvedValue(undefined),
+  renameColumn: vi.fn().mockResolvedValue(undefined),
+  removeColumn: vi.fn().mockResolvedValue(undefined),
+  addTask: vi.fn().mockResolvedValue(null),
+  removeTask: vi.fn().mockResolvedValue(undefined),
+  copyTask: vi.fn().mockResolvedValue(null),
+  updateTask: vi.fn(),
+  moveTask: vi.fn().mockResolvedValue(undefined),
+  moveColumn: vi.fn().mockResolvedValue(undefined),
+  ...overrides,
+});
+
 export const sampleBoardRows: Row[] = [
   {
     id: 1,

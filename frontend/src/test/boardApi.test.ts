@@ -245,4 +245,76 @@ describe("boardApi", () => {
 
     await expect(api.fetchBoard()).rejects.toThrow("HTTP 404");
   });
+
+  it("checkStatus returns auth status", async () => {
+    respondWithJson(fetchMock, { hasUsers: true });
+
+    const result = await api.checkStatus();
+
+    expect(result).toEqual({ hasUsers: true });
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/status", {
+      credentials: "include",
+    });
+  });
+
+  it("verify returns true when response is ok", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    await expect(api.verify()).resolves.toBe(true);
+  });
+
+  it("verify returns false on network error", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("network"));
+
+    await expect(api.verify()).resolves.toBe(false);
+  });
+
+  it("login posts credentials and resolves on success", async () => {
+    respondWithJson(fetchMock, {});
+
+    await expect(api.login("user", "password12345")).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ username: "user", password: "password12345" }),
+    });
+  });
+
+  it("register posts credentials and resolves on success", async () => {
+    respondWithJson(fetchMock, {});
+
+    await expect(
+      api.register("user", "password12345"),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ username: "user", password: "password12345" }),
+    });
+  });
+
+  it("logout calls logout endpoint", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    await expect(api.logout()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+  });
+
+  it("fetchMemos returns memo list", async () => {
+    const memos = [{ id: 1, title: "メモ", content: "本文", tasks: [] }];
+    respondWithJson(fetchMock, memos);
+
+    await expect(api.fetchMemos()).resolves.toEqual(memos);
+  });
 });
