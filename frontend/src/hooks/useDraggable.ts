@@ -12,13 +12,17 @@ import type React from "react";
  *
  * mousemove 中の座標更新は setState を経由せず containerRef への直接 style 変更で行うため、
  * ドラッグ中に React の再レンダリングが一切発生しない。
+ * ドラッグ終了時のみ dragPos state を同期し、再レンダリング後も正しい座標を復元する。
  */
 export function useDraggable() {
-  // fixed 化フラグだけ React state で管理（初回ドラッグ開始時に1回だけ変わる）
   const [isDragged, setIsDragged] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // レンダー時に posStyle へ渡す座標（ドラッグ開始・終了時にのみ更新）
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
-  // React state を介さず最終座標を保持しておく（再レンダリング後の style 復元用）
+  // mousemove 中は DOM を直接変更するための座標キャッシュ（setState を経由しない）
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const onHandleMouseDown = useCallback(
@@ -32,7 +36,9 @@ export function useDraggable() {
 
       // 初回ドラッグ: fixed 化のために React state を1回だけ更新する
       if (!isDragged) {
-        lastPosRef.current = { x: rect.left, y: rect.top };
+        const initialPos = { x: rect.left, y: rect.top };
+        lastPosRef.current = initialPos;
+        setDragPos(initialPos);
         setIsDragged(true);
       }
 
@@ -64,6 +70,10 @@ export function useDraggable() {
         setIsDragging(false);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        // ドラッグ終了時に最終座標を state へ同期し、再レンダリング後も位置を維持する
+        if (lastPosRef.current) {
+          setDragPos(lastPosRef.current);
+        }
         window.removeEventListener("mousemove", onMouseMove);
         window.removeEventListener("mouseup", onMouseUp);
       };
@@ -74,13 +84,13 @@ export function useDraggable() {
     [isDragged],
   );
 
-  // fixed 化後は lastPosRef から座標を復元する（再レンダリング時に style が消えるのを防ぐ）
+  // fixed 化後は dragPos state から座標を復元する（レンダー中に ref を読まない）
   const posStyle: React.CSSProperties =
-    isDragged && lastPosRef.current !== null
+    isDragged && dragPos !== null
       ? {
           position: "fixed",
-          left: lastPosRef.current.x,
-          top: lastPosRef.current.y,
+          left: dragPos.x,
+          top: dragPos.y,
           bottom: "auto",
           right: "auto",
           margin: 0,
