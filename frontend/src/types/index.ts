@@ -10,6 +10,7 @@ import type {
   Row,
 } from "@kando/types";
 
+/** かんばんボードのドメインモデル型（`@kando/types` から再エクスポート）。 */
 export type { ChecklistItem, TaskComment, Subtask, Task, Column, Row };
 
 /**

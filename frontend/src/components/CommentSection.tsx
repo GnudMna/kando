@@ -79,6 +79,7 @@ function formatCommentTimestamp(value: string): string {
   });
 }
 
+/** `CommentSection` コンポーネントの props。 */
 interface CommentSectionProps {
   comments: LocalTaskComment[];
   taskId: number;
@@ -87,6 +88,10 @@ interface CommentSectionProps {
 
 /**
  * コメントの表示・追加・編集・削除・並び替えを担当するコンポーネント。
+ *
+ * 「古い順／最新順」は表示専用ソート。保存時は `comments` 配列の順序が
+ * DB の `position`（インデックス由来）になるため、表示順と永続化順は一致しない。
+ *
  * @param comments - 表示・編集対象のコメント配列
  * @param taskId - 親タスク ID（新規コメント作成時に使用）
  * @param onCommentsChange - コメント配列を更新するコールバック
@@ -187,6 +192,7 @@ export function CommentSection({
   /**
    * ソートモードに応じた表示用コメント配列を返す。
    * manual モードは元の順を保持し、oldest/newest は作成日時でソートする。
+   * いずれも表示専用であり、`comments` 本体の配列順は変更しない。
    */
   const visibleComments = useMemo(() => {
     const withIndex = comments.map((comment, index) => ({
@@ -272,6 +278,7 @@ export function CommentSection({
         <span className="text-muted">コメントはまだありません</span>
       ) : (
         <div className="task-comments">
+          {/* visibleIndex は表示順、index は comments 配列内の実インデックス（DnD で使用） */}
           {visibleComments.map(({ comment, index }, visibleIndex) => (
             <div
               key={comment.id}

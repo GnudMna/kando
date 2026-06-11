@@ -1,3 +1,7 @@
+/**
+ * Vitest グローバルセットアップ。
+ * Testing Library のカスタムマッチャーと `window.matchMedia` モックを有効化する。
+ */
 // Testing Library 向けのカスタムマッチャー（toBeInTheDocument など）を有効化する
 import "@testing-library/jest-dom";
 import { vi } from "vitest";

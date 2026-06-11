@@ -20,6 +20,10 @@ type Column = {
   row_id: number;
 };
 
+/**
+ * columns ルーター統合テスト用の Express アプリを生成する。
+ * @returns columns API をマウントした Express アプリ
+ */
 function createApp() {
   const app = express();
   app.use(express.json());

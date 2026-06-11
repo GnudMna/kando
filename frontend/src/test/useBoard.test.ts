@@ -20,6 +20,10 @@ const taskA: Task = {
   comments: [],
 };
 
+/**
+ * `useBoard` フックを Testing Library でレンダリングする。
+ * @returns `renderHook` の戻り値
+ */
 const renderBoardHook = () => renderHook(() => useBoard());
 
 describe("useBoard", () => {

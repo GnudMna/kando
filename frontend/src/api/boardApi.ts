@@ -11,14 +11,20 @@ import type {
   Memo,
 } from "@kando/types";
 
+/** タスク編集モーダルの一括保存ペイロード型（`@kando/types` から再エクスポート）。 */
 export type { TaskSnapshotPayload } from "@kando/types";
+/** メモエンティティ型（`@kando/types` から再エクスポート）。 */
 export type { Memo } from "@kando/types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
+/** `fetchBoard` のクエリパラメータオプション。 */
 export interface FetchBoardOptions {
+  /** 特定行のみ取得する場合の行 ID */
   row_id?: number;
+  /** 取得件数の上限 */
   limit?: number;
+  /** スキップする件数（ページング用） */
   offset?: number;
 }
 
@@ -30,10 +36,21 @@ export interface FetchBoardOptions {
 class BoardApiClient {
   private onUnauthorized: (() => void) | null = null;
 
+  /**
+   * 401 受信時に呼び出すコールバックを登録する。
+   * @param callback - 未認証検知時の処理
+   * @returns なし
+   */
   setOnUnauthorized(callback: () => void): void {
     this.onUnauthorized = callback;
   }
 
+  /**
+   * 認証 Cookie 付きで HTTP リクエストを送信し、JSON レスポンスを返す。
+   * @param url - リクエスト URL
+   * @param options - `fetch` に渡すオプション
+   * @returns パース済み JSON ボディ
+   */
   async request<T>(url: string, options?: RequestInit): Promise<T> {
     const res = await fetch(url, {
       ...options,
@@ -52,6 +69,12 @@ class BoardApiClient {
     return res.json() as Promise<T>;
   }
 
+  /**
+   * JSON ボディ付きリクエスト用の `RequestInit` を生成する。
+   * @param method - HTTP メソッド
+   * @param body - シリアライズするリクエストボディ
+   * @returns `fetch` に渡す `RequestInit`
+   */
   json(method: string, body: unknown): RequestInit {
     return {
       method,
@@ -66,6 +89,7 @@ const client = new BoardApiClient();
 /**
  * 401 Unauthorized 受信時のコールバックを登録する。
  * @param callback - ログアウト処理など呼び出したい関数
+ * @returns なし
  */
 export function setOnUnauthorized(callback: () => void): void {
   client.setOnUnauthorized(callback);
@@ -391,13 +415,16 @@ export const deleteChecklistItem = (id: number): Promise<void> =>
     method: "DELETE",
   });
 
+/** `checkStatus` API のレスポンス型。 */
 export interface AuthStatusResult {
+  /** 登録済みユーザーが 1 人以上存在するか */
   hasUsers: boolean;
 }
 
 // 認証の操作
 /**
  * ユーザーが1人以上登録されているかをバックエンドに問い合わせる。
+ * BoardApiClient を使わず raw fetch とし、401 時に onUnauthorized を発火させない（初回判定用）。
  * @returns ステータス情報を解決する Promise
  */
 export const checkStatus = (): Promise<AuthStatusResult> =>
@@ -412,6 +439,7 @@ export const checkStatus = (): Promise<AuthStatusResult> =>
 /**
  * Cookie の JWT を検証し、認証済みなら true を返す。
  * 未認証（401）なら false を返す。ネットワークエラー時も false。
+ * BoardApiClient を使わず raw fetch とし、401 時に onUnauthorized を発火させない（初回判定用）。
  * @returns 認証済みかどうか
  */
 export const verify = (): Promise<boolean> =>
@@ -421,8 +449,10 @@ export const verify = (): Promise<boolean> =>
 
 /**
  * ユーザー名とパスワードでログインする。Cookie に JWT がセットされる。
+ * 認証フロー専用のため BoardApiClient ではなく raw fetch を使用する。
  * @param username - ユーザー名
  * @param password - パスワード
+ * @returns ログイン完了時に解決される Promise
  */
 export const login = (username: string, password: string): Promise<void> =>
   fetch(`${API_URL}/auth/login`, {
@@ -438,8 +468,10 @@ export const login = (username: string, password: string): Promise<void> =>
 /**
  * 新規ユーザーを登録する。Cookie に JWT がセットされる。
  * 既存の未割り当てデータは登録ユーザーへ移行される。
+ * 認証フロー専用のため BoardApiClient ではなく raw fetch を使用する。
  * @param username - ユーザー名
  * @param password - パスワード（12文字以上）
+ * @returns 登録完了時に解決される Promise
  */
 export const register = (username: string, password: string): Promise<void> =>
   fetch(`${API_URL}/auth/register`, {
@@ -454,6 +486,7 @@ export const register = (username: string, password: string): Promise<void> =>
 
 /**
  * ログアウトする。バックエンドの Cookie をクリアする。
+ * @returns ログアウト完了時に解決される Promise
  */
 export const logout = (): Promise<void> =>
   fetch(`${API_URL}/auth/logout`, {

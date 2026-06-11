@@ -9,6 +9,7 @@ import {
   type DueHighlightResult,
 } from "../utils/dueDate";
 
+/** `ListView` コンポーネントの props。 */
 interface Props {
   rows: Row[];
   taskDueHighlights: Map<number, DueHighlightResult>;
@@ -182,6 +183,7 @@ export const ListView = memo(function ListView({
                 <button
                   type="button"
                   className="text-btn text-muted"
+                  // リストビューでは行の先頭カラム（通常「未着手」）へタスクを追加する
                   onClick={() => onAddTask(row.columns[0].id, row.id)}
                 >
                   <Plus size={14} /> タスクを追加

@@ -48,9 +48,11 @@ function buildBoardIndexes(rows: Row[]): BoardIndexes {
 
 /**
  * かんばんボードの状態管理カスタムフック。
- * rows の CRUD およびタスク移動のロジックを提供する。
+ *
+ * rows の CRUD およびタスク・カラム移動のロジックを提供する。
  * マウント時に自動でボードデータを取得する。
- * @returns ボード操作に必要な state とハンドラーのコレクション
+ *
+ * @returns ボード state（`rows`, `isLoading`, `hasMore` 等）と操作ハンドラー（`addRow`, `moveTask` 等）
  */
 export function useBoard() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -82,6 +84,7 @@ export function useBoard() {
     try {
       const data = await api.fetchBoard({ limit: BOARD_PAGE_SIZE });
       setRows(data);
+      // ちょうど PAGE_SIZE 件のときは追加ページがある可能性があると推定するヒューリスティック
       setHasMore(data.length === BOARD_PAGE_SIZE);
     } catch (err) {
       console.error("Failed to fetch board:", err);
@@ -103,6 +106,7 @@ export function useBoard() {
       if (data.length > 0) {
         setRows((prev) => [...prev, ...data]);
       }
+      // 取得件数が PAGE_SIZE 未満なら末尾に到達したとみなす
       setHasMore(data.length === BOARD_PAGE_SIZE);
     } catch (err) {
       console.error("Failed to load more rows:", err);
@@ -378,6 +382,9 @@ export function useBoard() {
   /**
    * カラムをドラッグ&ドロップで同一行内で並び替える。
    * 楽観的更新で UI を即時反映し、API 失敗時は元の state にロールバックする。
+   *
+   * position は隣接要素の中間値（分数キー）で採番し、全件の renumber を避ける。
+   *
    * @param rowId - カラムが属する行 ID
    * @param srcIndex - 移動元カラムインデックス
    * @param dstIndex - 移動先カラムインデックス
@@ -413,6 +420,7 @@ export function useBoard() {
       if (!movedCol) return;
       cols.splice(dstIndex, 0, movedCol);
 
+      // 分数キー: 前後の position の中間値を使い、他カラムの position を変更しない
       const prev = cols[dstIndex - 1];
       const next = cols[dstIndex + 1];
       let newPosition: number;
@@ -445,6 +453,9 @@ export function useBoard() {
   /**
    * タスクをドラッグ&ドロップで別カラムへ移動する。
    * 楽観的更新で UI を即時反映し、API 失敗時は元の state にロールバックする。
+   *
+   * position は隣接要素の中間値（分数キー）で採番し、全件の renumber を避ける。
+   *
    * @param srcDroppableId - 移動元カラム ID 文字列
    * @param dstDroppableId - 移動先カラム ID 文字列
    * @param srcIndex - 移動元のタスクリスト内インデックス
@@ -475,6 +486,7 @@ export function useBoard() {
       if (!srcCol || !dstCol) return;
 
       const isSameCol = srcDroppableId === dstDroppableId;
+      // 同一カラム内 DnD では splice 後の長さが 1 減るため上限は length - 1（@hello-pangea/dnd の index 仕様）
       const maxDstIndex = isSameCol
         ? srcCol.tasks.length - 1
         : dstCol.tasks.length;
@@ -498,7 +510,7 @@ export function useBoard() {
       if (!movedTask) return;
       dstTasks.splice(dstIndex, 0, movedTask);
 
-      // 移動後の隣タスクの position から中間値を計算する（他のタスクは変更しない）
+      // 分数キー: 前後の position の中間値を使い、他タスクの position を変更しない
       const prev = dstTasks[dstIndex - 1];
       const next = dstTasks[dstIndex + 1];
       let newPosition: number;

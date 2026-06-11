@@ -277,6 +277,7 @@ async function startServer(): Promise<void> {
       console.error("Uncaught exception:", err);
       handleSignal("SIGTERM");
     });
+    // uncaughtException と異なり rejection はログのみ（進行中リクエストを優先してプロセスを継続する）
     process.on("unhandledRejection", (reason) => {
       console.error("Unhandled rejection:", reason);
     });

@@ -1,3 +1,4 @@
+/** バックエンド単体テスト向け Vitest 設定。 */
 export default {
   test: {
     globals: true,

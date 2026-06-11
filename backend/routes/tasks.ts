@@ -566,4 +566,5 @@ router.delete(
   },
 );
 
+/** タスク CRUD・移動・スナップショット保存 API の Express ルーター。 */
 export default router;

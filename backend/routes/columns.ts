@@ -136,4 +136,5 @@ router.delete(
   },
 );
 
+/** カラム CRUD・並び替え API の Express ルーター。 */
 export default router;

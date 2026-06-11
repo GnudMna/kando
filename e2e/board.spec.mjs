@@ -1,3 +1,4 @@
+/** かんばんボード操作（行追加・検索・リスト表示切替）の E2E テスト。 */
 import { test, expect } from "@playwright/test";
 import { addRow, ensureBoardVisible } from "./helpers.mjs";
 

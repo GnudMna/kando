@@ -4,8 +4,9 @@ import { LogIn, UserPlus } from "lucide-react";
 
 type ScreenMode = "login" | "register";
 
+/** `LoginScreen` コンポーネントの props。 */
 interface LoginScreenProps {
-  /** 初期モード: "register" を指定するとユーザー登録フォームで開始 */
+  /** 初期モード: `"register"` を指定するとユーザー登録フォームで開始 */
   initialMode?: ScreenMode;
   onLogin: (username: string, password: string) => Promise<void>;
   onRegister: (username: string, password: string) => Promise<void>;

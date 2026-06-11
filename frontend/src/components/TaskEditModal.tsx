@@ -29,23 +29,38 @@ import { tempId, isTemp } from "../utils/localId";
 import { CommentSection } from "./CommentSection";
 
 const MEMO_CACHE_TTL_MS = 30_000;
+// モーダル間で共有するプロセス内キャッシュ（同一タブ内の再オープンを高速化する）
 let memoCacheValue: Memo[] | null = null;
 let memoCacheExpiry = 0;
 
+/**
+ * TTL 内のメモ一覧キャッシュを返す。
+ * @returns 有効なキャッシュ。期限切れまたは未設定時は `null`
+ */
 function getCachedMemos(): Memo[] | null {
   if (memoCacheValue && Date.now() < memoCacheExpiry) return memoCacheValue;
   return null;
 }
 
+/**
+ * メモ一覧キャッシュを更新する。
+ * @param memos - キャッシュするメモ配列
+ * @returns なし
+ */
 function setCachedMemos(memos: Memo[]): void {
   memoCacheValue = memos;
   memoCacheExpiry = Date.now() + MEMO_CACHE_TTL_MS;
 }
 
+/**
+ * メモ一覧キャッシュを無効化する。
+ * @returns なし
+ */
 function invalidateMemoCache(): void {
   memoCacheExpiry = 0;
 }
 
+/** `TaskEditModal` コンポーネントの props。 */
 interface Props {
   task: Task;
   onClose: (reason: "saved" | "dismiss") => void;
@@ -177,6 +192,7 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
             completed: checklist.completed,
           })),
         })),
+        // comments 配列の順序が DB の position になる（CommentSection の表示ソートは反映されない）
         comments: final.comments.map((comment) => ({
           id: isTemp(comment.id) ? undefined : comment.id,
           content: comment.content,

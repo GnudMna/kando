@@ -8,18 +8,24 @@ import type {
 } from "@kando/types";
 import { HttpError } from "../errors.js";
 
+/** タスク INSERT/UPDATE の `RETURNING` 句で取得するカラム一覧。 */
 export const TASK_RETURNING_COLUMNS =
   "id, column_id, content, due_date::text AS due_date, position, completed";
 
 /**
- * 並び順を 1000 刻みで採番する。
+ * 配列インデックスから並び順用の position 値を 1000 刻みで採番する。
+ * @param index - 0 始まりの配列インデックス
+ * @returns `(index + 1) * 1000` の position 値
  */
 export function calcPosition(index: number): number {
   return (index + 1) * 1000;
 }
 
 /**
- * 既存 ID 群から keep 対象を除いた削除対象 ID を返す。
+ * 既存 ID 集合から保持対象を除いた、削除すべき ID の配列を返す。
+ * @param existingIds - DB 上に存在する ID 集合
+ * @param keepIds - スナップショットで保持する ID 集合
+ * @returns 削除対象の ID 配列（順序は `existingIds` の走査順）
  */
 export function idsToDelete(
   existingIds: Set<number>,
@@ -35,7 +41,15 @@ export function idsToDelete(
 }
 
 /**
- * チェックリストをスナップショット内容に合わせて同期する。
+ * チェックリストをスナップショット内容に合わせて DB と同期する。
+ *
+ * スナップショットに含まれない既存項目は削除し、ID 付き項目は更新、
+ * ID なし項目は新規挿入する。未知の ID が含まれる場合は 400 エラーを投げる。
+ *
+ * @param client - トランザクション中の DB クライアント
+ * @param parent - 親エンティティ（タスクまたはサブタスク）
+ * @param checklists - 同期後のチェックリスト内容
+ * @returns 同期完了時に解決される Promise
  */
 export async function syncChecklists(
   client: PoolClient,
@@ -43,6 +57,7 @@ export async function syncChecklists(
   checklists: TaskSnapshotChecklistPayload[],
 ): Promise<void> {
   const isTask = parent.type === "task";
+  // FOR UPDATE: 同一トランザクション内の並行更新を直列化し、削除対象の判定を安定させる
   const existingResult = await client.query<{ id: number }>(
     isTask
       ? "SELECT id FROM checklist_items WHERE task_id = $1 AND subtask_id IS NULL FOR UPDATE"
@@ -54,6 +69,7 @@ export async function syncChecklists(
   const keepIds = new Set<number>();
   const errorFieldPath = isTask ? "checklists" : "subtasks.checklists";
 
+  // id なし行はこのループでは keep 対象に含めない（後段の INSERT で新規作成する）
   for (const checklist of checklists) {
     if (checklist.id === undefined) continue;
     if (!existingIds.has(checklist.id)) {
@@ -153,13 +169,22 @@ export async function syncChecklists(
 }
 
 /**
- * タスクコメントをスナップショット内容に合わせて同期する。
+ * タスクコメントをスナップショット内容に合わせて DB と同期する。
+ *
+ * スナップショットに含まれない既存コメントは削除し、ID 付き項目は更新、
+ * ID なし項目は新規挿入する。未知の ID が含まれる場合は 400 エラーを投げる。
+ *
+ * @param client - トランザクション中の DB クライアント
+ * @param taskId - 対象タスク ID
+ * @param comments - 同期後のコメント内容
+ * @returns 同期完了時に解決される Promise
  */
 export async function syncTaskComments(
   client: PoolClient,
   taskId: number,
   comments: TaskSnapshotCommentPayload[],
 ): Promise<void> {
+  // FOR UPDATE: 同一トランザクション内の並行更新を直列化し、削除対象の判定を安定させる
   const existingResult = await client.query<{ id: number }>(
     "SELECT id FROM task_comments WHERE task_id = $1 FOR UPDATE",
     [taskId],
@@ -168,6 +193,7 @@ export async function syncTaskComments(
   const existingIds = new Set(existingResult.rows.map((row) => row.id));
   const keepIds = new Set<number>();
 
+  // id なし行はこのループでは keep 対象に含めない（後段の INSERT で新規作成する）
   for (const comment of comments) {
     if (comment.id === undefined) continue;
     if (!existingIds.has(comment.id)) {
@@ -228,6 +254,10 @@ export async function syncTaskComments(
 /**
  * 1件のタスクと関連子要素（サブタスク・チェックリスト・コメント）を単一 CTE クエリで
  * 再取得し、API レスポンスのスナップショット形式へ組み立てて返す。
+ *
+ * @param client - DB クライアント
+ * @param taskId - 取得対象のタスク ID
+ * @returns タスクスナップショット。該当レコードがない場合は `null`
  */
 export async function fetchTaskSnapshot(
   client: PoolClient,
@@ -319,8 +349,15 @@ export async function fetchTaskSnapshot(
 }
 
 /**
- * タスクを作成し、空の子要素を付けて返す。
+ * タスクを作成し、空の子要素（サブタスク・チェックリスト・コメント）を付けて返す。
  * 所有権確認は呼び出し元（サービス層）が行う。
+ *
+ * @param client - DB クライアント
+ * @param column_id - タスクを追加するカラム ID
+ * @param content - タスク本文
+ * @param due_date - 期限日（`YYYY-MM-DD`）。未設定は `null`
+ * @param position - カラム内の表示順
+ * @returns 作成されたタスク（子要素は空配列）
  */
 export async function insertTask(
   client: PoolClient,

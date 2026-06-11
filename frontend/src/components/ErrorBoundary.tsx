@@ -1,7 +1,9 @@
 // React レンダリングエラーをキャッチして UI が完全にクラッシュするのを防ぐ
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+/** `ErrorBoundary` コンポーネントの props。 */
 interface Props {
+  /** エラー監視対象の子要素 */
   children: ReactNode;
 }
 
@@ -15,6 +17,10 @@ interface State {
  * エラーが発生してもアプリ全体がクラッシュするのを防ぐ。
  */
 export class ErrorBoundary extends Component<Props, State> {
+  /**
+   * ErrorBoundary を初期化する。
+   * @param props - 子要素を含むコンポーネント props
+   */
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
