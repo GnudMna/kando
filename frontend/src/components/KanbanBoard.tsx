@@ -10,6 +10,7 @@ import {
   Suspense,
   memo,
   useRef,
+  useDeferredValue,
 } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult, DraggableProvided } from "@hello-pangea/dnd";
@@ -282,6 +283,7 @@ export function KanbanBoard() {
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [dueSoonDays, setDueSoonDays] = useState<number>(() => {
     if (typeof window === "undefined") return DEFAULT_DUE_SOON_DAYS;
     const stored = window.localStorage.getItem(DUE_SOON_DAYS_STORAGE_KEY);
@@ -293,6 +295,8 @@ export function KanbanBoard() {
   const [editingRow, setEditingRow] = useState<InlineEditState | null>(null);
   // 確認ダイアログの表示状態を管理する
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  // ドラッグ中に is-dragging クラスを付けて CSS トランジションを抑制するための ref
+  const boardWrapperRef = useRef<HTMLDivElement>(null);
   // kando:open-task イベントハンドラ内で最新の rows を参照するための ref
   const rowsRef = useRef(rows);
   useEffect(() => {
@@ -321,12 +325,13 @@ export function KanbanBoard() {
     return map;
   }, [rows, dueSoonDays]);
 
-  const filteredRows = useMemo(
-    () => filterRowsByTaskQuery(rows, searchQuery),
-    [rows, searchQuery],
-  );
   const isSearchActive = searchQuery.trim().length > 0;
-  const activeRows = isSearchActive ? filteredRows : rows;
+  const isDeferredSearchActive = deferredSearchQuery.trim().length > 0;
+  const filteredRows = useMemo(
+    () => filterRowsByTaskQuery(rows, deferredSearchQuery),
+    [rows, deferredSearchQuery],
+  );
+  const activeRows = isDeferredSearchActive ? filteredRows : rows;
   const activeViewMode = isSearchActive ? "list" : viewMode;
   const matchedTaskCount = useMemo(
     () => countTasks(filteredRows),
@@ -604,7 +609,7 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="kanban-wrapper">
+    <div className="kanban-wrapper" ref={boardWrapperRef}>
       {operationError && (
         <div role="alert" className="board-error">
           <AlertCircle size={16} />
@@ -690,7 +695,7 @@ export function KanbanBoard() {
             <span className="stat-pill">
               <strong>{boardStats.tasks}</strong> タスク
             </span>
-            {isSearchActive && (
+            {isDeferredSearchActive && (
               <span className="stat-pill">
                 <strong>{matchedTaskCount}</strong> 件ヒット
               </span>
@@ -759,7 +764,15 @@ export function KanbanBoard() {
           </button>
         </div>
       ) : activeViewMode === "kanban" ? (
-        <DragDropContext onDragEnd={(r) => void handleDragEnd(r)}>
+        <DragDropContext
+          onBeforeDragStart={() => {
+            boardWrapperRef.current?.classList.add("is-dragging");
+          }}
+          onDragEnd={(r) => {
+            boardWrapperRef.current?.classList.remove("is-dragging");
+            void handleDragEnd(r);
+          }}
+        >
           <div className="kanban-rows">
             {activeRows.map((row) => (
               <div key={row.id} className="board-row">

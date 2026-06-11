@@ -309,22 +309,43 @@ export function useBoard() {
 
   /**
    * state 内の特定タスクを更新済みデータに置き換える。
+   * boardIndexesRef を利用して対象カラムのみを再生成し、不要な再レンダリングを防ぐ。
    * API 呼び出しは呼び出し側が完了後に呼び出すこと。
    * @param updatedTask - 更新済み Task オブジェクト
    * @returns なし
    */
   const updateTask = useCallback((updatedTask: Task) => {
-    setRows((prev) =>
-      prev.map((r) => ({
-        ...r,
-        columns: r.columns.map((c) => ({
-          ...c,
-          tasks: c.tasks.map((t) =>
-            t.id === updatedTask.id ? updatedTask : t,
-          ),
-        })),
-      })),
-    );
+    setRows((prev) => {
+      const colKey = updatedTask.column_id.toString();
+      const location =
+        boardIndexesRef.current.columnLocationByDroppableId.get(colKey);
+
+      if (!location) {
+        return prev.map((r) => ({
+          ...r,
+          columns: r.columns.map((c) => ({
+            ...c,
+            tasks: c.tasks.map((t) =>
+              t.id === updatedTask.id ? updatedTask : t,
+            ),
+          })),
+        }));
+      }
+
+      const { rowIndex, columnIndex } = location;
+      const row = prev[rowIndex];
+      const col = row.columns[columnIndex];
+      const newCols = [...row.columns];
+      newCols[columnIndex] = {
+        ...col,
+        tasks: col.tasks.map((t) =>
+          t.id === updatedTask.id ? updatedTask : t,
+        ),
+      };
+      const newRows = [...prev];
+      newRows[rowIndex] = { ...row, columns: newCols };
+      return newRows;
+    });
   }, []);
 
   /**
