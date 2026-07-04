@@ -1,33 +1,13 @@
 // かんばんボードのメインコンポーネント
 // 行・カラム・タスクのレンダリング、ドラッグ＆ドロップ、各種操作ダイアログを管理する
-import {
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  useId,
-  lazy,
-  Suspense,
-  memo,
-  useRef,
-  useDeferredValue,
-} from "react";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import type { DropResult, DraggableProvided } from "@hello-pangea/dnd";
-import { createPortal } from "react-dom";
-import {
-  Plus,
-  Trash2,
-  LayoutTemplate,
-  List,
-  Search,
-  AlertCircle,
-  X,
-  GripVertical,
-  Loader2,
-  ChevronDown,
-} from "lucide-react";
-import { TaskCard } from "./TaskCard";
+import { lazy, Suspense, useRef } from "react";
+import { useBoard } from "../hooks/useBoard";
+import { useKanbanBoardState } from "../hooks/useKanbanBoardState";
+import { BoardToolbar } from "./kanban/BoardToolbar";
+import { BoardErrorBanner } from "./kanban/BoardErrorBanner";
+import { BoardEmptyState } from "./kanban/BoardEmptyState";
+import { KanbanRowsView } from "./kanban/KanbanRowsView";
+import { BoardLoadMore } from "./kanban/BoardLoadMore";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 const TaskEditModal = lazy(() =>
@@ -36,295 +16,6 @@ const TaskEditModal = lazy(() =>
 const ListView = lazy(() =>
   import("./ListView").then((m) => ({ default: m.ListView })),
 );
-import { useBoard } from "../hooks/useBoard";
-import type { Row, Column, Task } from "../types";
-import { getDueHighlight } from "../utils/dueDate";
-import type { DueHighlightResult } from "../utils/dueDate";
-import { countTasks, filterRowsByTaskQuery } from "../utils/taskSearch";
-
-const taskDragPortalTarget =
-  typeof document !== "undefined" ? document.body : null;
-const DUE_SOON_DAYS_STORAGE_KEY = "kando-due-soon-days";
-const DEFAULT_DUE_SOON_DAYS = 3;
-const MAX_DUE_SOON_DAYS = 30;
-
-/**
- * 期限間近の設定値を UI で扱う範囲へ正規化する。
- * @param value - 入力値
- * @returns 0 以上 MAX 以下の整数日
- */
-function normalizeDueSoonDays(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_DUE_SOON_DAYS;
-  return Math.max(0, Math.min(MAX_DUE_SOON_DAYS, Math.floor(value)));
-}
-
-// 現在編集中のタスクとそのカラム ID を保持する型
-interface EditingTask {
-  task: Task;
-  colId: number;
-  isNew: boolean;
-}
-
-// インライン編集中の行・カラムの ID とタイトルを保持する型
-interface InlineEditState {
-  id: number;
-  title: string;
-}
-
-// 確認ダイアログの表示内容とコールバックを保持する型
-interface ConfirmState {
-  message: string;
-  onConfirm: () => void;
-}
-
-/** 行・カラム追加用インラインフォームの props。 */
-interface InlineNameFormProps {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-  onCancel: () => void;
-  className?: string;
-  inputClassName?: string;
-}
-
-/**
- * 行・カラム追加用のインライン入力フォーム。
- * @param props - フォーム props
- * @returns インライン入力フォームの JSX 要素
- */
-function InlineNameForm({
-  label,
-  placeholder,
-  value,
-  onChange,
-  onSubmit,
-  onCancel,
-  className,
-  inputClassName = "inline-name-input",
-}: InlineNameFormProps) {
-  const trimmed = value.trim();
-
-  return (
-    <form
-      className={className ? `inline-name-form ${className}` : "inline-name-form"}
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (trimmed) onSubmit();
-      }}
-    >
-      <input
-        autoFocus
-        type="text"
-        className={inputClassName}
-        placeholder={placeholder}
-        value={value}
-        aria-label={label}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
-      />
-      <div className="inline-name-form-actions">
-        <button
-          type="submit"
-          className="btn btn-primary btn-compact"
-          disabled={!trimmed}
-        >
-          追加
-        </button>
-        <button type="button" className="btn btn-compact" onClick={onCancel}>
-          キャンセル
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// ---- BoardColumn ----------------------------------------------------------------
-// カラムヘッダー（インライン編集）とタスク一覧を管理する memoized コンポーネント。
-// KanbanBoard の無関係な state 変化（モーダル開閉など）による再レンダリングを防ぐ。
-
-interface BoardColumnProps {
-  column: Column;
-  rowId: number;
-  colProvided: DraggableProvided;
-  onRenameColumn: (colId: number, title: string) => Promise<void>;
-  onRemoveColumn: (colId: number) => Promise<void>;
-  onAddTask: (colId: number, rowId: number) => Promise<void>;
-  onDeleteTask: (colId: number, taskId: number) => Promise<void>;
-  onCopyTask: (colId: number, taskId: number) => Promise<void>;
-  onTaskUpdated: (task: Task) => void;
-  onEditTask: (task: Task, colId: number) => void;
-  taskDueHighlights: Map<number, DueHighlightResult>;
-  dueSoonDays: number;
-  confirmAction: (message: string, onConfirm: () => void) => void;
-}
-
-const BoardColumn = memo(function BoardColumn({
-  column,
-  rowId,
-  colProvided,
-  onRenameColumn,
-  onRemoveColumn,
-  onAddTask,
-  onDeleteTask,
-  onCopyTask,
-  onTaskUpdated,
-  onEditTask,
-  taskDueHighlights,
-  dueSoonDays,
-  confirmAction,
-}: BoardColumnProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(column.title);
-
-  const {
-    innerRef: columnInnerRef,
-    draggableProps: columnDraggableProps,
-    dragHandleProps: columnDragHandleProps,
-  } = colProvided;
-
-  const handleSave = async () => {
-    const title = editTitle.trim();
-    if (title) await onRenameColumn(column.id, title);
-    setIsEditing(false);
-  };
-
-  const handleStartEditing = () => {
-    setEditTitle(column.title);
-    setIsEditing(true);
-  };
-
-  return (
-    <div
-      className="column-container"
-      ref={columnInnerRef}
-      {...columnDraggableProps}
-    >
-      <div className="column-header">
-        <div
-          {...columnDragHandleProps}
-          className="column-drag-handle"
-          title="ドラッグして並び替え"
-        >
-          <GripVertical size={14} />
-        </div>
-        {isEditing ? (
-          <input
-            autoFocus
-            className="column-title-input"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onBlur={() => void handleSave()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleSave();
-              if (e.key === "Escape") setIsEditing(false);
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="column-title board-title-button"
-            title="クリックして編集"
-            onClick={handleStartEditing}
-          >
-            {column.title}
-          </button>
-        )}
-        <button
-          type="button"
-          className="action-btn"
-          aria-label={`列「${column.title}」を削除`}
-          onClick={() =>
-            confirmAction(
-              `「${column.title}」列を削除しますか？配下のすべてのタスクも削除されます。`,
-              () => void onRemoveColumn(column.id),
-            )
-          }
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
-      <Droppable droppableId={column.id.toString()} type="task">
-        {(taskProvided) => (
-          <div
-            className="column-body"
-            ref={taskProvided.innerRef}
-            {...taskProvided.droppableProps}
-          >
-            {column.tasks.map((task, index) => (
-              <Draggable
-                draggableId={`task-${task.id}`}
-                index={index}
-                key={`task-${task.id}`}
-              >
-                {(taskDragProvided, taskDragSnapshot) => {
-                  const dueHighlight =
-                    taskDueHighlights.get(task.id) ??
-                    getDueHighlight(
-                      task.due_date,
-                      dueSoonDays,
-                      undefined,
-                      task.completed,
-                    );
-                  const dueTaskClass =
-                    dueHighlight.status === "none"
-                      ? ""
-                      : ` task-${dueHighlight.status}`;
-                  const completedClass = task.completed
-                    ? " task-completed"
-                    : "";
-                  const taskCardNode = (
-                    <div
-                      className={`task-card${taskDragSnapshot.isDragging ? " task-card-dragging" : ""}${dueTaskClass}${completedClass}`}
-                      ref={taskDragProvided.innerRef}
-                      {...taskDragProvided.draggableProps}
-                      {...taskDragProvided.dragHandleProps}
-                    >
-                      <TaskCard
-                        task={task}
-                        columnId={column.id}
-                        dueHighlight={dueHighlight}
-                        onDeleteTask={onDeleteTask}
-                        onCopyTask={onCopyTask}
-                        onTaskUpdated={onTaskUpdated}
-                        onEditTask={onEditTask}
-                      />
-                    </div>
-                  );
-
-                  // ドラッグ中のみ body へポータルし、overflow/z-index によるクリップを回避する
-                  if (taskDragSnapshot.isDragging && taskDragPortalTarget) {
-                    return createPortal(taskCardNode, taskDragPortalTarget);
-                  }
-
-                  return taskCardNode;
-                }}
-              </Draggable>
-            ))}
-            {taskProvided.placeholder}
-          </div>
-        )}
-      </Droppable>
-      <div className="column-add-task">
-        <button
-          type="button"
-          className="btn column-add-task-btn"
-          onClick={() => void onAddTask(column.id, rowId)}
-        >
-          <Plus size={16} /> タスクを追加
-        </button>
-      </div>
-    </div>
-  );
-});
-
-// ---------------------------------------------------------------------------------
 
 /**
  * かんばんボードのメインコンポーネント。
@@ -333,405 +24,55 @@ const BoardColumn = memo(function BoardColumn({
  * @returns かんばんボード UI の JSX 要素
  */
 export function KanbanBoard() {
+  const board = useBoard();
+  const { isLoading, hasMore, isLoadingMore, loadMoreRows, operationError, clearError, rows } =
+    board;
+  const boardWrapperRef = useRef<HTMLDivElement>(null);
   const {
-    rows,
-    isLoading,
-    isLoadingMore,
-    hasMore,
-    operationError,
-    clearError,
-    loadMoreRows,
-    addRow,
-    renameRow,
+    isAddingRow,
+    newRowTitle,
+    setNewRowTitle,
+    submitAddRow,
+    cancelAddRow,
+    startAddRow,
+    searchQuery,
+    setSearchQuery,
+    isSearchActive,
+    dueSoonDays,
+    setDueSoonDays,
+    boardStats,
+    matchedTaskCount,
+    isDeferredSearchActive,
+    activeViewMode,
+    setViewMode,
+    activeRows,
+    editingRow,
+    setEditingRow,
+    handleSaveRowTitle,
+    addingColumnRowId,
+    newColumnTitle,
+    setNewColumnTitle,
+    submitAddColumn,
+    cancelAddColumn,
+    startAddColumn,
     removeRow,
-    addColumn,
+    confirmAction,
     renameColumn,
     removeColumn,
-    addTask,
-    removeTask,
-    copyTask,
+    handleAddTask,
+    handleDeleteTask,
+    handleCopyTask,
+    handleEditTask,
     updateTask,
-    moveTask,
-    moveColumn,
-  } = useBoard();
-
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  const [searchQuery, setSearchQuery] = useState("");
-  // 入力は即時反映、フィルタは遅延適用してタイピング中のチラつきを抑える
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-  const [dueSoonDays, setDueSoonDays] = useState<number>(() => {
-    if (typeof window === "undefined") return DEFAULT_DUE_SOON_DAYS;
-    const stored = window.localStorage.getItem(DUE_SOON_DAYS_STORAGE_KEY);
-    if (stored === null) return DEFAULT_DUE_SOON_DAYS;
-    return normalizeDueSoonDays(Number(stored));
-  });
-  const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
-  // インライン編集中の行を管理する
-  const [editingRow, setEditingRow] = useState<InlineEditState | null>(null);
-  const [isAddingRow, setIsAddingRow] = useState(false);
-  const [newRowTitle, setNewRowTitle] = useState("");
-  const [addingColumnRowId, setAddingColumnRowId] = useState<number | null>(
-    null,
-  );
-  const [newColumnTitle, setNewColumnTitle] = useState("");
-  // 確認ダイアログの表示状態を管理する
-  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
-  // ドラッグ中に is-dragging クラスを付けて CSS トランジションを抑制するための ref
-  const boardWrapperRef = useRef<HTMLDivElement>(null);
-  // kando:open-task イベントハンドラ内で最新の rows を参照するための ref
-  const rowsRef = useRef(rows);
-  useEffect(() => {
-    rowsRef.current = rows;
-  }, [rows]);
-  const dueSoonDaysInputId = useId();
-  const taskSearchInputId = useId();
-
-  const taskDueHighlights = useMemo(() => {
-    const map = new Map<number, DueHighlightResult>();
-    for (const row of rows) {
-      for (const column of row.columns) {
-        for (const task of column.tasks) {
-          map.set(
-            task.id,
-            getDueHighlight(
-              task.due_date,
-              dueSoonDays,
-              undefined,
-              task.completed,
-            ),
-          );
-        }
-      }
-    }
-    return map;
-  }, [rows, dueSoonDays]);
-
-  const isSearchActive = searchQuery.trim().length > 0;
-  const isDeferredSearchActive = deferredSearchQuery.trim().length > 0;
-  const filteredRows = useMemo(
-    () => filterRowsByTaskQuery(rows, deferredSearchQuery),
-    [rows, deferredSearchQuery],
-  );
-  const activeRows = isDeferredSearchActive ? filteredRows : rows;
-  // 検索中はカンバン DnD を止め、フィルタ後インデックスと実データの不整合を防ぐ
-  const activeViewMode = isSearchActive ? "list" : viewMode;
-  const matchedTaskCount = useMemo(
-    () => countTasks(filteredRows),
-    [filteredRows],
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(DUE_SOON_DAYS_STORAGE_KEY, String(dueSoonDays));
-  }, [dueSoonDays]);
-
-  /**
-   * 確認ダイアログを表示するヘルパー。
-   * @param message - 確認メッセージ
-   * @param onConfirm - 確定時のコールバック
-   * @returns なし
-   */
-  const confirmAction = useCallback(
-    (message: string, onConfirm: () => void) => {
-      setConfirmState({ message, onConfirm });
-    },
-    [],
-  );
-
-  /**
-   * 確認ダイアログの「削除する」ボタン押下時のハンドラー。
-   * コールバックを実行してダイアログを閉じる。
-   * @returns なし
-   */
-  const handleConfirm = useCallback(() => {
-    confirmState?.onConfirm();
-    setConfirmState(null);
-  }, [confirmState]);
-
-  /**
-   * @hello-pangea/dnd のドラッグ終了イベントハンドラー。
-   * ドロップ先が有効な場合のみタスク移動を実行する。
-   * @param result - DnDライブラリから渡される DropResult
-   * @returns ドラッグ処理完了時に解決される Promise
-   */
-  const handleDragEnd = useCallback(
-    async (result: DropResult) => {
-      const { destination, source, draggableId, type } = result;
-      if (!destination) return;
-      if (
-        destination.droppableId === source.droppableId &&
-        destination.index === source.index
-      )
-        return;
-
-      if (type === "column") {
-        const colId = parseInt(draggableId.replace("col-", ""), 10);
-        const rowId = parseInt(source.droppableId.replace("row-", ""), 10);
-        await moveColumn(rowId, source.index, destination.index, colId);
-        return;
-      }
-
-      const taskId = parseInt(draggableId.replace("task-", ""), 10);
-      await moveTask(
-        source.droppableId,
-        destination.droppableId,
-        source.index,
-        destination.index,
-        taskId,
-      );
-    },
-    [moveTask, moveColumn],
-  );
-
-  const startAddRow = useCallback(() => {
-    setAddingColumnRowId(null);
-    setNewColumnTitle("");
-    setIsAddingRow(true);
-    setNewRowTitle("");
-  }, []);
-
-  const cancelAddRow = useCallback(() => {
-    setIsAddingRow(false);
-    setNewRowTitle("");
-  }, []);
-
-  /**
-   * インライン入力で入力した行タイトルで新しい行を作成する。
-   * @returns 追加処理完了時に解決される Promise
-   */
-  const submitAddRow = useCallback(async () => {
-    const title = newRowTitle.trim();
-    if (!title) return;
-    await addRow(title);
-    cancelAddRow();
-  }, [addRow, cancelAddRow, newRowTitle]);
-
-  const startAddColumn = useCallback((rowId: number) => {
-    setAddingColumnRowId(rowId);
-    setNewColumnTitle("");
-  }, []);
-
-  const cancelAddColumn = useCallback(() => {
-    setAddingColumnRowId(null);
-    setNewColumnTitle("");
-  }, []);
-
-  /**
-   * インライン入力で入力したステータス名で新しいカラムを追加する。
-   * @returns 追加処理完了時に解決される Promise
-   */
-  const submitAddColumn = useCallback(async () => {
-    if (addingColumnRowId === null) return;
-    const title = newColumnTitle.trim();
-    if (!title) return;
-    await addColumn(addingColumnRowId, title);
-    cancelAddColumn();
-  }, [addColumn, addingColumnRowId, cancelAddColumn, newColumnTitle]);
-
-  /**
-   * 行名インライン編集を確定する。内容が空の場合は保存しない。
-   * @returns 保存処理完了時に解決される Promise
-   */
-  const handleSaveRowTitle = useCallback(async () => {
-    if (!editingRow) return;
-    const title = editingRow.title.trim();
-    if (title) await renameRow(editingRow.id, title);
-    setEditingRow(null);
-  }, [editingRow, renameRow]);
-
-  /**
-   * タスクを追加して編集モーダルを自動開く。
-   * @param colId - タスクを追加するカラム ID
-   * @param rowId - カラムが所属する行 ID
-   * @returns 追加処理完了時に解決される Promise
-   */
-  const handleAddTask = useCallback(
-    async (colId: number, rowId: number) => {
-      const newTask = await addTask(colId, rowId);
-      if (newTask) setEditingTask({ task: newTask, colId, isNew: true });
-    },
-    [addTask],
-  );
-
-  /**
-   * タスク削除ハンドラー。
-   * @param colId - タスクが属するカラム ID
-   * @param taskId - 削除するタスク ID
-   * @returns 削除処理完了時に解決される Promise
-   */
-  const handleDeleteTask = useCallback(
-    async (colId: number, taskId: number) => {
-      await removeTask(colId, taskId);
-    },
-    [removeTask],
-  );
-
-  /**
-   * タスクコピーハンドラー。
-   * @param colId - タスクが属するカラム ID
-   * @param taskId - コピー元タスク ID
-   * @returns コピー処理完了時に解決される Promise
-   */
-  const handleCopyTask = useCallback(
-    async (colId: number, taskId: number) => {
-      await copyTask(colId, taskId);
-    },
-    [copyTask],
-  );
-
-  /**
-   * タスク編集モーダルを開くハンドラー。安定した参照を保持し TaskCard の memo を有効にする。
-   * @param task - 編集対象タスク
-   * @param colId - タスクが属するカラム ID
-   * @returns なし
-   */
-  const handleEditTask = useCallback((task: Task, colId: number) => {
-    setEditingTask({ task, colId, isNew: false });
-  }, []);
-
-  // MemoPanel からの kando:open-task イベントでタスク編集モーダルを開く
-  // rowsRef を使い rows が変わるたびにリスナーを再登録しないようにする
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const taskId = (e as CustomEvent<{ taskId: number }>).detail.taskId;
-      for (const row of rowsRef.current) {
-        for (const col of row.columns) {
-          const task = col.tasks.find((t) => t.id === taskId);
-          if (task) {
-            setEditingTask({ task, colId: col.id, isNew: false });
-            return;
-          }
-        }
-      }
-    };
-    window.addEventListener("kando:open-task", handler);
-    return () => window.removeEventListener("kando:open-task", handler);
-  }, []);
-
-  const boardStats = useMemo(() => {
-    let totalColumns = 0;
-    let totalTasks = 0;
-
-    for (const row of rows) {
-      totalColumns += row.columns.length;
-      for (const column of row.columns) {
-        totalTasks += column.tasks.length;
-      }
-    }
-
-    return {
-      rows: rows.length,
-      columns: totalColumns,
-      tasks: totalTasks,
-    };
-  }, [rows]);
-
-  /**
-   * タスク編集モーダルを閉じる際の後処理を行う。
-   *
-   * 「追加 → キャンセル」の場合、API で既に作成済みのタスクを削除してロールバックする。
-   *
-   * @param reason - 閉じた理由（保存済み / キャンセル）
-   * @returns なし
-   */
-  const handleCloseTaskModal = useCallback(
-    (reason: "saved" | "dismiss") => {
-      if (!editingTask) return;
-
-      const shouldDeleteUnsavedTask = editingTask.isNew && reason !== "saved";
-      const colId = editingTask.colId;
-      const taskId = editingTask.task.id;
-
-      setEditingTask(null);
-
-      if (shouldDeleteUnsavedTask) {
-        void removeTask(colId, taskId);
-      }
-    },
-    [editingTask, removeTask],
-  );
-
-  /**
-   * 行ヘッダー（タイトル編集と操作ボタン）を描画する。
-   * @param row - 描画対象の行
-   * @returns 行ヘッダーの JSX 要素
-   */
-  const renderRowHeader = useCallback(
-    (row: Row) => (
-      <div className="board-row-header">
-        {editingRow?.id === row.id ? (
-          <input
-            autoFocus
-            className="board-row-title-input"
-            value={editingRow.title}
-            onChange={(e) =>
-              setEditingRow({ ...editingRow, title: e.target.value })
-            }
-            onBlur={() => void handleSaveRowTitle()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleSaveRowTitle();
-              if (e.key === "Escape") setEditingRow(null);
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="board-row-title board-title-button"
-            title="クリックして編集"
-            onClick={() => setEditingRow({ id: row.id, title: row.title })}
-          >
-            {row.title}
-          </button>
-        )}
-        <div className="board-row-header-actions">
-          {addingColumnRowId === row.id ? (
-            <InlineNameForm
-              label="ステータス名"
-              placeholder="ステータス名を入力"
-              value={newColumnTitle}
-              onChange={setNewColumnTitle}
-              onSubmit={() => void submitAddColumn()}
-              onCancel={cancelAddColumn}
-              className="inline-name-form-row-header"
-              inputClassName="board-row-title-input"
-            />
-          ) : (
-            <button
-              type="button"
-              className="btn btn-compact"
-              onClick={() => startAddColumn(row.id)}
-            >
-              <Plus size={14} /> ステータスを追加
-            </button>
-          )}
-          <button
-            type="button"
-            className="action-btn"
-            aria-label={`行「${row.title}」を削除`}
-            onClick={() =>
-              confirmAction(
-                `「${row.title}」行を削除しますか？配下のすべてのタスクも削除されます。`,
-                () => void removeRow(row.id),
-              )
-            }
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
-    ),
-    [
-      addingColumnRowId,
-      cancelAddColumn,
-      confirmAction,
-      editingRow,
-      handleSaveRowTitle,
-      newColumnTitle,
-      removeRow,
-      startAddColumn,
-      submitAddColumn,
-    ],
-  );
+    handleDragEnd,
+    taskDueHighlights,
+    editingTask,
+    handleCloseTaskModal,
+    confirmState,
+    setConfirmState,
+    handleConfirm,
+    renderRowHeader,
+  } = useKanbanBoardState(board);
 
   if (isLoading) {
     return <div className="kanban-wrapper kanban-loading">読み込み中…</div>;
@@ -740,240 +81,76 @@ export function KanbanBoard() {
   return (
     <div className="kanban-wrapper" ref={boardWrapperRef}>
       {operationError && (
-        <div role="alert" className="board-error">
-          <AlertCircle size={16} />
-          <span className="board-error-message">{operationError}</span>
-          <button
-            type="button"
-            onClick={clearError}
-            className="board-error-close"
-            aria-label="エラーを閉じる"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <BoardErrorBanner message={operationError} onDismiss={clearError} />
       )}
 
-      <div className="board-toolbar">
-        {isAddingRow ? (
-          <InlineNameForm
-            label="行のタイトル"
-            placeholder="行のタイトルを入力"
-            value={newRowTitle}
-            onChange={setNewRowTitle}
-            onSubmit={() => void submitAddRow()}
-            onCancel={cancelAddRow}
-            className="inline-name-form-toolbar"
-          />
-        ) : (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={startAddRow}
-          >
-            <Plus size={16} /> 行を追加
-          </button>
-        )}
-
-        <div className="board-toolbar-right">
-          <div className="task-search" role="search">
-            <label htmlFor={taskSearchInputId} className="task-search-label">
-              タスク検索
-            </label>
-            <div className="task-search-input-wrap">
-              <Search size={14} className="task-search-icon" />
-              <input
-                id={taskSearchInputId}
-                type="search"
-                className="task-search-input"
-                placeholder="タスク名・サブタスク・コメントで検索"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.currentTarget.value)}
-              />
-              {isSearchActive && (
-                <button
-                  type="button"
-                  className="task-search-clear"
-                  onClick={() => setSearchQuery("")}
-                  aria-label="検索キーワードをクリア"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="due-soon-setting">
-            <label htmlFor={dueSoonDaysInputId} className="due-soon-label">
-              期限間近の強調
-            </label>
-            <div className="due-soon-input-wrap">
-              <input
-                id={dueSoonDaysInputId}
-                type="number"
-                min={0}
-                max={MAX_DUE_SOON_DAYS}
-                step={1}
-                className="due-soon-input"
-                value={dueSoonDays}
-                onChange={(e) => {
-                  const next = e.currentTarget.valueAsNumber;
-                  if (Number.isNaN(next)) return;
-                  setDueSoonDays(normalizeDueSoonDays(next));
-                }}
-              />
-              <span className="due-soon-unit">日以内</span>
-            </div>
-          </div>
-
-          <div className="board-stats" aria-label="ボード統計">
-            <span className="stat-pill">
-              <strong>{boardStats.rows}</strong> 行
-            </span>
-            <span className="stat-pill">
-              <strong>{boardStats.columns}</strong> 列
-            </span>
-            <span className="stat-pill">
-              <strong>{boardStats.tasks}</strong> タスク
-            </span>
-            {isDeferredSearchActive && (
-              <span className="stat-pill">
-                <strong>{matchedTaskCount}</strong> 件ヒット
-              </span>
-            )}
-          </div>
-
-          <div className="view-switch" role="tablist" aria-label="表示モード">
-            <button
-              type="button"
-              className={`btn btn-toggle ${activeViewMode === "kanban" ? "btn-primary" : ""}`}
-              onClick={() => setViewMode("kanban")}
-              aria-pressed={activeViewMode === "kanban"}
-              disabled={isSearchActive}
-              title={
-                isSearchActive
-                  ? "検索中はリスト表示のみ利用できます"
-                  : undefined
-              }
-            >
-              <LayoutTemplate size={16} /> かんばん
-            </button>
-            <button
-              type="button"
-              className={`btn btn-toggle ${activeViewMode === "list" ? "btn-primary" : ""}`}
-              onClick={() => setViewMode("list")}
-              aria-pressed={activeViewMode === "list"}
-            >
-              <List size={16} /> リスト
-            </button>
-          </div>
-
-          {isSearchActive && (
-            <p className="task-search-hint">
-              検索中は並び順の整合性のためリスト表示に切り替わります。
-            </p>
-          )}
-        </div>
-      </div>
+      <BoardToolbar
+        isAddingRow={isAddingRow}
+        newRowTitle={newRowTitle}
+        onNewRowTitleChange={setNewRowTitle}
+        onSubmitAddRow={() => void submitAddRow()}
+        onCancelAddRow={cancelAddRow}
+        onStartAddRow={startAddRow}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        isSearchActive={isSearchActive}
+        dueSoonDays={dueSoonDays}
+        onDueSoonDaysChange={setDueSoonDays}
+        boardStats={boardStats}
+        matchedTaskCount={matchedTaskCount}
+        isDeferredSearchActive={isDeferredSearchActive}
+        activeViewMode={activeViewMode}
+        onViewModeChange={setViewMode}
+      />
 
       {rows.length === 0 ? (
-        <div className="board-empty-state">
-          <p className="board-empty-title">まだ行がありません</p>
-          <p className="board-empty-description">
-            「行を追加」から最初のワークフローを作成しましょう。
-          </p>
-          {isAddingRow ? (
-            <InlineNameForm
-              label="行のタイトル"
-              placeholder="行のタイトルを入力"
-              value={newRowTitle}
-              onChange={setNewRowTitle}
-              onSubmit={() => void submitAddRow()}
-              onCancel={cancelAddRow}
-              className="inline-name-form-empty"
-            />
-          ) : (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={startAddRow}
-            >
-              <Plus size={16} /> 最初の行を追加
-            </button>
-          )}
-        </div>
+        <BoardEmptyState
+          variant="no-rows"
+          isAddingRow={isAddingRow}
+          newRowTitle={newRowTitle}
+          onNewRowTitleChange={setNewRowTitle}
+          onSubmitAddRow={() => void submitAddRow()}
+          onCancelAddRow={cancelAddRow}
+          onStartAddRow={startAddRow}
+          onClearSearch={() => setSearchQuery("")}
+        />
       ) : activeRows.length === 0 ? (
-        <div className="board-empty-state">
-          <p className="board-empty-title">該当するタスクがありません</p>
-          <p className="board-empty-description">
-            キーワードを変えるか、検索をクリアしてください。
-          </p>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setSearchQuery("")}
-          >
-            <X size={16} /> 検索をクリア
-          </button>
-        </div>
+        <BoardEmptyState
+          variant="no-search-results"
+          isAddingRow={isAddingRow}
+          newRowTitle={newRowTitle}
+          onNewRowTitleChange={setNewRowTitle}
+          onSubmitAddRow={() => void submitAddRow()}
+          onCancelAddRow={cancelAddRow}
+          onStartAddRow={startAddRow}
+          onClearSearch={() => setSearchQuery("")}
+        />
       ) : activeViewMode === "kanban" ? (
-        <DragDropContext
-          onBeforeDragStart={() => {
-            boardWrapperRef.current?.classList.add("is-dragging");
-          }}
-          onDragEnd={(r) => {
-            boardWrapperRef.current?.classList.remove("is-dragging");
-            void handleDragEnd(r);
-          }}
-        >
-          <div className="kanban-rows">
-            {activeRows.map((row) => (
-              <div key={row.id} className="board-row">
-                {renderRowHeader(row)}
-                <Droppable
-                  droppableId={`row-${row.id}`}
-                  type="column"
-                  direction="horizontal"
-                >
-                  {(colsProvided) => (
-                    <div
-                      className="board-row-columns"
-                      ref={colsProvided.innerRef}
-                      {...colsProvided.droppableProps}
-                    >
-                      {row.columns.map((column, colIndex) => (
-                        <Draggable
-                          key={column.id}
-                          draggableId={`col-${column.id}`}
-                          index={colIndex}
-                        >
-                          {(colProvided) => (
-                            <BoardColumn
-                              column={column}
-                              rowId={row.id}
-                              colProvided={colProvided}
-                              onRenameColumn={renameColumn}
-                              onRemoveColumn={removeColumn}
-                              onAddTask={handleAddTask}
-                              onDeleteTask={handleDeleteTask}
-                              onCopyTask={handleCopyTask}
-                              onTaskUpdated={updateTask}
-                              onEditTask={handleEditTask}
-                              taskDueHighlights={taskDueHighlights}
-                              dueSoonDays={dueSoonDays}
-                              confirmAction={confirmAction}
-                            />
-                          )}
-                        </Draggable>
-                      ))}
-                      {colsProvided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
-            ))}
-          </div>
-        </DragDropContext>
+        <KanbanRowsView
+          rows={activeRows}
+          boardWrapperRef={boardWrapperRef}
+          onDragEnd={handleDragEnd}
+          editingRow={editingRow}
+          onEditingRowChange={setEditingRow}
+          onSaveRowTitle={handleSaveRowTitle}
+          addingColumnRowId={addingColumnRowId}
+          newColumnTitle={newColumnTitle}
+          onNewColumnTitleChange={setNewColumnTitle}
+          onSubmitAddColumn={() => void submitAddColumn()}
+          onCancelAddColumn={cancelAddColumn}
+          onStartAddColumn={startAddColumn}
+          onRemoveRow={removeRow}
+          confirmAction={confirmAction}
+          onRenameColumn={renameColumn}
+          onRemoveColumn={removeColumn}
+          onAddTask={handleAddTask}
+          onDeleteTask={handleDeleteTask}
+          onCopyTask={handleCopyTask}
+          onTaskUpdated={updateTask}
+          onEditTask={handleEditTask}
+          taskDueHighlights={taskDueHighlights}
+          dueSoonDays={dueSoonDays}
+        />
       ) : (
         <Suspense fallback={null}>
           <ListView
@@ -988,26 +165,10 @@ export function KanbanBoard() {
       )}
 
       {hasMore && rows.length > 0 && !isSearchActive && (
-        <div className="board-load-more">
-          <button
-            type="button"
-            className="btn board-load-more-btn"
-            onClick={() => void loadMoreRows()}
-            disabled={isLoadingMore}
-          >
-            {isLoadingMore ? (
-              <>
-                <Loader2 size={16} className="icon-spin" />
-                読み込み中…
-              </>
-            ) : (
-              <>
-                <ChevronDown size={16} />
-                さらに読み込む
-              </>
-            )}
-          </button>
-        </div>
+        <BoardLoadMore
+          isLoadingMore={isLoadingMore}
+          onLoadMore={() => void loadMoreRows()}
+        />
       )}
 
       {editingTask && (
@@ -1015,9 +176,7 @@ export function KanbanBoard() {
           <TaskEditModal
             task={editingTask.task}
             onClose={handleCloseTaskModal}
-            onTaskUpdated={(updatedTask) => {
-              updateTask(updatedTask);
-            }}
+            onTaskUpdated={updateTask}
           />
         </Suspense>
       )}
