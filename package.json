@@ -2,6 +2,7 @@
   "name": "kando",
   "private": true,
   "version": "0.3.1",
+  "license": "MIT",
   "packageManager": "npm@11.9.0",
   "workspaces": [
     "backend",
@@ -9,7 +10,8 @@
     "packages/types"
   ],
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "licensee": "^12.0.1"
   },
   "scripts": {
     "setup": "npm install",
@@ -22,7 +24,13 @@
     "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
     "test": "./scripts/linux/test.sh",
     "test:coverage": "npm --workspace backend run test:coverage && npm --workspace frontend run test:coverage",
-    "test:ci": "npm run lint && npm run typecheck && npm run test && npm run test:e2e",
+    "check:licenses": "licensee --production --errors-only",
+    "check:audit": "npm audit --omit=dev --audit-level=moderate",
+    "check:compliance": "npm run check:licenses && npm run check:audit",
+    "check:licenses:win": "scripts/windows/check-licenses.bat",
+    "check:audit:win": "scripts/windows/check-audit.bat",
+    "check:compliance:win": "scripts/windows/check-compliance.bat",
+    "test:ci": "npm run check:compliance && npm run lint && npm run typecheck && npm run test && npm run test:e2e",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium --with-deps",
     "test:win": "scripts/windows/test.bat"
