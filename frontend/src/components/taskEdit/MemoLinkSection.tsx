@@ -185,13 +185,11 @@ export function MemoLinkSection({
             ))}
         </div>
       )}
-      {allMemos !== null &&
-        allMemos.length > 0 &&
-        linkedMemoIds.size === 0 && (
-          <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-            関連付けられたメモはありません
-          </p>
-        )}
+      {allMemos !== null && allMemos.length > 0 && linkedMemoIds.size === 0 && (
+        <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+          関連付けられたメモはありません
+        </p>
+      )}
     </div>
   );
 }

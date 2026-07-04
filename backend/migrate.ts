@@ -47,12 +47,15 @@ async function isLegacyDatabase(): Promise<boolean> {
       return false;
     }
 
-    const { rows: tableRows } = await client.query<{ exists: boolean }>(`
+    const { rows: tableRows } = await client.query<{ exists: boolean }>(
+      `
       SELECT EXISTS (
         SELECT FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = $1
       ) AS exists
-    `, [MIGRATIONS_TABLE]);
+    `,
+      [MIGRATIONS_TABLE],
+    );
     if (!tableRows[0]?.exists) {
       return true;
     }

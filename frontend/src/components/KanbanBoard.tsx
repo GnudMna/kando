@@ -25,8 +25,15 @@ const ListView = lazy(() =>
  */
 export function KanbanBoard() {
   const board = useBoard();
-  const { isLoading, hasMore, isLoadingMore, loadMoreRows, operationError, clearError, rows } =
-    board;
+  const {
+    isLoading,
+    hasMore,
+    isLoadingMore,
+    loadMoreRows,
+    operationError,
+    clearError,
+    rows,
+  } = board;
   const boardWrapperRef = useRef<HTMLDivElement>(null);
   const {
     isAddingRow,

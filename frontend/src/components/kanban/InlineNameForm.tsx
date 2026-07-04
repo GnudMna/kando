@@ -29,7 +29,9 @@ export function InlineNameForm({
 
   return (
     <form
-      className={className ? `inline-name-form ${className}` : "inline-name-form"}
+      className={
+        className ? `inline-name-form ${className}` : "inline-name-form"
+      }
       onSubmit={(e) => {
         e.preventDefault();
         if (trimmed) onSubmit();

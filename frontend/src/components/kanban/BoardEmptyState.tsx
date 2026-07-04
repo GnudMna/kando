@@ -43,7 +43,11 @@ export function BoardEmptyState({
             className="inline-name-form-empty"
           />
         ) : (
-          <button type="button" className="btn btn-primary" onClick={onStartAddRow}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={onStartAddRow}
+          >
             <Plus size={16} /> 最初の行を追加
           </button>
         )}

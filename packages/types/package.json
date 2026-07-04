@@ -9,6 +9,10 @@
     ".": {
       "types": "./src/index.ts"
     },
+    "./validation": {
+      "types": "./src/validation/index.ts",
+      "import": "./src/validation/index.ts"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -21,5 +25,8 @@
   },
   "devDependencies": {
     "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }

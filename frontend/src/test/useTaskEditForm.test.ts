@@ -3,11 +3,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useTaskEditForm } from "../hooks/useTaskEditForm";
 import * as api from "../api/boardApi";
 import { invalidateMemoCache } from "../components/taskEdit/memoCache";
-import {
-  baseTask,
-  taskWithChecklists,
-  taskWithSubtasks,
-} from "./testUtils";
+import { baseTask, taskWithChecklists, taskWithSubtasks } from "./testUtils";
 
 vi.mock("../api/boardApi");
 
@@ -23,9 +19,7 @@ describe("useTaskEditForm", () => {
   });
 
   const renderForm = (task = baseTask) =>
-    renderHook(() =>
-      useTaskEditForm({ task, onClose, onTaskUpdated }),
-    );
+    renderHook(() => useTaskEditForm({ task, onClose, onTaskUpdated }));
 
   it("saveAndClose が saveTaskSnapshot を呼び出して成功時にコールバックする", async () => {
     const savedTask = { ...baseTask, content: "保存後" };

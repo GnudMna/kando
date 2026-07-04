@@ -46,7 +46,9 @@ export function useColumnActions({
         setRows((prev) =>
           prev.map((r) => ({
             ...r,
-            columns: r.columns.map((c) => (c.id === colId ? { ...c, title } : c)),
+            columns: r.columns.map((c) =>
+              c.id === colId ? { ...c, title } : c,
+            ),
           })),
         );
       } catch (err) {

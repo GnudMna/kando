@@ -29,10 +29,13 @@ describe("boardApi", () => {
     const result = await api.fetchBoard({ row_id: 1, limit: 5, offset: 10 });
 
     expect(result).toEqual(mockRows);
-    expect(fetchMock).toHaveBeenCalledWith("/api/board?row_id=1&limit=5&offset=10", {
-      credentials: "include",
-      headers: {},
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/board?row_id=1&limit=5&offset=10",
+      {
+        credentials: "include",
+        headers: {},
+      },
+    );
   });
 
   it("fetchBoard requests the top-level board endpoint when no options are passed", async () => {
@@ -63,7 +66,12 @@ describe("boardApi", () => {
   });
 
   it("createRowWithDefaultColumns posts JSON to the correct endpoint", async () => {
-    const createdRow: Row = { id: 3, title: "Default Row", position: 3000, columns: [] };
+    const createdRow: Row = {
+      id: 3,
+      title: "Default Row",
+      position: 3000,
+      columns: [],
+    };
     respondWithJson(fetchMock, createdRow);
 
     const result = await api.createRowWithDefaultColumns("Default Row", 3000);
@@ -78,7 +86,12 @@ describe("boardApi", () => {
   });
 
   it("updateRow sends PUT and returns updated row", async () => {
-    const updatedRow: Row = { id: 4, title: "Updated", position: 4000, columns: [] };
+    const updatedRow: Row = {
+      id: 4,
+      title: "Updated",
+      position: 4000,
+      columns: [],
+    };
     respondWithJson(fetchMock, updatedRow);
 
     const result = await api.updateRow(4, "Updated");
@@ -431,7 +444,9 @@ describe("boardApi", () => {
     };
     respondWithJson(fetchMock, comment);
 
-    await expect(api.createTaskComment(10, "コメント")).resolves.toEqual(comment);
+    await expect(api.createTaskComment(10, "コメント")).resolves.toEqual(
+      comment,
+    );
     expect(fetchMock).toHaveBeenCalledWith("/api/task-comments", {
       method: "POST",
       credentials: "include",
@@ -547,6 +562,8 @@ describe("boardApi", () => {
   it("login throws on error response", async () => {
     respondWithJsonError(fetchMock, 401, { error: "認証失敗" });
 
-    await expect(api.login("user", "wrongpassword")).rejects.toThrow("認証失敗");
+    await expect(api.login("user", "wrongpassword")).rejects.toThrow(
+      "認証失敗",
+    );
   });
 });

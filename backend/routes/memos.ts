@@ -3,6 +3,11 @@ import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbMemo } from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createMemoBodySchema,
+  linkMemoTaskBodySchema,
+  updateMemoBodySchema,
+} from "@kando/types/validation";
 import { NotFoundError } from "../errors.js";
 
 const router = Router();
@@ -74,10 +79,7 @@ router.get(
 // メモを作成する: POST /api/memos
 router.post(
   "/",
-  validateBody({
-    title: { type: "string", maxLength: 255 },
-    content: { type: "string", maxLength: 50000 },
-  }),
+  validateBody(createMemoBodySchema),
   /**
    * 新しいメモを作成する。
    * @param req - `title` と `content` を含むリクエスト
@@ -104,10 +106,7 @@ router.post(
 // メモを更新する: PUT /api/memos/:id
 router.put(
   "/:id",
-  validateBody({
-    title: { type: "string", maxLength: 255 },
-    content: { type: "string", maxLength: 50000 },
-  }),
+  validateBody(updateMemoBodySchema),
   /**
    * 指定 ID のメモを更新する。
    * @param req - パスパラメータ `id`、更新値を含むリクエスト
@@ -178,9 +177,7 @@ router.delete(
 // メモにタスクを関連付ける: POST /api/memos/:id/tasks
 router.post(
   "/:id/tasks",
-  validateBody({
-    task_id: { type: "number", required: true, integer: true, positive: true },
-  }),
+  validateBody(linkMemoTaskBodySchema),
   /**
    * タスクとメモを関連付ける。
    * @param req - パスパラメータ `id` と `task_id` を含むリクエスト

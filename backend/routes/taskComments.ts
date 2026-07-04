@@ -3,6 +3,10 @@ import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbTaskComment } from "../types.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createTaskCommentBodySchema,
+  updateTaskCommentBodySchema,
+} from "@kando/types/validation";
 import { NotFoundError } from "../errors.js";
 
 const router = Router();
@@ -10,15 +14,7 @@ const router = Router();
 // 新しいコメントを作成する: POST /api/task-comments
 router.post(
   "/",
-  validateBody({
-    task_id: { type: "number", required: true, integer: true, positive: true },
-    content: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 2000,
-    },
-  }),
+  validateBody(createTaskCommentBodySchema),
   /**
    * タスクコメントを作成する。
    * @param req - `task_id` と `content` を含むリクエスト
@@ -76,18 +72,7 @@ router.post(
 // コメント内容を更新する: PUT /api/task-comments/:id
 router.put(
   "/:id",
-  validateBody({
-    content: {
-      type: "string",
-      notEmpty: true,
-      maxLength: 2000,
-    },
-    position: {
-      type: "number",
-      finite: true,
-      positive: true,
-    },
-  }),
+  validateBody(updateTaskCommentBodySchema),
   /**
    * タスクコメントを更新する。
    * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト

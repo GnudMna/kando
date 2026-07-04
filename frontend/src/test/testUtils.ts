@@ -10,19 +10,16 @@ export type FetchResponse = {
 };
 
 /** `createFetchMock` が返す `fetch` モック関数の型。 */
-export type FetchMock = Mock<(
-  request: RequestInfo,
-  init?: RequestInit,
-) => Promise<FetchResponse>>;
+export type FetchMock = Mock<
+  (request: RequestInfo, init?: RequestInit) => Promise<FetchResponse>
+>;
 
 /**
  * `fetch` の Vitest モックを生成する。
  * @returns 未設定の `fetch` モック関数
  */
-export const createFetchMock = (): FetchMock => vi.fn<(
-  request: RequestInfo,
-  init?: RequestInit,
-) => Promise<FetchResponse>>();
+export const createFetchMock = (): FetchMock =>
+  vi.fn<(request: RequestInfo, init?: RequestInit) => Promise<FetchResponse>>();
 
 /**
  * 次の `fetch` 呼び出しに JSON レスポンスを返すようモックを設定する。
@@ -66,7 +63,10 @@ export const respondWithJsonError = (
 export interface TaskCardProps {
   task: Task;
   columnId: number;
-  dueHighlight: { status: "none" | "overdue" | "soon"; daysUntilDue: number | null };
+  dueHighlight: {
+    status: "none" | "overdue" | "soon";
+    daysUntilDue: number | null;
+  };
   onDeleteTask: (colId: number, taskId: number) => void;
   onCopyTask: (colId: number, taskId: number) => void;
   onTaskUpdated: (task: Task) => void;
@@ -186,7 +186,13 @@ export const sampleBoardRows: Row[] = [
     title: "行1",
     position: 1000,
     columns: [
-      { id: 10, row_id: 1, title: "カラム1", position: 1000, tasks: [baseTask] },
+      {
+        id: 10,
+        row_id: 1,
+        title: "カラム1",
+        position: 1000,
+        tasks: [baseTask],
+      },
       { id: 11, row_id: 1, title: "カラム2", position: 2000, tasks: [] },
     ],
   },

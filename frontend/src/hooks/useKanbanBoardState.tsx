@@ -11,7 +11,11 @@ import type { Row, Task } from "../types";
 import { getDueHighlight } from "../utils/dueDate";
 import { countTasks, filterRowsByTaskQuery } from "../utils/taskSearch";
 import type { useBoard } from "./useBoard";
-import type { ConfirmState, EditingTask, InlineEditState } from "../components/kanban/types";
+import type {
+  ConfirmState,
+  EditingTask,
+  InlineEditState,
+} from "../components/kanban/types";
 import { BoardRowHeader } from "../components/kanban/BoardRowHeader";
 import {
   DEFAULT_DUE_SOON_DAYS,
