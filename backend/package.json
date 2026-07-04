@@ -2,6 +2,7 @@
   "name": "kando-backend",
   "version": "0.3.1",
   "description": "Kando API",
+  "license": "MIT",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
