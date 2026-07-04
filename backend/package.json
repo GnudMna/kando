@@ -9,6 +9,8 @@
     "start": "node dist/server.js",
     "migrate": "node dist/migrate.js",
     "migrate:dev": "tsx migrate.ts",
+    "migrate:create": "node-pg-migrate create -m migrations -j sql --migration-filename-format utc --template-file-name ../node_modules/node-pg-migrate/templates/migration-template.sql",
+    "migrate:down": "node-pg-migrate down -m migrations -j sql",
     "build": "tsc",
     "dev": "tsx watch server.ts",
     "lint": "eslint .",
@@ -28,6 +30,7 @@
     "express-rate-limit": "^8.5.1",
     "helmet": "^8.2.0",
     "jose": "^6.2.3",
+    "node-pg-migrate": "^7.9.1",
     "pg": "^8.21.0"
   },
   "devDependencies": {

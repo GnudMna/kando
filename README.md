@@ -41,7 +41,7 @@
 | プロセス管理 | 各コンテナで単一サービスを実行（frontend / backend / db） |
 
 `compose.yaml` では `db`（PostgreSQL）、`backend`（Node.js API）、`frontend`（Nginx で静的Reactアプリ配信）を起動します。
-`backend` コンテナ内では起動時に `node dist/migrate.js` を実行したあと、API サーバーを開始します。
+`backend` コンテナ内では起動時に `npm run migrate`（`node-pg-migrate` によるバージョン管理マイグレーション）を実行したあと、API サーバーを開始します。
 
 ---
 
@@ -250,11 +250,12 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 .
 ├── backend/              # Express API
 │   ├── middleware/
+│   ├── migrations/       # バージョン管理された SQL マイグレーション
 │   ├── repositories/
 │   ├── routes/
 │   ├── services/
 │   ├── tests/
-│   ├── migrate.ts
+│   ├── migrate.ts        # マイグレーション実行エントリーポイント
 │   └── server.ts
 ├── frontend/             # React + Vite
 │   ├── public/
