@@ -96,6 +96,24 @@ npm run migrate:down
 
 ## API エンドポイント
 
+### OpenAPI 仕様（機械可読ドキュメント）
+
+Zod バリデーションスキーマ（`@kando/types/validation`）からビルド時に生成した OpenAPI 3.1 仕様を配信しています。
+
+| 形式 | URL                     | 説明                                |
+| ---- | ----------------------- | ----------------------------------- |
+| JSON | `GET /api/openapi.json` | OpenAPI 3.1 仕様（機械可読）        |
+| HTML | `GET /api/docs`         | Swagger UI による対話的ドキュメント |
+
+- 仕様のソース: `packages/types/src/openapi/`
+- リクエストボディは既存の Zod スキーマと同期（単一の真実の源）
+- 認証方式: HttpOnly Cookie（`token`）を優先、`Authorization: Bearer <JWT>` にフォールバック
+
+Docker Compose 起動時:
+
+- http://localhost:8080/api/openapi.json
+- http://localhost:8080/api/docs
+
 ### ヘルスチェック
 
 | メソッド | パス            | 説明                         |
@@ -114,8 +132,8 @@ npm run migrate:down
 補足:
 
 - `/api/auth/*` には認証レートリミットが適用される（15 分間に 10 リクエスト）
-- 発行された JWT は `Authorization: Bearer <token>` ヘッダーで送信する（有効期限 7 日）
-- 認証不要エンドポイント: `/api/health`、`/api/liveness`、`/api/auth/*`
+- 発行された JWT は HttpOnly Cookie（`token`）に保存される。API クライアント向けには `Authorization: Bearer <token>` ヘッダーも利用可能（有効期限 7 日）
+- 認証不要エンドポイント: `/api/health`、`/api/liveness`、`/api/auth/*`、`/api/openapi.json`、`/api/docs`
 
 ### ボード取得
 

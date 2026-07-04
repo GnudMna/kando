@@ -215,6 +215,11 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 
 ## 🔌 API 概要
 
+**OpenAPI 仕様（機械可読）:**
+
+- `GET /api/openapi.json` — OpenAPI 3.1 JSON
+- `GET /api/docs` — Swagger UI（Docker Compose 起動時: http://localhost:8080/api/docs）
+
 主要ベースパス:
 
 - `/api/health`
@@ -229,7 +234,7 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 
 特記事項:
 
-- `/api/auth/*` 以外の全 API エンドポイントは JWT 認証が必要（`Authorization: Bearer <token>`）
+- `/api/auth/*` 以外の全 API エンドポイントは JWT 認証が必要（HttpOnly Cookie または `Authorization: Bearer <token>`）
 - `GET /api/board` は `row_id`, `limit`, `offset` クエリに対応
 - `PUT /api/tasks/:id/snapshot` でタスク編集内容を一括保存
 
@@ -268,6 +273,7 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 │       └── utils/
 ├── packages/
 │   └── types/            # バックエンド・フロントエンド共有型定義
+│       └── src/openapi/  # OpenAPI 3.1 仕様（Zod から生成）
 ├── package.json          # ルート npm workspace と開発スクリプト
 ├── package-lock.json     # ルート workspace lock
 ├── scripts/              # 開発・運用スクリプト（linux/windows）
