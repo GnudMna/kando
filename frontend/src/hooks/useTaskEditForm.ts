@@ -120,8 +120,7 @@ export function useTaskEditForm({
       const savedTask = await api.saveTaskSnapshot(task.id, payload);
       onTaskUpdated(savedTask);
       onClose("saved");
-    } catch (err) {
-      console.error(err);
+    } catch {
       setSaveError("保存中にエラーが発生しました。再試行してください。");
     } finally {
       setIsSaving(false);
