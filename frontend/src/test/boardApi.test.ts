@@ -317,4 +317,236 @@ describe("boardApi", () => {
 
     await expect(api.fetchMemos()).resolves.toEqual(memos);
   });
+
+  it("deleteColumn uses DELETE", async () => {
+    respondWithJson(fetchMock, {});
+
+    await api.deleteColumn(5);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/columns/5", {
+      method: "DELETE",
+      credentials: "include",
+      headers: {},
+    });
+  });
+
+  it("saveTaskSnapshot sends PUT with payload", async () => {
+    const task: Task = {
+      id: 1,
+      column_id: 10,
+      content: "保存後",
+      due_date: null,
+      position: 1000,
+      completed: false,
+      subtasks: [],
+      checklists: [],
+      comments: [],
+    };
+    respondWithJson(fetchMock, task);
+
+    const payload = {
+      content: "保存後",
+      due_date: null,
+      completed: false,
+      checklists: [],
+      subtasks: [],
+      comments: [],
+    };
+    const result = await api.saveTaskSnapshot(1, payload);
+
+    expect(result).toEqual(task);
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/snapshot", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  });
+
+  it("moveTask sends PUT to move endpoint", async () => {
+    const task: Task = {
+      id: 1,
+      column_id: 11,
+      content: "移動",
+      due_date: null,
+      position: 1500,
+      completed: false,
+      subtasks: [],
+      checklists: [],
+      comments: [],
+    };
+    respondWithJson(fetchMock, task);
+
+    await api.moveTask(1, 11, 1500);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/move", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ column_id: 11, position: 1500 }),
+    });
+  });
+
+  it("deleteTask uses DELETE", async () => {
+    respondWithJson(fetchMock, {});
+
+    await api.deleteTask(7);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/7", {
+      method: "DELETE",
+      credentials: "include",
+      headers: {},
+    });
+  });
+
+  it("copyTask posts to copy endpoint", async () => {
+    const copied: Task = {
+      id: 2,
+      column_id: 10,
+      content: "コピー",
+      due_date: null,
+      position: 2000,
+      completed: false,
+      subtasks: [],
+      checklists: [],
+      comments: [],
+    };
+    respondWithJson(fetchMock, copied);
+
+    await expect(api.copyTask(1)).resolves.toEqual(copied);
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/copy", {
+      method: "POST",
+      credentials: "include",
+      headers: {},
+    });
+  });
+
+  it("createTaskComment posts JSON", async () => {
+    const comment = {
+      id: 1,
+      task_id: 10,
+      content: "コメント",
+      created_at: "2026-01-01T00:00:00.000Z",
+      position: 1000,
+    };
+    respondWithJson(fetchMock, comment);
+
+    await expect(api.createTaskComment(10, "コメント")).resolves.toEqual(comment);
+    expect(fetchMock).toHaveBeenCalledWith("/api/task-comments", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: 10, content: "コメント" }),
+    });
+  });
+
+  it("createSubtask posts JSON", async () => {
+    const subtask = {
+      id: 1,
+      task_id: 10,
+      content: "サブ",
+      checklists: [],
+    };
+    respondWithJson(fetchMock, subtask);
+
+    await expect(api.createSubtask(10, "サブ")).resolves.toEqual(subtask);
+    expect(fetchMock).toHaveBeenCalledWith("/api/subtasks", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: 10, content: "サブ" }),
+    });
+  });
+
+  it("createChecklistItem posts JSON with task_id", async () => {
+    const item = {
+      id: 1,
+      task_id: 10,
+      subtask_id: null,
+      content: "項目",
+      completed: false,
+      position: 1000,
+    };
+    respondWithJson(fetchMock, item);
+
+    await expect(api.createChecklistItem("項目", 10)).resolves.toEqual(item);
+    expect(fetchMock).toHaveBeenCalledWith("/api/checklist-items", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        task_id: 10,
+        subtask_id: null,
+        content: "項目",
+      }),
+    });
+  });
+
+  it("createMemo posts JSON", async () => {
+    const memo = {
+      id: 1,
+      user_id: 1,
+      title: "タイトル",
+      content: "本文",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      tasks: [],
+    };
+    respondWithJson(fetchMock, memo);
+
+    await expect(api.createMemo("タイトル", "本文")).resolves.toEqual(memo);
+  });
+
+  it("linkMemoTask posts task_id", async () => {
+    const memo = {
+      id: 1,
+      user_id: 1,
+      title: "メモ",
+      content: "本文",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      tasks: [{ id: 5, content: "タスク" }],
+    };
+    respondWithJson(fetchMock, memo);
+
+    await expect(api.linkMemoTask(1, 5)).resolves.toEqual(memo);
+    expect(fetchMock).toHaveBeenCalledWith("/api/memos/1/tasks", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: 5 }),
+    });
+  });
+
+  it("unlinkMemoTask uses DELETE", async () => {
+    const memo = {
+      id: 1,
+      user_id: 1,
+      title: "メモ",
+      content: "本文",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      tasks: [],
+    };
+    respondWithJson(fetchMock, memo);
+
+    await api.unlinkMemoTask(1, 5);
+    expect(fetchMock).toHaveBeenCalledWith("/api/memos/1/tasks/5", {
+      method: "DELETE",
+      credentials: "include",
+      headers: {},
+    });
+  });
+
+  it("verify returns false when response is not ok", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({}) });
+
+    await expect(api.verify()).resolves.toBe(false);
+  });
+
+  it("login throws on error response", async () => {
+    respondWithJsonError(fetchMock, 401, { error: "認証失敗" });
+
+    await expect(api.login("user", "wrongpassword")).rejects.toThrow("認証失敗");
+  });
 });

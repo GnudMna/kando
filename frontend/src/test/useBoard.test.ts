@@ -310,4 +310,176 @@ describe("useBoard", () => {
     expect(dstCol?.tasks[0].position).toBe(1000);
     expect(api.moveTask).toHaveBeenCalledWith(1, 11, 1000);
   });
+
+  it("addTask がカラムにタスクを追加すること", async () => {
+    const newTask: Task = {
+      id: 99,
+      column_id: 10,
+      content: "新しいタスク",
+      due_date: null,
+      position: 2000,
+      completed: false,
+      subtasks: [],
+      checklists: [],
+      comments: [],
+    };
+    vi.mocked(api.createTask).mockResolvedValue(newTask);
+
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let created: Task | null = null;
+    await act(async () => {
+      created = await result.current.addTask(10, 1);
+    });
+
+    expect(created).toEqual(newTask);
+    const col = result.current.rows[0].columns.find((c) => c.id === 10);
+    expect(col?.tasks).toHaveLength(2);
+    expect(api.createTask).toHaveBeenCalledWith(10, "新しいタスク", 2000);
+  });
+
+  it("addTask が失敗した場合 operationError がセットされること", async () => {
+    vi.mocked(api.createTask).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.addTask(10, 1);
+    });
+
+    expect(result.current.operationError).toBe("タスクの追加に失敗しました");
+  });
+
+  it("copyTask がタスクを複製すること", async () => {
+    const copied: Task = {
+      ...taskA,
+      id: 2,
+      content: "タスクA のコピー",
+    };
+    vi.mocked(api.copyTask).mockResolvedValue(copied);
+
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let resultTask: Task | null = null;
+    await act(async () => {
+      resultTask = await result.current.copyTask(10, 1);
+    });
+
+    expect(resultTask).toEqual(copied);
+    const col = result.current.rows[0].columns.find((c) => c.id === 10);
+    expect(col?.tasks).toHaveLength(2);
+  });
+
+  it("copyTask が失敗した場合 operationError がセットされること", async () => {
+    vi.mocked(api.copyTask).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.copyTask(10, 1);
+    });
+
+    expect(result.current.operationError).toBe("タスクのコピーに失敗しました");
+  });
+
+  it("moveColumn がカラムの順序を変更すること", async () => {
+    vi.mocked(api.moveColumn).mockResolvedValue({
+      id: 11,
+      row_id: 1,
+      title: "カラム2",
+      position: 500,
+      tasks: [],
+    });
+
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveColumn(1, 1, 0, 11);
+    });
+
+    const row = result.current.rows.find((r) => r.id === 1);
+    expect(row?.columns[0].id).toBe(11);
+    expect(row?.columns[1].id).toBe(10);
+    expect(api.moveColumn).toHaveBeenCalledWith(11, 500);
+  });
+
+  it("moveColumn が API 失敗時に状態をロールバックすること", async () => {
+    vi.mocked(api.moveColumn).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const before = structuredClone(result.current.rows);
+    await act(async () => {
+      await result.current.moveColumn(1, 1, 0, 11);
+    });
+
+    expect(result.current.rows).toEqual(before);
+    expect(result.current.operationError).toBe("カラムの移動に失敗しました");
+  });
+
+  it("moveTask が API 失敗時に状態をロールバックすること", async () => {
+    vi.mocked(api.moveTask).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const before = structuredClone(result.current.rows);
+    await act(async () => {
+      await result.current.moveTask("10", "11", 0, 0, 1);
+    });
+
+    expect(result.current.rows).toEqual(before);
+    expect(result.current.operationError).toBe("タスクの移動に失敗しました");
+  });
+
+  it("removeTask が失敗した場合 operationError がセットされること", async () => {
+    vi.mocked(api.deleteTask).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.removeTask(10, 1);
+    });
+
+    expect(result.current.operationError).toBe("タスクの削除に失敗しました");
+    expect(result.current.rows[0].columns[0].tasks).toHaveLength(1);
+  });
+
+  it("renameColumn が失敗した場合 operationError がセットされること", async () => {
+    vi.mocked(api.updateColumn).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.renameColumn(10, "失敗");
+    });
+
+    expect(result.current.operationError).toBe("カラム名の変更に失敗しました");
+  });
+
+  it("addColumn が失敗した場合 operationError がセットされること", async () => {
+    vi.mocked(api.createColumn).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.addColumn(1, "失敗カラム");
+    });
+
+    expect(result.current.operationError).toBe("カラムの追加に失敗しました");
+  });
+
+  it("removeColumn が失敗した場合 operationError がセットされること", async () => {
+    vi.mocked(api.deleteColumn).mockRejectedValue(new Error("fail"));
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.removeColumn(10);
+    });
+
+    expect(result.current.operationError).toBe("カラムの削除に失敗しました");
+  });
 });
