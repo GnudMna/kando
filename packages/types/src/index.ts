@@ -3,6 +3,8 @@
  * - バックエンド・フロントエンドの両方で同じ型を参照するための共通定義
  */
 
+export * from "./validation/index.js";
+
 /** DB の `rows` テーブルに対応する行レコード。 */
 export interface DbRow {
   /** 行の一意 ID */

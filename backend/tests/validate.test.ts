@@ -1,9 +1,17 @@
 // validate ミドルウェア（parseId / validateBody）のユニットテスト
 import { describe, it, expect } from "vitest";
 import { parseId, validateBody } from "../middleware/validate";
+import {
+  validateTestBodySchema,
+  validateTestPositivePositionSchema,
+  validateTestPositionSchema,
+  validateTestRowAndPositionSchema,
+  validateTestRowIdSchema,
+  validateTestScoreSchema,
+  validateTestTitleMaxSchema,
+} from "@kando/types/validation";
 import type { Request, Response, NextFunction } from "express";
 
-// テスト用のモック Express レスポンスオブジェクトを生成するヘルパー
 /**
  * レスポンス検証用の簡易モックを作成する。
  * @returns `statusCode` と `body` を保持するモック Response
@@ -56,10 +64,7 @@ describe("parseId", () => {
 });
 
 describe("validateBody", () => {
-  const middleware = validateBody({
-    title: { type: "string", required: true, notEmpty: true },
-    position: { type: "number", required: true },
-  });
+  const middleware = validateBody(validateTestBodySchema);
 
   it("有効なボディの場合は next() を呼び出す", () => {
     const req = { body: { title: "Test", position: 1000 } } as Request;
@@ -108,13 +113,11 @@ describe("validateBody", () => {
   });
 
   it("maxLength を超える場合は 400 を返す", () => {
-    const mw = validateBody({
-      title: { type: "string", required: true, notEmpty: true, maxLength: 10 },
-    });
+    const maxMiddleware = validateBody(validateTestTitleMaxSchema);
     const req = { body: { title: "a".repeat(11) } } as Request;
     const res = mockRes();
     const next: NextFunction = () => {};
-    mw(req, res, next);
+    maxMiddleware(req, res, next);
     expect(res.statusCode).toBe(400);
     expect((res.body as { error: string }).error).toMatch(
       /'title' must be 10 characters or fewer/,
@@ -122,27 +125,23 @@ describe("validateBody", () => {
   });
 
   it("maxLength 以内の場合は next() を呼び出す", () => {
-    const mw = validateBody({
-      title: { type: "string", required: true, notEmpty: true, maxLength: 10 },
-    });
+    const maxMiddleware = validateBody(validateTestTitleMaxSchema);
     const req = { body: { title: "a".repeat(10) } } as Request;
     const res = mockRes();
     let called = false;
     const next: NextFunction = () => {
       called = true;
     };
-    mw(req, res, next);
+    maxMiddleware(req, res, next);
     expect(called).toBe(true);
   });
 
   it("number が NaN または Infinity の場合は 400 を返す", () => {
-    const mw = validateBody({
-      position: { type: "number", required: true },
-    });
+    const posMiddleware = validateBody(validateTestPositionSchema);
 
     const reqNaN = { body: { position: Number.NaN } } as Request;
     const resNaN = mockRes();
-    mw(reqNaN, resNaN, (() => {}) as NextFunction);
+    posMiddleware(reqNaN, resNaN, (() => {}) as NextFunction);
     expect(resNaN.statusCode).toBe(400);
     expect((resNaN.body as { error: string }).error).toMatch(
       /'position' must be a finite number/,
@@ -150,7 +149,7 @@ describe("validateBody", () => {
 
     const reqInf = { body: { position: Number.POSITIVE_INFINITY } } as Request;
     const resInf = mockRes();
-    mw(reqInf, resInf, (() => {}) as NextFunction);
+    posMiddleware(reqInf, resInf, (() => {}) as NextFunction);
     expect(resInf.statusCode).toBe(400);
     expect((resInf.body as { error: string }).error).toMatch(
       /'position' must be a finite number/,
@@ -158,12 +157,10 @@ describe("validateBody", () => {
   });
 
   it("integer 指定時に小数を拒否する", () => {
-    const mw = validateBody({
-      row_id: { type: "number", required: true, integer: true },
-    });
+    const rowMiddleware = validateBody(validateTestRowIdSchema);
     const req = { body: { row_id: 1.25 } } as Request;
     const res = mockRes();
-    mw(req, res, (() => {}) as NextFunction);
+    rowMiddleware(req, res, (() => {}) as NextFunction);
     expect(res.statusCode).toBe(400);
     expect((res.body as { error: string }).error).toMatch(
       /'row_id' must be an integer/,
@@ -171,12 +168,10 @@ describe("validateBody", () => {
   });
 
   it("positive 指定時に 0 以下を拒否する", () => {
-    const mw = validateBody({
-      position: { type: "number", required: true, positive: true },
-    });
+    const positiveMiddleware = validateBody(validateTestPositivePositionSchema);
     const req = { body: { position: 0 } } as Request;
     const res = mockRes();
-    mw(req, res, (() => {}) as NextFunction);
+    positiveMiddleware(req, res, (() => {}) as NextFunction);
     expect(res.statusCode).toBe(400);
     expect((res.body as { error: string }).error).toMatch(
       /'position' must be greater than 0/,
@@ -184,13 +179,11 @@ describe("validateBody", () => {
   });
 
   it("min / max を満たさない場合は 400 を返す", () => {
-    const mw = validateBody({
-      score: { type: "number", required: true, min: 0, max: 100 },
-    });
+    const scoreMiddleware = validateBody(validateTestScoreSchema);
 
     const reqTooSmall = { body: { score: -1 } } as Request;
     const resTooSmall = mockRes();
-    mw(reqTooSmall, resTooSmall, (() => {}) as NextFunction);
+    scoreMiddleware(reqTooSmall, resTooSmall, (() => {}) as NextFunction);
     expect(resTooSmall.statusCode).toBe(400);
     expect((resTooSmall.body as { error: string }).error).toMatch(
       /'score' must be greater than or equal to 0/,
@@ -198,7 +191,7 @@ describe("validateBody", () => {
 
     const reqTooLarge = { body: { score: 101 } } as Request;
     const resTooLarge = mockRes();
-    mw(reqTooLarge, resTooLarge, (() => {}) as NextFunction);
+    scoreMiddleware(reqTooLarge, resTooLarge, (() => {}) as NextFunction);
     expect(resTooLarge.statusCode).toBe(400);
     expect((resTooLarge.body as { error: string }).error).toMatch(
       /'score' must be less than or equal to 100/,
@@ -206,17 +199,14 @@ describe("validateBody", () => {
   });
 
   it("number 制約をすべて満たす場合は next() を呼び出す", () => {
-    const mw = validateBody({
-      row_id: { type: "number", required: true, integer: true, positive: true },
-      position: { type: "number", required: true, min: 0.5, max: 10 },
-    });
+    const combinedMiddleware = validateBody(validateTestRowAndPositionSchema);
     const req = { body: { row_id: 3, position: 2.5 } } as Request;
     const res = mockRes();
     let called = false;
     const next: NextFunction = () => {
       called = true;
     };
-    mw(req, res, next);
+    combinedMiddleware(req, res, next);
     expect(called).toBe(true);
   });
 });

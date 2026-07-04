@@ -1,5 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import type { Task, LocalTask, LocalSubtask, LocalChecklistItem, TempId } from "../types";
+import type {
+  Task,
+  LocalTask,
+  LocalSubtask,
+  LocalChecklistItem,
+  TempId,
+} from "../types";
 import type { Memo } from "../api/boardApi";
 import * as api from "../api/boardApi";
 import { normalizeDueDateValue } from "../utils/dueDate";
@@ -49,7 +55,9 @@ export function useTaskEditForm({
   const [newChecklistContent, setNewChecklistContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [allMemos, setAllMemos] = useState<Memo[] | null>(() => getCachedMemos());
+  const [allMemos, setAllMemos] = useState<Memo[] | null>(() =>
+    getCachedMemos(),
+  );
   const [linkedMemoIds, setLinkedMemoIds] = useState<Set<number>>(() => {
     const cached = getCachedMemos();
     if (!cached) return new Set<number>();

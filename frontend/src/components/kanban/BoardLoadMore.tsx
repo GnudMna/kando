@@ -8,7 +8,10 @@ interface BoardLoadMoreProps {
 /**
  * 追加行読み込みボタンを描画する。
  */
-export function BoardLoadMore({ isLoadingMore, onLoadMore }: BoardLoadMoreProps) {
+export function BoardLoadMore({
+  isLoadingMore,
+  onLoadMore,
+}: BoardLoadMoreProps) {
   return (
     <div className="board-load-more">
       <button

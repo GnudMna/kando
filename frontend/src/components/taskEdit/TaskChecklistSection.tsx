@@ -88,7 +88,13 @@ export function TaskChecklistSection({
         ))}
       </div>
       {addingChecklist === parentKey ? (
-        <div style={parentKey !== "task" ? { marginLeft: "1.25rem", marginTop: "0.25rem" } : undefined}>
+        <div
+          style={
+            parentKey !== "task"
+              ? { marginLeft: "1.25rem", marginTop: "0.25rem" }
+              : undefined
+          }
+        >
           <ChecklistInput
             value={newChecklistContent}
             onChange={onNewChecklistContentChange}

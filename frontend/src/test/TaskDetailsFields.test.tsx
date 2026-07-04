@@ -50,8 +50,8 @@ describe("TaskDetailsFields", () => {
   });
 
   it("完了ボタンで completed がトグルされる", () => {
-    const onChange = vi.fn(
-      (updater: (prev: LocalTask) => LocalTask) => updater(baseLocalTask),
+    const onChange = vi.fn((updater: (prev: LocalTask) => LocalTask) =>
+      updater(baseLocalTask),
     );
 
     render(

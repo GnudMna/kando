@@ -8,7 +8,10 @@ interface BoardErrorBannerProps {
 /**
  * ボード操作エラーのアラートバナーを描画する。
  */
-export function BoardErrorBanner({ message, onDismiss }: BoardErrorBannerProps) {
+export function BoardErrorBanner({
+  message,
+  onDismiss,
+}: BoardErrorBannerProps) {
   return (
     <div role="alert" className="board-error">
       <AlertCircle size={16} />

@@ -224,17 +224,19 @@ describe("tasks router integration", () => {
 
   describe("PUT /api/tasks/:id/snapshot バリデーション", () => {
     it("重複した checklists.id を拒否する", async () => {
-      const res = await request(createApp()).put("/api/tasks/1/snapshot").send({
-        content: "タスク",
-        due_date: null,
-        completed: false,
-        checklists: [
-          { id: 1, content: "A", completed: false },
-          { id: 1, content: "B", completed: false },
-        ],
-        subtasks: [],
-        comments: [],
-      });
+      const res = await request(createApp())
+        .put("/api/tasks/1/snapshot")
+        .send({
+          content: "タスク",
+          due_date: null,
+          completed: false,
+          checklists: [
+            { id: 1, content: "A", completed: false },
+            { id: 1, content: "B", completed: false },
+          ],
+          subtasks: [],
+          comments: [],
+        });
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: "Duplicate 'checklists.id': 1" });

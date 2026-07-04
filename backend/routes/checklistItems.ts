@@ -5,56 +5,20 @@ import { pool } from "../db.js";
 import type { DbChecklistItem } from "../types.js";
 import { HttpError, NotFoundError } from "../errors.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createChecklistItemBodySchema,
+  updateChecklistItemBodySchema,
+} from "@kando/types/validation";
 
 const router = Router();
 
 const POSITION_INCREMENT = 1000;
 
-type ChecklistParentValidationResult =
-  | { ok: true; taskId: number | null; subtaskId: number | null }
-  | { ok: false; error: string };
-
-/**
- * checklist_items の親参照（task_id / subtask_id）を検証する。
- * どちらか一方のみ指定されることを必須とする。
- * @param taskIdRaw - リクエストボディの `task_id`
- * @param subtaskIdRaw - リクエストボディの `subtask_id`
- * @returns 正常時は親 ID を含む結果、異常時はエラーメッセージを含む結果
- */
-export function validateChecklistParentRefs(
-  taskIdRaw: unknown,
-  subtaskIdRaw: unknown,
-): ChecklistParentValidationResult {
-  const hasTaskId = taskIdRaw !== null && taskIdRaw !== undefined;
-  const hasSubtaskId = subtaskIdRaw !== null && subtaskIdRaw !== undefined;
-
-  if (hasTaskId === hasSubtaskId) {
-    return {
-      ok: false,
-      error: "Exactly one of 'task_id' or 'subtask_id' is required",
-    };
-  }
-
-  if (hasTaskId) {
-    if (!Number.isInteger(taskIdRaw) || (taskIdRaw as number) <= 0) {
-      return { ok: false, error: "'task_id' must be a positive integer" };
-    }
-    return { ok: true, taskId: taskIdRaw as number, subtaskId: null };
-  }
-
-  if (!Number.isInteger(subtaskIdRaw) || (subtaskIdRaw as number) <= 0) {
-    return { ok: false, error: "'subtask_id' must be a positive integer" };
-  }
-  return { ok: true, taskId: null, subtaskId: subtaskIdRaw as number };
-}
-
 // 新しいチェックリスト項目を作成する: POST /api/checklist-items
 // task_id または subtask_id のどちらか一方のみ必須
 router.post(
   "/",
-  validateBody({
-    content: { type: "string", required: true, notEmpty: true, maxLength: 500 },
-  }),
+  validateBody(createChecklistItemBodySchema),
   /**
    * チェックリスト項目を作成する。
    * @param req - 本文 `content` と親参照（`task_id` または `subtask_id`）を含むリクエスト
@@ -63,16 +27,13 @@ router.post(
    * @returns 作成処理完了時に解決される Promise
    */
   async (req: Request, res: Response, next: NextFunction) => {
-    const { content } = req.body as { content: string };
-    const body = req.body as Record<string, unknown>;
-    const parentRefs = validateChecklistParentRefs(
-      body.task_id,
-      body.subtask_id,
-    );
-    if (!parentRefs.ok) {
-      res.status(400).json({ error: parentRefs.error });
-      return;
-    }
+    const { content, task_id, subtask_id } = req.body as {
+      content: string;
+      task_id?: number;
+      subtask_id?: number;
+    };
+    const taskId = task_id ?? null;
+    const subtaskId = subtask_id ?? null;
 
     const client = await pool.connect();
     try {
@@ -80,14 +41,14 @@ router.post(
 
       // 同一親への同時追加を直列化して position の重複採番を防ぐ。
       let nextPosition = POSITION_INCREMENT;
-      if (parentRefs.taskId !== null) {
+      if (taskId !== null) {
         // 親タスクの所有権を確認しつつロックを取得する
         const parentRow = await client.query(
           `SELECT t.id FROM tasks t
            JOIN columns c ON c.id = t.column_id
            JOIN rows r ON r.id = c.row_id
            WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
-          [parentRefs.taskId, req.userId!],
+          [taskId, req.userId!],
         );
         if (parentRow.rowCount === 0) {
           throw new NotFoundError("Task not found");
@@ -96,13 +57,13 @@ router.post(
           next_position: number;
         }>(
           `SELECT COALESCE(MAX(position), 0) + ${POSITION_INCREMENT} AS next_position FROM checklist_items WHERE task_id = $1`,
-          [parentRefs.taskId],
+          [taskId],
         );
         nextPosition =
           nextPositionResult.rows[0]?.next_position ?? POSITION_INCREMENT;
       } else {
-        const subtaskId = parentRefs.subtaskId;
-        if (subtaskId === null) {
+        const subtaskIdValue = subtaskId;
+        if (subtaskIdValue === null) {
           throw new HttpError(500, "Invalid checklist parent refs");
         }
         // 親サブタスクの所有権を確認しつつロックを取得する
@@ -112,7 +73,7 @@ router.post(
            JOIN columns c ON c.id = t.column_id
            JOIN rows r ON r.id = c.row_id
            WHERE s.id = $1 AND r.user_id = $2 FOR UPDATE`,
-          [subtaskId, req.userId!],
+          [subtaskIdValue, req.userId!],
         );
         if (parentRow.rowCount === 0) {
           throw new NotFoundError("Subtask not found");
@@ -121,7 +82,7 @@ router.post(
           next_position: number;
         }>(
           `SELECT COALESCE(MAX(position), 0) + ${POSITION_INCREMENT} AS next_position FROM checklist_items WHERE subtask_id = $1`,
-          [subtaskId],
+          [subtaskIdValue],
         );
         nextPosition =
           nextPositionResult.rows[0]?.next_position ?? POSITION_INCREMENT;
@@ -129,7 +90,7 @@ router.post(
 
       const result = await client.query<DbChecklistItem>(
         "INSERT INTO checklist_items (task_id, subtask_id, content, position) VALUES ($1, $2, $3, $4) RETURNING *",
-        [parentRefs.taskId, parentRefs.subtaskId, content.trim(), nextPosition],
+        [taskId, subtaskId, content.trim(), nextPosition],
       );
 
       await client.query("COMMIT");
@@ -150,11 +111,7 @@ router.post(
 // チェックリスト項目の内容・完了状態・並び順を更新する: PUT /api/checklist-items/:id
 router.put(
   "/:id",
-  validateBody({
-    content: { type: "string", notEmpty: true, maxLength: 500 },
-    completed: { type: "boolean" },
-    position: { type: "number", finite: true, integer: true, positive: true },
-  }),
+  validateBody(updateChecklistItemBodySchema),
   /**
    * チェックリスト項目を更新する。
    * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト

@@ -7,6 +7,11 @@ import {
   updateColumnTitle,
 } from "../services/columnsService.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createColumnBodySchema,
+  moveColumnBodySchema,
+  updateColumnTitleBodySchema,
+} from "@kando/types/validation";
 import { NotFoundError } from "../errors.js";
 
 const router = Router();
@@ -14,11 +19,7 @@ const router = Router();
 // 新しいカラムを作成する: POST /api/columns
 router.post(
   "/",
-  validateBody({
-    title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
-    position: { type: "number", required: true, positive: true },
-    row_id: { type: "number", required: true, integer: true, positive: true },
-  }),
+  validateBody(createColumnBodySchema),
   /**
    * カラムを作成する。
    * @param req - `title` `position` `row_id` を含むリクエスト
@@ -47,9 +48,7 @@ router.post(
 // カラムのタイトルを更新する: PUT /api/columns/:id
 router.put(
   "/:id",
-  validateBody({
-    title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
-  }),
+  validateBody(updateColumnTitleBodySchema),
   /**
    * カラムタイトルを更新する。
    * @param req - パスパラメータ `id` と本文 `title` を含むリクエスト
@@ -79,9 +78,7 @@ router.put(
 // カラムの表示順（position）を更新する: PUT /api/columns/:id/move
 router.put(
   "/:id/move",
-  validateBody({
-    position: { type: "number", required: true, positive: true },
-  }),
+  validateBody(moveColumnBodySchema),
   /**
    * カラムの表示順を更新する。
    * @param req - パスパラメータ `id` と本文 `position` を含むリクエスト

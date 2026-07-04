@@ -7,6 +7,10 @@ import {
   updateRowTitle,
 } from "../services/rowsService.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createRowBodySchema,
+  updateRowTitleBodySchema,
+} from "@kando/types/validation";
 import { NotFoundError } from "../errors.js";
 
 const router = Router();
@@ -14,10 +18,7 @@ const router = Router();
 // 新しい行を作成する: POST /api/rows
 router.post(
   "/",
-  validateBody({
-    title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
-    position: { type: "number", required: true, positive: true },
-  }),
+  validateBody(createRowBodySchema),
   /**
    * 行を作成する。
    * @param req - `title` と `position` を含むリクエスト
@@ -39,10 +40,7 @@ router.post(
 // 行とデフォルト3カラムを一括作成する: POST /api/rows/with-default-columns
 router.post(
   "/with-default-columns",
-  validateBody({
-    title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
-    position: { type: "number", required: true, positive: true },
-  }),
+  validateBody(createRowBodySchema),
   /**
    * 行とデフォルト3カラムを単一トランザクションで作成する。
    * @param req - `title` と `position` を含むリクエスト
@@ -68,9 +66,7 @@ router.post(
 // 行のタイトルを更新する: PUT /api/rows/:id
 router.put(
   "/:id",
-  validateBody({
-    title: { type: "string", required: true, notEmpty: true, maxLength: 200 },
-  }),
+  validateBody(updateRowTitleBodySchema),
   /**
    * 行タイトルを更新する。
    * @param req - パスパラメータ `id` と本文 `title` を含むリクエスト

@@ -20,9 +20,7 @@ export function useDraggable() {
   const [isDragged, setIsDragged] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   // レンダー時に posStyle へ渡す座標（ドラッグ開始・終了時にのみ更新）
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(
-    null,
-  );
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // mousemove 中は DOM を直接変更するための座標キャッシュ（setState を経由しない）
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);

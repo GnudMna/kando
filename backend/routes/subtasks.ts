@@ -3,6 +3,10 @@ import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbSubtask } from "../types.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createSubtaskBodySchema,
+  updateSubtaskBodySchema,
+} from "@kando/types/validation";
 import { NotFoundError } from "../errors.js";
 
 const router = Router();
@@ -10,15 +14,7 @@ const router = Router();
 // 新しいサブタスクを作成する: POST /api/subtasks
 router.post(
   "/",
-  validateBody({
-    task_id: { type: "number", required: true, integer: true, positive: true },
-    content: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 2000,
-    },
-  }),
+  validateBody(createSubtaskBodySchema),
   /**
    * サブタスクを作成する。
    * @param req - `task_id` と `content` を含むリクエスト
@@ -58,14 +54,7 @@ router.post(
 // サブタスクの内容を更新する: PUT /api/subtasks/:id
 router.put(
   "/:id",
-  validateBody({
-    content: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 2000,
-    },
-  }),
+  validateBody(updateSubtaskBodySchema),
   /**
    * サブタスク内容を更新する。
    * @param req - パスパラメータ `id` と本文 `content` を含むリクエスト

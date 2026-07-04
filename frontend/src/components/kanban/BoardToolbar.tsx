@@ -1,11 +1,5 @@
 import { useId } from "react";
-import {
-  Plus,
-  LayoutTemplate,
-  List,
-  Search,
-  X,
-} from "lucide-react";
+import { Plus, LayoutTemplate, List, Search, X } from "lucide-react";
 import { InlineNameForm } from "./InlineNameForm";
 import { MAX_DUE_SOON_DAYS, normalizeDueSoonDays } from "./constants";
 
@@ -65,7 +59,11 @@ export function BoardToolbar({
           className="inline-name-form-toolbar"
         />
       ) : (
-        <button type="button" className="btn btn-primary" onClick={onStartAddRow}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onStartAddRow}
+        >
           <Plus size={16} /> 行を追加
         </button>
       )}
@@ -146,9 +144,7 @@ export function BoardToolbar({
             aria-pressed={activeViewMode === "kanban"}
             disabled={isSearchActive}
             title={
-              isSearchActive
-                ? "検索中はリスト表示のみ利用できます"
-                : undefined
+              isSearchActive ? "検索中はリスト表示のみ利用できます" : undefined
             }
           >
             <LayoutTemplate size={16} /> かんばん

@@ -101,7 +101,9 @@ describe("tasksService", () => {
 
       expect(result).toEqual(updated);
       expect(mockedPool.query).toHaveBeenCalledWith(
-        expect.stringContaining("UPDATE tasks SET content = $1, completed = $2"),
+        expect.stringContaining(
+          "UPDATE tasks SET content = $1, completed = $2",
+        ),
         ["更新後", true, 1, 99],
       );
     });
@@ -249,10 +251,7 @@ describe("tasksService", () => {
 
       client.query.mockImplementation(async (sql: unknown) => {
         const statement = String(sql);
-        if (
-          statement === "BEGIN" ||
-          statement === "ROLLBACK"
-        ) {
+        if (statement === "BEGIN" || statement === "ROLLBACK") {
           return { rows: [] };
         }
         if (statement.includes("FOR UPDATE") && statement.includes("tasks t")) {

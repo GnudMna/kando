@@ -111,7 +111,9 @@ describe("KanbanBoard", () => {
 
   it("hasMore が true のとき「さらに読み込む」ボタンが表示されること", () => {
     vi.mocked(useBoard).mockReturnValue(
-      createMockUseBoardReturn({ hasMore: true }) as ReturnType<typeof useBoard>,
+      createMockUseBoardReturn({ hasMore: true }) as ReturnType<
+        typeof useBoard
+      >,
     );
 
     render(<KanbanBoard />);
@@ -186,7 +188,9 @@ describe("KanbanBoard", () => {
     );
 
     render(<KanbanBoard />);
-    fireEvent.click(screen.getAllByRole("button", { name: /ステータスを追加/ })[0]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /ステータスを追加/ })[0],
+    );
     fireEvent.change(screen.getByLabelText("ステータス名"), {
       target: { value: "新ステータス" },
     });

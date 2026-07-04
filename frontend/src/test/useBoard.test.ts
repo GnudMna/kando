@@ -29,7 +29,9 @@ const renderBoardHook = () => renderHook(() => useBoard());
 describe("useBoard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(api.fetchBoard).mockResolvedValue(structuredClone(sampleBoardRows));
+    vi.mocked(api.fetchBoard).mockResolvedValue(
+      structuredClone(sampleBoardRows),
+    );
   });
 
   it("マウント時にボードデータを先頭ページのみ読み込むこと", async () => {

@@ -4,6 +4,7 @@ import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import { pool } from "../db.js";
 import { validateBody } from "../middleware/validate.js";
+import { loginBodySchema, registerBodySchema } from "@kando/types/validation";
 import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
@@ -74,20 +75,7 @@ router.get("/status", async (_req, res, next) => {
  */
 router.post(
   "/register",
-  validateBody({
-    username: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 100,
-    },
-    password: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 72, // bcrypt は先頭 72 バイトのみ使用するため上限を合わせる
-    },
-  }),
+  validateBody(registerBodySchema),
   async (req, res, next) => {
     if (!AUTH_SECRET) {
       res.status(503).json({ error: "Authentication not configured" });
@@ -166,58 +154,41 @@ router.post(
  * POST /api/auth/login
  * ユーザー名とパスワードを検証し、有効な場合は JWT を返す。
  */
-router.post(
-  "/login",
-  validateBody({
-    username: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 100,
-    },
-    password: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 72, // bcrypt は先頭 72 バイトのみ使用するため上限を合わせる
-    },
-  }),
-  async (req, res, next) => {
-    if (!AUTH_SECRET) {
-      res.status(503).json({ error: "Authentication not configured" });
+router.post("/login", validateBody(loginBodySchema), async (req, res, next) => {
+  if (!AUTH_SECRET) {
+    res.status(503).json({ error: "Authentication not configured" });
+    return;
+  }
+
+  const { username, password } = req.body as {
+    username: string;
+    password: string;
+  };
+
+  try {
+    const result = await pool.query<{
+      id: number;
+      password_hash: string;
+    }>("SELECT id, password_hash FROM users WHERE username = $1", [username]);
+
+    const user = result.rows[0];
+    // ユーザーが存在しない場合もダミーハッシュで比較し、タイミング攻撃を防ぐ
+    const hashToCheck = user?.password_hash ?? DUMMY_HASH;
+    const valid = await bcrypt.compare(password, hashToCheck);
+
+    if (!user || !valid) {
+      res
+        .status(401)
+        .json({ error: "ユーザー名またはパスワードが正しくありません" });
       return;
     }
 
-    const { username, password } = req.body as {
-      username: string;
-      password: string;
-    };
-
-    try {
-      const result = await pool.query<{
-        id: number;
-        password_hash: string;
-      }>("SELECT id, password_hash FROM users WHERE username = $1", [username]);
-
-      const user = result.rows[0];
-      // ユーザーが存在しない場合もダミーハッシュで比較し、タイミング攻撃を防ぐ
-      const hashToCheck = user?.password_hash ?? DUMMY_HASH;
-      const valid = await bcrypt.compare(password, hashToCheck);
-
-      if (!user || !valid) {
-        res
-          .status(401)
-          .json({ error: "ユーザー名またはパスワードが正しくありません" });
-        return;
-      }
-
-      await signAndSetCookie(res, user.id);
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
+    await signAndSetCookie(res, user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * POST /api/auth/logout
