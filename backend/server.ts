@@ -18,6 +18,7 @@ import subtasksRouter from "./routes/subtasks.js";
 import checklistItemsRouter from "./routes/checklistItems.js";
 import taskCommentsRouter from "./routes/taskComments.js";
 import memosRouter from "./routes/memos.js";
+import openapiRouter from "./routes/openapi.js";
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -57,8 +58,21 @@ app.disable("x-powered-by");
 // リバースプロキシ（nginx等）からの X-Forwarded-For を信頼する
 app.set("trust proxy", 1);
 
-// セキュリティヘッダーを付与する
-app.use(helmet());
+// セキュリティヘッダーを付与する（Swagger UI 用に unpkg を許可）
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "https://unpkg.com"],
+      },
+    },
+  }),
+);
 
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",")
@@ -126,6 +140,9 @@ if (process.env.E2E_TEST !== "true") {
   app.use("/api/auth/register", authLimiter);
   app.use("/api/auth/status", authLimiter);
 }
+
+// OpenAPI 仕様（認証不要）
+app.use("/api", openapiRouter);
 
 // ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
 app.get("/api/liveness", (_req, res) => {

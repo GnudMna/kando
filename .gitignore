@@ -148,6 +148,9 @@ vite.config.ts.timestamp-*
 # Postgres data files
 pgdata
 
+# Generated OpenAPI spec
+backend/openapi/openapi.json
+
 # Playwright
 test-results/
 playwright-report/
