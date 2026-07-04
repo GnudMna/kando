@@ -59,21 +59,40 @@ npm run start
 
 ## マイグレーション
 
+[node-pg-migrate](https://salsita.github.io/node-pg-migrate/) によるバージョン管理マイグレーションを使用しています。
+マイグレーションファイルは `migrations/` ディレクトリに SQL 形式で配置されます。
+
 ```bash
-# TypeScript を直接実行
+# TypeScript を直接実行（開発時）
 npm run migrate:dev
 
-# ビルド済み dist/migrate.js を実行
+# ビルド済み dist/migrate.js を実行（本番）
 npm run migrate
+
+# 新しいマイグレーションファイルを作成
+npm run migrate:create -- <migration_name>
+
+# 直前のマイグレーションをロールバック（開発時）
+npm run migrate:down
 ```
 
-このマイグレーションは以下を実施します。
+### マイグレーション履歴
 
-- テーブル作成（users, rows, columns, tasks, subtasks, checklist_items, task_comments）
-- `rows` テーブルへの `user_id` 列追加（認証対応）
-- 既存 DB 向け `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
-- 一覧取得最適化のインデックス作成
-- 初回起動時の初期データ投入
+| ファイル | 内容 |
+| -------- | ---- |
+| `20260101000000_initial_schema.sql` | テーブル・インデックス・制約の作成 |
+| `20260101000001_seed_data.sql` | 初期データ投入・レガシーデータ移行 |
+
+### レガシー DB からの移行
+
+旧 `migrate.ts`（単一スクリプト方式）で構築済みの DB は、起動時に自動検出されます。
+`users` テーブルが存在し `pgmigrations` に記録がない場合、既存マイグレーションを fake モードで履歴登録のみ行い、スキーマ変更は実行しません。
+
+### 新規マイグレーションの追加手順
+
+1. `npm run migrate:create -- add_new_feature` で SQL ファイルを生成
+2. `-- Up Migration` / `-- Down Migration` セクションに SQL を記述
+3. `npm run migrate:dev` で適用を確認
 
 ## API エンドポイント
 
@@ -199,6 +218,8 @@ npm run migrate
 | -------------------------- | ----------------------------------------- |
 | `npm run migrate:dev`      | マイグレーションを TypeScript で実行      |
 | `npm run migrate`          | ビルド済みマイグレーションを実行          |
+| `npm run migrate:create`   | 新しい SQL マイグレーションファイルを作成 |
+| `npm run migrate:down`     | 直前のマイグレーションをロールバック      |
 | `npm run dev`              | 開発サーバー起動（`tsx watch server.ts`） |
 | `npm run build`            | TypeScript ビルド (`dist/` 生成)          |
 | `npm run start`            | 本番サーバー起動 (`dist/server.js`)       |
@@ -234,12 +255,13 @@ npm run test:coverage
 ```text
 backend/
 ├── middleware/   # エラーハンドリング / 認証 / ロギング / バリデーション
+├── migrations/   # バージョン管理された SQL マイグレーション
 ├── repositories/ # DB アクセス層
 ├── routes/       # API ルーティング
 ├── services/     # ビジネスロジック
 ├── tests/        # Vitest テスト
 ├── db.ts         # DB 接続と接続待機
-├── migrate.ts    # マイグレーション
+├── migrate.ts    # マイグレーション実行エントリーポイント
 ├── server.ts     # Express エントリーポイント
 └── types.ts      # 型定義
 ```

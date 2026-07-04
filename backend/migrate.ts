@@ -1,282 +1,102 @@
-// DB スキーマ変更と初期データ投入を実行するマイグレーションエントリーポイント
+// DB マイグレーションのエントリーポイント
+// node-pg-migrate によるバージョン管理マイグレーションを実行する
+import path from "node:path";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { runner } from "node-pg-migrate";
 import { pool, waitForDbWithRetry } from "./db.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /**
- * スキーマ作成・制約追加・初期データ投入を実行する。
- * @returns マイグレーション完了時に解決される Promise
- * @throws Error SQL 実行に失敗した場合
+ * マイグレーションファイルのディレクトリを解決する。
+ * 開発時（backend/migrate.ts）と本番ビルド後（backend/dist/migrate.js）の両方に対応する。
+ * @returns migrations ディレクトリの絶対パス
+ * @throws Error ディレクトリが見つからない場合
  */
-async function runMigrations(): Promise<void> {
+function resolveMigrationsDir(): string {
+  let dir = __dirname;
+  for (let i = 0; i < 3; i++) {
+    const candidate = path.join(dir, "migrations");
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    dir = path.dirname(dir);
+  }
+  throw new Error("Migrations directory not found");
+}
+
+const MIGRATIONS_DIR = resolveMigrationsDir();
+const MIGRATIONS_TABLE = "pgmigrations";
+
+/**
+ * 旧 migrate.ts で構築済みの DB かどうかを判定する。
+ * users テーブルは存在するが pgmigrations に記録がない場合はレガシー DB とみなす。
+ * @returns レガシー DB の場合 true
+ */
+async function isLegacyDatabase(): Promise<boolean> {
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-
-    // ユーザーテーブルを作成する（認証用）
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(100) NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
+    const { rows: legacyRows } = await client.query<{ exists: boolean }>(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'users'
+      ) AS exists
     `);
-    // 行（プロジェクト単位）テーブルを作成する
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS rows (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        position FLOAT NOT NULL
-      );
-    `);
-    // rows テーブルに user_id 列を追加する（認証対応マイグレーション）
-    await client.query(`
-      ALTER TABLE rows ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
-    `);
-    // ステータス列テーブルを作成する
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS columns (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        position FLOAT NOT NULL
-      );
-    `);
-    // columns テーブルに row_id 列を追加する（既存DBへのマイグレーション対応）
-    await client.query(`
-      ALTER TABLE columns ADD COLUMN IF NOT EXISTS row_id INTEGER REFERENCES rows(id) ON DELETE CASCADE;
-    `);
-    // タスクテーブルを作成する
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id SERIAL PRIMARY KEY,
-        column_id INTEGER REFERENCES columns(id) ON DELETE CASCADE,
-        content TEXT NOT NULL,
-        due_date DATE,
-        position FLOAT NOT NULL
-      );
-    `);
-    // tasks に期限（due_date）カラムを追加する（既存 DB へのマイグレーション対応）
-    await client.query(`
-      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date DATE;
-    `);
-    // tasks に完了フラグ（completed）カラムを追加する（既存 DB へのマイグレーション対応）
-    await client.query(`
-      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT false;
-    `);
-    // タスクコメントテーブルを作成する
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS task_comments (
-        id SERIAL PRIMARY KEY,
-        task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
-        content TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        position FLOAT NOT NULL DEFAULT 0
-      );
-    `);
-    // task_comments に並び替え用の position カラムを追加する（既存 DB へのマイグレーション対応）
-    await client.query(`
-      ALTER TABLE task_comments ADD COLUMN IF NOT EXISTS position FLOAT NOT NULL DEFAULT 0;
-    `);
-    // position が未設定（0）の既存コメントに task ごとの連番位置を割り当てる
-    await client.query(`
-      UPDATE task_comments tc
-      SET position = ordered.rn * 1000
-      FROM (
-        SELECT
-          id,
-          ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at ASC, id ASC) AS rn
-        FROM task_comments
-      ) AS ordered
-      WHERE tc.id = ordered.id
-        AND tc.position = 0;
-    `);
-    // サブタスクテーブルを作成する
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS subtasks (
-        id SERIAL PRIMARY KEY,
-        task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
-        content TEXT NOT NULL
-      );
-    `);
-    // チェックリスト項目テーブルを作成する
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS checklist_items (
-        id SERIAL PRIMARY KEY,
-        task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
-        subtask_id INTEGER REFERENCES subtasks(id) ON DELETE CASCADE,
-        content TEXT NOT NULL,
-        completed BOOLEAN DEFAULT false
-      );
-    `);
-    // checklist_items に並び替え用の position カラムを追加する（既存 DB へのマイグレーション対応）
-    await client.query(`
-      ALTER TABLE checklist_items ADD COLUMN IF NOT EXISTS position FLOAT NOT NULL DEFAULT 0;
-    `);
-    // position が未設定（0）の既存行に連番で位置を割り当てる
-    await client.query(`
-      UPDATE checklist_items SET position = id * 1000 WHERE position = 0;
-    `);
-    // checklist_items は task_id / subtask_id のどちらか一方のみを保持する。
-    // NOT VALID で追加し既存データを検証後に VALIDATE する（不正行がある環境でもマイグレーションを止めない）
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1
-          FROM pg_constraint
-          WHERE conname = 'checklist_items_parent_xor_chk'
-        ) THEN
-          ALTER TABLE checklist_items
-            ADD CONSTRAINT checklist_items_parent_xor_chk
-            CHECK (
-              (task_id IS NOT NULL AND subtask_id IS NULL) OR
-              (task_id IS NULL AND subtask_id IS NOT NULL)
-            ) NOT VALID;
-        END IF;
-      END $$;
-    `);
-
-    // ボード取得のスケーラビリティ向上のため、親参照と並び順の複合インデックスを作成する
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_rows_position ON rows (position)",
-    );
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_rows_user_id ON rows (user_id)",
-    );
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_columns_row_id_position ON columns (row_id, position)",
-    );
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_tasks_column_id_position ON tasks (column_id, position)",
-    );
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_subtasks_task_id_id ON subtasks (task_id, id)",
-    );
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_checklist_items_task_id_position ON checklist_items (task_id, position)",
-    );
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_checklist_items_subtask_id_position ON checklist_items (subtask_id, position)",
-    );
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_task_comments_task_id_position_created ON task_comments (task_id, position, created_at, id)",
-    );
-    // メモテーブルを作成する
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS memos (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        title VARCHAR(255) NOT NULL DEFAULT '',
-        content TEXT NOT NULL DEFAULT '',
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-    `);
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_memos_user_id_updated ON memos (user_id, updated_at DESC)",
-    );
-    // タスクとメモの中間テーブルを作成する（多対多）
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS task_memo_links (
-        task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-        memo_id INTEGER NOT NULL REFERENCES memos(id) ON DELETE CASCADE,
-        PRIMARY KEY (task_id, memo_id)
-      );
-    `);
-    await client.query(
-      "CREATE INDEX IF NOT EXISTS idx_task_memo_links_memo_id ON task_memo_links (memo_id)",
-    );
-
-    // 既存データが有効な場合は制約を validate して完全適用する
-    const { rowCount: invalidChecklistRefs } = await client.query(`
-      SELECT 1
-      FROM checklist_items
-      WHERE (task_id IS NULL AND subtask_id IS NULL)
-         OR (task_id IS NOT NULL AND subtask_id IS NOT NULL)
-      LIMIT 1;
-    `);
-    if ((invalidChecklistRefs ?? 0) === 0) {
-      await client.query(
-        "ALTER TABLE checklist_items VALIDATE CONSTRAINT checklist_items_parent_xor_chk;",
-      );
-    } else {
-      console.warn(
-        "Found invalid checklist_items rows; skipped constraint validation.",
-      );
+    if (!legacyRows[0]?.exists) {
+      return false;
     }
 
-    // rowsが空の場合のみ初期データを投入する
-    const { rowCount: existingRows } = await client.query(
-      "SELECT 1 FROM rows LIMIT 1",
+    const { rows: tableRows } = await client.query<{ exists: boolean }>(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = $1
+      ) AS exists
+    `, [MIGRATIONS_TABLE]);
+    if (!tableRows[0]?.exists) {
+      return true;
+    }
+
+    const { rows: countRows } = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM ${MIGRATIONS_TABLE}`,
     );
-    if ((existingRows ?? 0) === 0) {
-      const { rowCount: existingCols } = await client.query(
-        "SELECT 1 FROM columns LIMIT 1",
-      );
-      if ((existingCols ?? 0) > 0) {
-        // 既存columnsをデフォルト行に紐付けるマイグレーション処理
-        console.log("Migrating existing columns into a default row...");
-        const {
-          rows: [defaultRow],
-        } = await client.query(
-          "INSERT INTO rows (title, position) VALUES ('プロジェクト', 1000) RETURNING *",
-        );
-        await client.query(
-          "UPDATE columns SET row_id = $1 WHERE row_id IS NULL",
-          [defaultRow.id],
-        );
-      } else {
-        console.log("Inserting initial data...");
-        const rowRes = await client.query(
-          "INSERT INTO rows (title, position) VALUES ('プロジェクト1', 1000) RETURNING id;",
-        );
-        const rowId = rowRes.rows[0].id;
-
-        const colRes = await client.query(
-          `INSERT INTO columns (title, position, row_id) VALUES
-           ('未着手', 1000, $1),
-           ('進行中', 2000, $1),
-           ('完了', 3000, $1)
-           RETURNING id;`,
-          [rowId],
-        );
-        const todoId = colRes.rows[0].id;
-
-        const tRes = await client.query(
-          `INSERT INTO tasks (column_id, content, position) VALUES
-           ($1, 'Kandoへようこそ!', 1000),
-           ($1, '下のボタンから新しいタスクを追加できます', 2000)
-           RETURNING id;`,
-          [todoId],
-        );
-        const firstTaskId = tRes.rows[0].id;
-
-        const subRes = await client.query(
-          `INSERT INTO subtasks (task_id, content) VALUES ($1, 'サブタスクのサンプル') RETURNING id;`,
-          [firstTaskId],
-        );
-        const subId = subRes.rows[0].id;
-
-        await client.query(
-          `INSERT INTO checklist_items (task_id, content) VALUES ($1, 'これはタスク直下のチェックリストです')`,
-          [firstTaskId],
-        );
-        await client.query(
-          `INSERT INTO checklist_items (subtask_id, content) VALUES ($1, 'これはサブタスク内のチェックリストです')`,
-          [subId],
-        );
-      }
-    }
-
-    await client.query("COMMIT");
-  } catch (err) {
-    try {
-      await client.query("ROLLBACK");
-    } catch (rollbackErr) {
-      console.error("Rollback failed:", rollbackErr);
-    }
-    throw err;
+    return countRows[0]?.count === "0";
   } finally {
     client.release();
+  }
+}
+
+/**
+ * 保留中のマイグレーションを適用する。
+ * レガシー DB の場合は fake モードで履歴のみ登録する。
+ * @returns マイグレーション完了時に解決される Promise
+ */
+async function runMigrations(): Promise<void> {
+  const legacy = await isLegacyDatabase();
+
+  if (legacy) {
+    console.log(
+      "Legacy database detected. Marking existing migrations as applied (fake mode).",
+    );
+  }
+
+  const applied = await runner({
+    databaseUrl: process.env.DATABASE_URL!,
+    migrationsTable: MIGRATIONS_TABLE,
+    dir: MIGRATIONS_DIR,
+    direction: "up",
+    fake: legacy,
+    log: (msg) => {
+      console.log(msg);
+    },
+  });
+
+  if (applied.length === 0 && !legacy) {
+    console.log("No pending migrations.");
+  } else if (legacy) {
+    console.log(`Baselined ${applied.length} migration(s).`);
+  } else {
+    console.log(`Applied ${applied.length} migration(s).`);
   }
 }
 
