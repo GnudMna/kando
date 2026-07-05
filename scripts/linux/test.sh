@@ -33,6 +33,23 @@ if [ "$INSTALL" = true ]; then
 fi
 
 echo
+# 共有型パッケージの単体テスト
+echo "共有型パッケージの単体テストを実行中..."
+npm --workspace @kando/types run test
+if [ $? -ne 0 ]; then
+    echo "共有型パッケージの単体テストに失敗しました"
+    exit 1
+fi
+echo
+
+# 共有型パッケージのカバレッジ
+echo "共有型パッケージのカバレッジを実行中..."
+npm --workspace @kando/types run test:coverage
+if [ $? -ne 0 ]; then
+    echo "共有型パッケージのカバレッジチェックに失敗しました"
+    exit 1
+fi
+echo
 # バックエンドの Lint
 echo "バックエンドの Lint を実行中..."
 npm --prefix backend run lint
