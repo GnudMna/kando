@@ -1,7 +1,7 @@
 // タスクカードコンポーネント
 // かんばんボード上でタスクの内容・チェックリスト・サブタスクを表示し
 // チェック状態の切り替えや削除確認ダイアログを提供する
-import { useState, memo } from "react";
+import { useState, memo, useCallback } from "react";
 import {
   Trash2,
   Copy,
@@ -21,6 +21,13 @@ import {
   getDueStatusLabel,
   type DueHighlightResult,
 } from "../utils/dueDate";
+import {
+  getTaskChecklistCount,
+  getTaskCommentCount,
+  getTaskSubtaskCount,
+  taskNeedsDetailLoad,
+} from "../utils/taskSummary";
+import { useLazyTaskDetails } from "../hooks/useLazyTaskDetails";
 
 /** `TaskCard` コンポーネントの props。 */
 interface Props {
@@ -56,6 +63,20 @@ export const TaskCard = memo(function TaskCard({
   onEditTask,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const handleTaskLoaded = useCallback(
+    (loaded: Task) => {
+      onTaskUpdated(loaded);
+    },
+    [onTaskUpdated],
+  );
+  const { rootRef, isLoadingDetails } = useLazyTaskDetails(
+    task,
+    handleTaskLoaded,
+  );
+  const showSummaryOnly = taskNeedsDetailLoad(task) && isLoadingDetails;
+  const commentCount = getTaskCommentCount(task);
+  const subtaskCount = getTaskSubtaskCount(task);
+  const checklistCount = getTaskChecklistCount(task);
   const dueLabel = getDueStatusLabel(dueHighlight);
   const dueClass =
     dueHighlight.status === "none"
@@ -125,7 +146,7 @@ export const TaskCard = memo(function TaskCard({
 
   return (
     <>
-      <div className="task-card-inner">
+      <div className="task-card-inner" ref={rootRef}>
         <div className="task-card-header">
           <button
             type="button"
@@ -168,14 +189,14 @@ export const TaskCard = memo(function TaskCard({
           </div>
         )}
 
-        {task.comments.length > 0 && (
+        {commentCount > 0 && (
           <div className="task-comment-summary text-muted">
             <MessageSquare size={13} />
-            <span>{task.comments.length} 件のコメント</span>
+            <span>{commentCount} 件のコメント</span>
           </div>
         )}
 
-        {task.checklists.length > 0 && (
+        {!showSummaryOnly && task.checklists.length > 0 && (
           <div className="task-checklists">
             {task.checklists.map((c) => (
               <div key={c.id} className="checklist-item">
@@ -205,7 +226,13 @@ export const TaskCard = memo(function TaskCard({
           </div>
         )}
 
-        {task.subtasks.length > 0 && (
+        {showSummaryOnly && checklistCount > 0 && (
+          <div className="task-summary-hint text-muted">
+            チェックリスト {checklistCount} 件
+          </div>
+        )}
+
+        {!showSummaryOnly && task.subtasks.length > 0 && (
           <div className="subtasks-container">
             {task.subtasks.map((subtask) => (
               <div key={subtask.id} className="subtask-card">
@@ -249,6 +276,12 @@ export const TaskCard = memo(function TaskCard({
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {showSummaryOnly && subtaskCount > 0 && (
+          <div className="task-summary-hint text-muted">
+            サブタスク {subtaskCount} 件
           </div>
         )}
 

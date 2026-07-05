@@ -443,6 +443,24 @@ body::after {
   animation: fade-up 300ms ease both;
 }
 
+.task-summary-hint {
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+}
+
+.column-load-more-tasks {
+  width: 100%;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.list-view-virtual,
+.kanban-rows-virtual {
+  width: 100%;
+}
+
 .kanban-loading {
   min-height: 260px;
   display: grid;

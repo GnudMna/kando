@@ -4,10 +4,16 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "../components/KanbanBoard";
 import { useBoard } from "../hooks/useBoard";
-import { createMockUseBoardReturn } from "./testUtils";
+import { fetchBoard } from "../api/board";
+import {
+  createMockUseBoardReturn,
+  createQueryWrapper,
+  sampleBoardRows,
+} from "./testUtils";
 import type { Task } from "../types";
 
 vi.mock("../hooks/useBoard");
+vi.mock("../api/board");
 
 vi.mock("../components/TaskEditModal", () => ({
   TaskEditModal: ({
@@ -35,6 +41,7 @@ vi.mock("../components/ListView", () => ({
 describe("KanbanBoard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(fetchBoard).mockResolvedValue(structuredClone(sampleBoardRows));
     vi.mocked(useBoard).mockReturnValue(
       createMockUseBoardReturn() as ReturnType<typeof useBoard>,
     );
@@ -48,12 +55,12 @@ describe("KanbanBoard", () => {
       }) as ReturnType<typeof useBoard>,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     expect(screen.getByText("読み込み中…")).toBeInTheDocument();
   });
 
   it("行・カラム・タスクが表示されること", () => {
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     expect(screen.getByText("行1")).toBeInTheDocument();
     expect(screen.getByText("行2")).toBeInTheDocument();
     expect(screen.getByText("カラム1")).toBeInTheDocument();
@@ -61,7 +68,7 @@ describe("KanbanBoard", () => {
   });
 
   it("ボード統計が表示されること", () => {
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     const stats = screen.getByLabelText("ボード統計");
     expect(stats).toHaveTextContent("2");
     expect(stats).toHaveTextContent("3");
@@ -73,7 +80,7 @@ describe("KanbanBoard", () => {
       createMockUseBoardReturn({ rows: [] }) as ReturnType<typeof useBoard>,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     expect(screen.getByText("まだ行がありません")).toBeInTheDocument();
   });
 
@@ -86,7 +93,7 @@ describe("KanbanBoard", () => {
       }) as ReturnType<typeof useBoard>,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     expect(screen.getByRole("alert")).toHaveTextContent(
       "ボードの読み込みに失敗しました",
     );
@@ -96,7 +103,7 @@ describe("KanbanBoard", () => {
 
   it("検索入力でリストビューに切り替わること", async () => {
     const user = userEvent.setup();
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
 
     await user.type(
       screen.getByPlaceholderText("タスク名・サブタスク・コメントで検索"),
@@ -116,7 +123,7 @@ describe("KanbanBoard", () => {
       >,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     expect(
       screen.getByRole("button", { name: /さらに読み込む/ }),
     ).toBeInTheDocument();
@@ -131,7 +138,7 @@ describe("KanbanBoard", () => {
       }) as ReturnType<typeof useBoard>,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /さらに読み込む/ }));
 
     await waitFor(() => {
@@ -140,7 +147,7 @@ describe("KanbanBoard", () => {
   });
 
   it("タスククリックで編集モーダルが開くこと", async () => {
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     fireEvent.click(screen.getByText("テストタスク"));
 
     await waitFor(() => {
@@ -151,7 +158,7 @@ describe("KanbanBoard", () => {
   });
 
   it("kando:open-task イベントで編集モーダルが開くこと", async () => {
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     window.dispatchEvent(
       new CustomEvent("kando:open-task", { detail: { taskId: 1 } }),
     );
@@ -169,7 +176,7 @@ describe("KanbanBoard", () => {
       createMockUseBoardReturn({ addRow }) as ReturnType<typeof useBoard>,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /行を追加/ }));
     fireEvent.change(screen.getByLabelText("行のタイトル"), {
       target: { value: "新しい行" },
@@ -187,7 +194,7 @@ describe("KanbanBoard", () => {
       createMockUseBoardReturn({ addColumn }) as ReturnType<typeof useBoard>,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     fireEvent.click(
       screen.getAllByRole("button", { name: /ステータスを追加/ })[0],
     );
@@ -207,7 +214,7 @@ describe("KanbanBoard", () => {
       createMockUseBoardReturn({ removeRow }) as ReturnType<typeof useBoard>,
     );
 
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     fireEvent.click(screen.getByLabelText("行「行1」を削除"));
     fireEvent.click(screen.getByText("削除する"));
 
@@ -215,7 +222,7 @@ describe("KanbanBoard", () => {
   });
 
   it("リストビューに切り替えできること", () => {
-    render(<KanbanBoard />);
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /リスト/ }));
 
     expect(screen.getByTestId("list-view")).toBeInTheDocument();

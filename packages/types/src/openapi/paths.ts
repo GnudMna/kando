@@ -193,6 +193,22 @@ export function registerPaths(registry: OpenAPIRegistry): void {
             example: "0",
             description: "スキップする件数",
           }),
+        detail: z
+          .enum(["summary", "full"])
+          .optional()
+          .openapi({
+            param: { name: "detail", in: "query" },
+            description: "取得詳細度。既定は summary（子要素は件数のみ、軽量）",
+          }),
+        q: z
+          .string()
+          .max(200)
+          .optional()
+          .openapi({
+            param: { name: "q", in: "query" },
+            description:
+              "横断検索キーワード（指定時は一致タスクのみフル詳細で返す）",
+          }),
       }),
     },
     responses: {
@@ -373,6 +389,24 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     },
     responses: {
       200: jsonResponse(Task, "作成したタスク"),
+      400: standardErrors[400],
+      401: standardErrors[401],
+      404: standardErrors[404],
+    },
+  });
+
+  registry.registerPath({
+    method: "get",
+    path: "/api/tasks/{id}",
+    summary: "タスク詳細の取得",
+    description: "サブタスク・チェックリスト・コメントを含むタスク詳細を返す。",
+    tags: ["Tasks"],
+    security: authenticatedSecurity,
+    request: {
+      params: z.object({ id: pathIdParam }),
+    },
+    responses: {
+      200: jsonResponse(Task, "タスク詳細"),
       400: standardErrors[400],
       401: standardErrors[401],
       404: standardErrors[404],

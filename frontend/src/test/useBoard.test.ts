@@ -57,7 +57,7 @@ describe("useBoard", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.rows).toHaveLength(2);
     expect(fetchBoard).toHaveBeenCalledTimes(1);
-    expect(fetchBoard).toHaveBeenCalledWith({ limit: 20 });
+    expect(fetchBoard).toHaveBeenCalledWith({ limit: 20, detail: "summary" });
     expect(result.current.hasMore).toBe(false);
   });
 
@@ -105,7 +105,11 @@ describe("useBoard", () => {
     await waitForBoard(result, () =>
       expect(result.current.rows).toHaveLength(21),
     );
-    expect(fetchBoard).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
+    expect(fetchBoard).toHaveBeenLastCalledWith({
+      limit: 20,
+      offset: 20,
+      detail: "summary",
+    });
     expect(result.current.hasMore).toBe(false);
   });
 

@@ -8,8 +8,11 @@ import {
 } from "react";
 import type { DropResult } from "@hello-pangea/dnd";
 import type { Row, Task } from "../types";
+import { fetchTask } from "../api/tasks";
 import { getDueHighlight } from "../utils/dueDate";
-import { countTasks, filterRowsByTaskQuery } from "../utils/taskSearch";
+import { countTasks } from "../utils/taskSearch";
+import { taskNeedsDetailLoad } from "../utils/taskSummary";
+import { useBoardSearch } from "./useBoard/useBoardSearch";
 import type { useBoard } from "./useBoard";
 import type {
   ConfirmState,
@@ -71,9 +74,14 @@ export function useKanbanBoardState(board: BoardApi) {
     rowsRef.current = rows;
   }, [rows]);
 
+  const isSearchActive = searchQuery.trim().length > 0;
+  const isDeferredSearchActive = deferredSearchQuery.trim().length > 0;
+  const { searchRows, isSearchLoading } = useBoardSearch(deferredSearchQuery);
+  const highlightSourceRows = isDeferredSearchActive ? searchRows : rows;
+
   const taskDueHighlights = useMemo(() => {
     const map = new Map<number, ReturnType<typeof getDueHighlight>>();
-    for (const row of rows) {
+    for (const row of highlightSourceRows) {
       for (const column of row.columns) {
         for (const task of column.tasks) {
           map.set(
@@ -89,19 +97,13 @@ export function useKanbanBoardState(board: BoardApi) {
       }
     }
     return map;
-  }, [rows, dueSoonDays]);
+  }, [highlightSourceRows, dueSoonDays]);
 
-  const isSearchActive = searchQuery.trim().length > 0;
-  const isDeferredSearchActive = deferredSearchQuery.trim().length > 0;
-  const filteredRows = useMemo(
-    () => filterRowsByTaskQuery(rows, deferredSearchQuery),
-    [rows, deferredSearchQuery],
-  );
-  const activeRows = isDeferredSearchActive ? filteredRows : rows;
+  const activeRows = isDeferredSearchActive ? searchRows : rows;
   const activeViewMode = isSearchActive ? "list" : viewMode;
   const matchedTaskCount = useMemo(
-    () => countTasks(filteredRows),
-    [filteredRows],
+    () => (isDeferredSearchActive ? countTasks(searchRows) : 0),
+    [isDeferredSearchActive, searchRows],
   );
 
   useEffect(() => {
@@ -217,9 +219,22 @@ export function useKanbanBoardState(board: BoardApi) {
     [copyTask],
   );
 
-  const handleEditTask = useCallback((task: Task, colId: number) => {
-    setEditingTask({ task, colId, isNew: false });
-  }, []);
+  const handleEditTask = useCallback(
+    async (task: Task, colId: number) => {
+      if (taskNeedsDetailLoad(task)) {
+        try {
+          const full = await fetchTask(task.id);
+          updateTask(full);
+          setEditingTask({ task: full, colId, isNew: false });
+          return;
+        } catch (err) {
+          console.error("Failed to load task details:", err);
+        }
+      }
+      setEditingTask({ task, colId, isNew: false });
+    },
+    [updateTask],
+  );
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -319,6 +334,7 @@ export function useKanbanBoardState(board: BoardApi) {
     taskDueHighlights,
     isSearchActive,
     isDeferredSearchActive,
+    isSearchLoading,
     activeRows,
     activeViewMode,
     matchedTaskCount,
