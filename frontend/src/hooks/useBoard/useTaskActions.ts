@@ -1,6 +1,11 @@
 import { useCallback } from "react";
 import type { Task } from "../../types";
-import * as api from "../../api/boardApi";
+import {
+  copyTask as copyTaskApi,
+  createTask,
+  deleteTask,
+  moveTask as moveTaskApi,
+} from "../../api/tasks";
 import { POSITION_GAP } from "../../utils/constants";
 import type { BoardActionContext } from "./types";
 
@@ -25,7 +30,7 @@ export function useTaskActions({
           col.tasks.length > 0
             ? col.tasks[col.tasks.length - 1].position + POSITION_GAP
             : POSITION_GAP;
-        const newTask = await api.createTask(colId, "新しいタスク", position);
+        const newTask = await createTask(colId, "新しいタスク", position);
         setRows((prev) =>
           prev.map((r) =>
             r.id === rowId
@@ -51,7 +56,7 @@ export function useTaskActions({
   const removeTask = useCallback(
     async (colId: number, taskId: number) => {
       try {
-        await api.deleteTask(taskId);
+        await deleteTask(taskId);
         setRows((prev) =>
           prev.map((r) => ({
             ...r,
@@ -73,7 +78,7 @@ export function useTaskActions({
   const copyTask = useCallback(
     async (colId: number, taskId: number): Promise<Task | null> => {
       try {
-        const copied = await api.copyTask(taskId);
+        const copied = await copyTaskApi(taskId);
         setRows((prev) =>
           prev.map((r) => ({
             ...r,
@@ -241,7 +246,7 @@ export function useTaskActions({
       setRows(newRows);
 
       try {
-        await api.moveTask(taskId, destColId, newPosition);
+        await moveTaskApi(taskId, destColId, newPosition);
       } catch (err) {
         console.error("Failed to move task:", err);
         setRows(prevRows);

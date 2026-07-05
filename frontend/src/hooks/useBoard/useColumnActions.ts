@@ -1,5 +1,10 @@
 import { useCallback } from "react";
-import * as api from "../../api/boardApi";
+import {
+  createColumn,
+  deleteColumn,
+  moveColumn as moveColumnApi,
+  updateColumn,
+} from "../../api/columns";
 import { POSITION_GAP } from "../../utils/constants";
 import type { BoardActionContext } from "./types";
 
@@ -23,7 +28,7 @@ export function useColumnActions({
           row.columns.length > 0
             ? row.columns[row.columns.length - 1].position + POSITION_GAP
             : POSITION_GAP;
-        const newCol = await api.createColumn(title, position, rowId);
+        const newCol = await createColumn(title, position, rowId);
         setRows((prev) =>
           prev.map((r) =>
             r.id === rowId
@@ -42,7 +47,7 @@ export function useColumnActions({
   const renameColumn = useCallback(
     async (colId: number, title: string) => {
       try {
-        await api.updateColumn(colId, title);
+        await updateColumn(colId, title);
         setRows((prev) =>
           prev.map((r) => ({
             ...r,
@@ -62,7 +67,7 @@ export function useColumnActions({
   const removeColumn = useCallback(
     async (colId: number) => {
       try {
-        await api.deleteColumn(colId);
+        await deleteColumn(colId);
         setRows((prev) =>
           prev.map((r) => ({
             ...r,
@@ -125,7 +130,7 @@ export function useColumnActions({
       setRows(newRows);
 
       try {
-        await api.moveColumn(colId, newPosition);
+        await moveColumnApi(colId, newPosition);
       } catch (err) {
         console.error("Failed to move column:", err);
         setRows(prevRows);

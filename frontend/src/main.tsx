@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
+import { QueryProvider } from "./providers/QueryProvider";
 
 /**
  * 指定した root 要素へ React アプリをマウントする。
@@ -11,7 +12,9 @@ import App from "./App";
 function mountApp(rootElement: HTMLElement): void {
   createRoot(rootElement).render(
     <StrictMode>
-      <App />
+      <QueryProvider>
+        <App />
+      </QueryProvider>
     </StrictMode>,
   );
 }

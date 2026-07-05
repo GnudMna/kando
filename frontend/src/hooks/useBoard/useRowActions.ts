@@ -1,5 +1,9 @@
 import { useCallback } from "react";
-import * as api from "../../api/boardApi";
+import {
+  createRowWithDefaultColumns,
+  deleteRow,
+  updateRow,
+} from "../../api/rows";
 import { POSITION_GAP } from "../../utils/constants";
 import type { BoardActionContext } from "./types";
 
@@ -21,7 +25,7 @@ export function useRowActions({
           rows.length > 0
             ? rows[rows.length - 1].position + POSITION_GAP
             : POSITION_GAP;
-        const newRow = await api.createRowWithDefaultColumns(title, position);
+        const newRow = await createRowWithDefaultColumns(title, position);
         setRows((prev) => [...prev, newRow]);
       } catch (err) {
         console.error(err);
@@ -34,7 +38,7 @@ export function useRowActions({
   const renameRow = useCallback(
     async (rowId: number, title: string) => {
       try {
-        await api.updateRow(rowId, title);
+        await updateRow(rowId, title);
         setRows((prev) =>
           prev.map((r) => (r.id === rowId ? { ...r, title } : r)),
         );
@@ -49,7 +53,7 @@ export function useRowActions({
   const removeRow = useCallback(
     async (rowId: number) => {
       try {
-        await api.deleteRow(rowId);
+        await deleteRow(rowId);
         setRows((prev) => prev.filter((r) => r.id !== rowId));
       } catch (err) {
         console.error(err);
