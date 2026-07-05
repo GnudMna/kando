@@ -25,6 +25,7 @@ import {
   DUE_SOON_DAYS_STORAGE_KEY,
   normalizeDueSoonDays,
 } from "../components/kanban/constants";
+import { useAppNavigation } from "../providers/useAppNavigation";
 
 type BoardApi = ReturnType<typeof useBoard>;
 
@@ -69,6 +70,7 @@ export function useKanbanBoardState(board: BoardApi) {
   const [newColumnTitle, setNewColumnTitle] = useState("");
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const rowsRef = useRef(rows);
+  const { registerOpenTaskHandler } = useAppNavigation();
 
   useEffect(() => {
     rowsRef.current = rows;
@@ -237,8 +239,7 @@ export function useKanbanBoardState(board: BoardApi) {
   );
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const taskId = (e as CustomEvent<{ taskId: number }>).detail.taskId;
+    return registerOpenTaskHandler((taskId) => {
       for (const row of rowsRef.current) {
         for (const col of row.columns) {
           const task = col.tasks.find((t) => t.id === taskId);
@@ -248,10 +249,8 @@ export function useKanbanBoardState(board: BoardApi) {
           }
         }
       }
-    };
-    window.addEventListener("kando:open-task", handler);
-    return () => window.removeEventListener("kando:open-task", handler);
-  }, []);
+    });
+  }, [registerOpenTaskHandler]);
 
   const boardStats = useMemo(() => {
     let totalColumns = 0;

@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "../components/KanbanBoard";
 import { useBoard } from "../hooks/useBoard";
 import { fetchBoard } from "../api/board";
+import { useAppNavigation } from "../providers/useAppNavigation";
 import {
   createMockUseBoardReturn,
   createQueryWrapper,
@@ -157,11 +158,24 @@ describe("KanbanBoard", () => {
     });
   });
 
-  it("kando:open-task イベントで編集モーダルが開くこと", async () => {
-    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
-    window.dispatchEvent(
-      new CustomEvent("kando:open-task", { detail: { taskId: 1 } }),
+  it("openTask で編集モーダルが開くこと", async () => {
+    function OpenTaskButton() {
+      const { openTask } = useAppNavigation();
+      return (
+        <button type="button" onClick={() => openTask(1)}>
+          タスクを開く
+        </button>
+      );
+    }
+
+    render(
+      <>
+        <OpenTaskButton />
+        <KanbanBoard />
+      </>,
+      { wrapper: createQueryWrapper() },
     );
+    fireEvent.click(screen.getByRole("button", { name: "タスクを開く" }));
 
     await waitFor(() => {
       expect(
