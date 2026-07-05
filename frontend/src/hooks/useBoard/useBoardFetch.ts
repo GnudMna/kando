@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SetStateAction } from "react";
 import type { Row } from "../../types";
@@ -27,7 +27,6 @@ async function fetchInitialBoard(): Promise<BoardCache> {
  */
 export function useBoardFetch() {
   const queryClient = useQueryClient();
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [dismissedFailureCount, setDismissedFailureCount] = useState(0);
   const rowsRef = useRef<Row[]>([]);
@@ -70,19 +69,21 @@ export function useBoardFetch() {
     [queryClient],
   );
 
-  const loadMoreRows = useCallback(async () => {
-    const current = queryClient.getQueryData<BoardCache>(
-      queryKeys.board.list(),
-    );
-    if (!current?.hasMore || isLoadingMore) return;
-
-    setIsLoadingMore(true);
-    try {
+  const loadMoreMutation = useMutation({
+    mutationFn: async () => {
+      const current = queryClient.getQueryData<BoardCache>(
+        queryKeys.board.list(),
+      );
+      if (!current?.hasMore) return null;
       const more = await fetchBoard({
         limit: BOARD_PAGE_SIZE,
         offset: current.rows.length,
         detail: "summary",
       });
+      return more;
+    },
+    onSuccess: (more) => {
+      if (more === null) return;
       if (more.length > 0) {
         appendBoardRows(queryClient, more, BOARD_PAGE_SIZE);
       } else {
@@ -90,19 +91,27 @@ export function useBoardFetch() {
           old ? { ...old, hasMore: false } : old,
         );
       }
-    } catch (err) {
+    },
+    onError: (err) => {
       console.error("Failed to load more rows:", err);
       setOperationError("追加データの読み込みに失敗しました");
-    } finally {
-      setIsLoadingMore(false);
+    },
+  });
+
+  const loadMoreRows = useCallback(async () => {
+    if (loadMoreMutation.isPending) return;
+    try {
+      await loadMoreMutation.mutateAsync();
+    } catch {
+      // onError で operationError を設定済み
     }
-  }, [queryClient, isLoadingMore]);
+  }, [loadMoreMutation]);
 
   return {
     rows,
     setRows,
     isLoading,
-    isLoadingMore,
+    isLoadingMore: loadMoreMutation.isPending,
     hasMore,
     operationError: operationError ?? fetchErrorMessage,
     clearError,

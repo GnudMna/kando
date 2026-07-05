@@ -1,4 +1,6 @@
+import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
+import type { Row } from "../../types";
 import {
   createColumn,
   deleteColumn,
@@ -6,7 +8,9 @@ import {
   updateColumn,
 } from "../../api/columns";
 import { POSITION_GAP } from "../../utils/constants";
+import { computeMoveColumnUpdate } from "./boardOptimisticUpdates";
 import type { BoardActionContext } from "./types";
+import { useBoardMutationContext } from "./useBoardMutationContext";
 
 /**
  * カラムの CRUD と並び替え操作を提供する。
@@ -19,67 +23,119 @@ export function useColumnActions({
   setRows,
   setOperationError,
 }: BoardActionContext) {
+  const { setBoardRows, getBoardRows, onMutationError } =
+    useBoardMutationContext(setOperationError);
+
+  const addColumnMutation = useMutation({
+    mutationFn: ({
+      title,
+      position,
+      rowId,
+    }: {
+      title: string;
+      position: number;
+      rowId: number;
+    }) => createColumn(title, position, rowId),
+    onSuccess: (newCol, { rowId }) => {
+      setBoardRows((rows) =>
+        rows.map((r) =>
+          r.id === rowId
+            ? { ...r, columns: [...r.columns, { ...newCol, tasks: [] }] }
+            : r,
+        ),
+      );
+    },
+    onError: onMutationError("カラムの追加に失敗しました"),
+  });
+
+  const renameColumnMutation = useMutation({
+    mutationFn: ({ colId, title }: { colId: number; title: string }) =>
+      updateColumn(colId, title),
+    onSuccess: (updated) => {
+      setBoardRows((rows) =>
+        rows.map((r) => ({
+          ...r,
+          columns: r.columns.map((c) =>
+            c.id === updated.id ? { ...c, title: updated.title } : c,
+          ),
+        })),
+      );
+    },
+    onError: onMutationError("カラム名の変更に失敗しました"),
+  });
+
+  const removeColumnMutation = useMutation({
+    mutationFn: (colId: number) => deleteColumn(colId),
+    onSuccess: (_result, colId) => {
+      setBoardRows((rows) =>
+        rows.map((r) => ({
+          ...r,
+          columns: r.columns.filter((c) => c.id !== colId),
+        })),
+      );
+    },
+    onError: onMutationError("カラムの削除に失敗しました"),
+  });
+
+  const moveColumnMutation = useMutation({
+    mutationFn: ({
+      colId,
+      newPosition,
+    }: {
+      colId: number;
+      newPosition: number;
+      optimisticRows: Row[];
+    }) => moveColumnApi(colId, newPosition),
+    onMutate: ({ optimisticRows }) => {
+      const prevRows = getBoardRows();
+      setRows(optimisticRows);
+      return { prevRows };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.prevRows) {
+        setRows(context.prevRows);
+      }
+      onMutationError("カラムの移動に失敗しました")(err);
+    },
+  });
+
   const addColumn = useCallback(
     async (rowId: number, title: string) => {
+      const row = rowsRef.current.find((r) => r.id === rowId);
+      if (!row) return;
+      const position =
+        row.columns.length > 0
+          ? row.columns[row.columns.length - 1].position + POSITION_GAP
+          : POSITION_GAP;
       try {
-        const row = rowsRef.current.find((r) => r.id === rowId);
-        if (!row) return;
-        const position =
-          row.columns.length > 0
-            ? row.columns[row.columns.length - 1].position + POSITION_GAP
-            : POSITION_GAP;
-        const newCol = await createColumn(title, position, rowId);
-        setRows((prev) =>
-          prev.map((r) =>
-            r.id === rowId
-              ? { ...r, columns: [...r.columns, { ...newCol, tasks: [] }] }
-              : r,
-          ),
-        );
-      } catch (err) {
-        console.error(err);
-        setOperationError("カラムの追加に失敗しました");
+        await addColumnMutation.mutateAsync({ title, position, rowId });
+      } catch {
+        // onError で operationError を設定済み
       }
     },
-    [rowsRef, setRows, setOperationError],
+    [addColumnMutation, rowsRef],
   );
 
   const renameColumn = useCallback(
     async (colId: number, title: string) => {
       try {
-        await updateColumn(colId, title);
-        setRows((prev) =>
-          prev.map((r) => ({
-            ...r,
-            columns: r.columns.map((c) =>
-              c.id === colId ? { ...c, title } : c,
-            ),
-          })),
-        );
-      } catch (err) {
-        console.error(err);
-        setOperationError("カラム名の変更に失敗しました");
+        await renameColumnMutation.mutateAsync({ colId, title });
+      } catch {
+        // onError で operationError を設定済み
       }
     },
-    [setRows, setOperationError],
+    [renameColumnMutation],
   );
 
   const removeColumn = useCallback(
     async (colId: number) => {
       try {
-        await deleteColumn(colId);
-        setRows((prev) =>
-          prev.map((r) => ({
-            ...r,
-            columns: r.columns.filter((c) => c.id !== colId),
-          })),
-        );
-      } catch (err) {
-        console.error(err);
-        setOperationError("カラムの削除に失敗しました");
+        await removeColumnMutation.mutateAsync(colId);
+      } catch {
+        // onError で operationError を設定済み
       }
     },
-    [setRows, setOperationError],
+    [removeColumnMutation],
   );
 
   const moveColumn = useCallback(
@@ -90,54 +146,27 @@ export function useColumnActions({
       colId: number,
     ) => {
       const rows = rowsRef.current;
-      const rowIdx = boardIndexesRef.current.rowIndexById.get(rowId);
-      if (rowIdx === undefined) return;
-
-      const row = rows[rowIdx];
-      if (!row) return;
-      if (
-        srcIndex < 0 ||
-        srcIndex >= row.columns.length ||
-        dstIndex < 0 ||
-        dstIndex >= row.columns.length
-      ) {
-        return;
-      }
-
-      const prevRows = rows;
-      const cols = [...row.columns];
-
-      const [movedCol] = cols.splice(srcIndex, 1);
-      if (!movedCol) return;
-      cols.splice(dstIndex, 0, movedCol);
-
-      const prev = cols[dstIndex - 1];
-      const next = cols[dstIndex + 1];
-      let newPosition: number;
-      if (prev && next) {
-        newPosition = (prev.position + next.position) / 2;
-      } else if (prev) {
-        newPosition = prev.position + POSITION_GAP;
-      } else if (next) {
-        newPosition = next.position / 2;
-      } else {
-        newPosition = POSITION_GAP;
-      }
-      cols[dstIndex] = { ...movedCol, position: newPosition };
-
-      const newRows = [...rows];
-      newRows[rowIdx] = { ...row, columns: cols };
-      setRows(newRows);
+      const result = computeMoveColumnUpdate({
+        rows,
+        rowIndexById: boardIndexesRef.current.rowIndexById,
+        rowId,
+        srcIndex,
+        dstIndex,
+        colId,
+      });
+      if (!result) return;
 
       try {
-        await moveColumnApi(colId, newPosition);
-      } catch (err) {
-        console.error("Failed to move column:", err);
-        setRows(prevRows);
-        setOperationError("カラムの移動に失敗しました");
+        await moveColumnMutation.mutateAsync({
+          colId,
+          newPosition: result.newPosition,
+          optimisticRows: result.newRows,
+        });
+      } catch {
+        // onError でロールバックと operationError を設定済み
       }
     },
-    [boardIndexesRef, rowsRef, setRows, setOperationError],
+    [boardIndexesRef, moveColumnMutation, rowsRef],
   );
 
   return { addColumn, renameColumn, removeColumn, moveColumn };

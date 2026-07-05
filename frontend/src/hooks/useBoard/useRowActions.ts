@@ -1,3 +1,4 @@
+import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
 import {
   createRowWithDefaultColumns,
@@ -6,6 +7,7 @@ import {
 } from "../../api/rows";
 import { POSITION_GAP } from "../../utils/constants";
 import type { BoardActionContext } from "./types";
+import { useBoardMutationContext } from "./useBoardMutationContext";
 
 /**
  * 行の CRUD 操作を提供する。
@@ -14,53 +16,77 @@ import type { BoardActionContext } from "./types";
  */
 export function useRowActions({
   rowsRef,
-  setRows,
   setOperationError,
 }: BoardActionContext) {
+  const { setBoardRows, onMutationError } =
+    useBoardMutationContext(setOperationError);
+
+  const addRowMutation = useMutation({
+    mutationFn: ({ title, position }: { title: string; position: number }) =>
+      createRowWithDefaultColumns(title, position),
+    onSuccess: (newRow) => {
+      setBoardRows((rows) => [...rows, newRow]);
+    },
+    onError: onMutationError("行の追加に失敗しました"),
+  });
+
+  const renameRowMutation = useMutation({
+    mutationFn: ({ rowId, title }: { rowId: number; title: string }) =>
+      updateRow(rowId, title),
+    onSuccess: (updated) => {
+      setBoardRows((rows) =>
+        rows.map((r) =>
+          r.id === updated.id ? { ...r, title: updated.title } : r,
+        ),
+      );
+    },
+    onError: onMutationError("行名の変更に失敗しました"),
+  });
+
+  const removeRowMutation = useMutation({
+    mutationFn: (rowId: number) => deleteRow(rowId),
+    onSuccess: (_result, rowId) => {
+      setBoardRows((rows) => rows.filter((r) => r.id !== rowId));
+    },
+    onError: onMutationError("行の削除に失敗しました"),
+  });
+
   const addRow = useCallback(
     async (title: string) => {
+      const rows = rowsRef.current;
+      const position =
+        rows.length > 0
+          ? rows[rows.length - 1].position + POSITION_GAP
+          : POSITION_GAP;
       try {
-        const rows = rowsRef.current;
-        const position =
-          rows.length > 0
-            ? rows[rows.length - 1].position + POSITION_GAP
-            : POSITION_GAP;
-        const newRow = await createRowWithDefaultColumns(title, position);
-        setRows((prev) => [...prev, newRow]);
-      } catch (err) {
-        console.error(err);
-        setOperationError("行の追加に失敗しました");
+        await addRowMutation.mutateAsync({ title, position });
+      } catch {
+        // onError で operationError を設定済み
       }
     },
-    [rowsRef, setRows, setOperationError],
+    [addRowMutation, rowsRef],
   );
 
   const renameRow = useCallback(
     async (rowId: number, title: string) => {
       try {
-        await updateRow(rowId, title);
-        setRows((prev) =>
-          prev.map((r) => (r.id === rowId ? { ...r, title } : r)),
-        );
-      } catch (err) {
-        console.error(err);
-        setOperationError("行名の変更に失敗しました");
+        await renameRowMutation.mutateAsync({ rowId, title });
+      } catch {
+        // onError で operationError を設定済み
       }
     },
-    [setRows, setOperationError],
+    [renameRowMutation],
   );
 
   const removeRow = useCallback(
     async (rowId: number) => {
       try {
-        await deleteRow(rowId);
-        setRows((prev) => prev.filter((r) => r.id !== rowId));
-      } catch (err) {
-        console.error(err);
-        setOperationError("行の削除に失敗しました");
+        await removeRowMutation.mutateAsync(rowId);
+      } catch {
+        // onError で operationError を設定済み
       }
     },
-    [setRows, setOperationError],
+    [removeRowMutation],
   );
 
   return { addRow, renameRow, removeRow };
