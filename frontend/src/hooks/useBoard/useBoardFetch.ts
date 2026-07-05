@@ -1,6 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SetStateAction } from "react";
 import type { Row } from "../../types";
-import * as api from "../../api/boardApi";
+import { fetchBoard } from "../../api/board";
+import { queryKeys } from "../../api/queryKeys";
+import {
+  appendBoardRows,
+  updateBoardRows,
+  type BoardCache,
+} from "./boardCache";
 import {
   BOARD_PAGE_SIZE,
   buildBoardIndexes,
@@ -8,64 +16,86 @@ import {
   type ColumnLocation,
 } from "./boardIndexes";
 
+async function fetchInitialBoard(): Promise<BoardCache> {
+  const rows = await fetchBoard({ limit: BOARD_PAGE_SIZE });
+  return { rows, hasMore: rows.length === BOARD_PAGE_SIZE };
+}
+
 /**
- * ボードデータの取得・ページング状態を管理する。
+ * ボードデータの取得・ページング状態を React Query で管理する。
  * @returns 行データ、読み込み状態、ページング操作
  */
 export function useBoardFetch() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [dismissedFailureCount, setDismissedFailureCount] = useState(0);
   const rowsRef = useRef<Row[]>([]);
   const boardIndexesRef = useRef<BoardIndexes>({
     rowIndexById: new Map<number, number>(),
     columnLocationByDroppableId: new Map<string, ColumnLocation>(),
   });
 
+  const { data, isLoading, isError, failureCount } = useQuery({
+    queryKey: queryKeys.board.list(),
+    queryFn: fetchInitialBoard,
+  });
+
+  const rows = data?.rows ?? [];
+  const hasMore = data?.hasMore ?? false;
+  const fetchErrorMessage =
+    isError && failureCount > dismissedFailureCount
+      ? "ボードの読み込みに失敗しました"
+      : null;
+
   useEffect(() => {
-    rowsRef.current = rows;
-    boardIndexesRef.current = buildBoardIndexes(rows);
-  }, [rows]);
+    const nextRows = data?.rows ?? [];
+    rowsRef.current = nextRows;
+    boardIndexesRef.current = buildBoardIndexes(nextRows);
+  }, [data?.rows]);
 
-  const clearError = useCallback(() => setOperationError(null), []);
-
-  const loadBoard = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.fetchBoard({ limit: BOARD_PAGE_SIZE });
-      setRows(data);
-      setHasMore(data.length === BOARD_PAGE_SIZE);
-    } catch (err) {
-      console.error("Failed to fetch board:", err);
-      setOperationError("ボードの読み込みに失敗しました");
-    } finally {
-      setIsLoading(false);
+  const clearError = useCallback(() => {
+    setOperationError(null);
+    if (isError) {
+      setDismissedFailureCount(failureCount);
     }
-  }, []);
+  }, [isError, failureCount]);
+
+  const setRows = useCallback(
+    (action: SetStateAction<Row[]>) => {
+      updateBoardRows(queryClient, (currentRows) =>
+        typeof action === "function" ? action(currentRows) : action,
+      );
+    },
+    [queryClient],
+  );
 
   const loadMoreRows = useCallback(async () => {
+    const current = queryClient.getQueryData<BoardCache>(
+      queryKeys.board.list(),
+    );
+    if (!current?.hasMore || isLoadingMore) return;
+
     setIsLoadingMore(true);
     try {
-      const offset = rowsRef.current.length;
-      const data = await api.fetchBoard({ limit: BOARD_PAGE_SIZE, offset });
-      if (data.length > 0) {
-        setRows((prev) => [...prev, ...data]);
+      const more = await fetchBoard({
+        limit: BOARD_PAGE_SIZE,
+        offset: current.rows.length,
+      });
+      if (more.length > 0) {
+        appendBoardRows(queryClient, more, BOARD_PAGE_SIZE);
+      } else {
+        queryClient.setQueryData<BoardCache>(queryKeys.board.list(), (old) =>
+          old ? { ...old, hasMore: false } : old,
+        );
       }
-      setHasMore(data.length === BOARD_PAGE_SIZE);
     } catch (err) {
       console.error("Failed to load more rows:", err);
       setOperationError("追加データの読み込みに失敗しました");
     } finally {
       setIsLoadingMore(false);
     }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadBoard();
-  }, [loadBoard]);
+  }, [queryClient, isLoadingMore]);
 
   return {
     rows,
@@ -73,7 +103,7 @@ export function useBoardFetch() {
     isLoading,
     isLoadingMore,
     hasMore,
-    operationError,
+    operationError: operationError ?? fetchErrorMessage,
     clearError,
     setOperationError,
     loadMoreRows,

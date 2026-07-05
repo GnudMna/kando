@@ -18,13 +18,14 @@
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
+    "@tanstack/react-query": "^5.101.2",
     "lucide-react": "^1.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@kando/types": "file:../packages/types",
     "@eslint/js": "^10.0.1",
+    "@kando/types": "file:../packages/types",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
