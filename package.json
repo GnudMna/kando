@@ -23,7 +23,7 @@
     "format": "npm --workspace backend run format && npm --workspace frontend run format",
     "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
     "test": "./scripts/linux/test.sh",
-    "test:coverage": "npm --workspace backend run test:coverage && npm --workspace frontend run test:coverage",
+    "test:coverage": "npm --workspace @kando/types run test:coverage && npm --workspace backend run test:coverage && npm --workspace frontend run test:coverage",
     "check:licenses": "licensee --production --errors-only",
     "check:audit": "npm audit --omit=dev --audit-level=moderate",
     "check:compliance": "npm run check:licenses && npm run check:audit",

@@ -29,13 +29,17 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
-    "typescript": "^6.0.2"
+    "@vitest/coverage-v8": "^4.1.8",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.8"
   }
 }

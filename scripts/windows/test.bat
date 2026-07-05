@@ -28,6 +28,26 @@ if "%INSTALL%"=="true" (
 )
 
 echo.
+REM 共有型パッケージの単体テスト
+echo 共有型パッケージの単体テストを実行中...
+call npm --workspace @kando/types run test
+if errorlevel 1 (
+    echo 共有型パッケージの単体テストに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
+REM 共有型パッケージのカバレッジ
+echo 共有型パッケージのカバレッジを実行中...
+call npm --workspace @kando/types run test:coverage
+if errorlevel 1 (
+    echo 共有型パッケージのカバレッジチェックに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
 REM バックエンドの Lint
 echo バックエンドの Lint を実行中...
 call npm --prefix backend run lint
