@@ -14,7 +14,10 @@ export const queryClient = new QueryClient({
   },
 });
 
-/** テスト用に独立した QueryClient を生成する。 */
+/**
+ * テスト用に独立した QueryClient を生成する。
+ * @returns リトライ無効の QueryClient インスタンス
+ */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {

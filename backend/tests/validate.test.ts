@@ -1,4 +1,4 @@
-// validate ミドルウェア（parseId / validateBody）のユニットテスト
+// validate ミドルウェア。parseId / validateBodyのユニットテスト
 import { describe, it, expect } from "vitest";
 import { parseId, validateBody } from "../middleware/validate";
 import {

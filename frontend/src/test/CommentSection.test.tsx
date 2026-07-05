@@ -36,11 +36,18 @@ describe("CommentSection", () => {
   it("新規コメントを追加できる", async () => {
     const user = userEvent.setup();
     render(
-      <CommentSection comments={[]} taskId={10} onCommentsChange={onCommentsChange} />,
+      <CommentSection
+        comments={[]}
+        taskId={10}
+        onCommentsChange={onCommentsChange}
+      />,
     );
 
     await user.click(screen.getByRole("button", { name: "コメントを追加" }));
-    await user.type(screen.getByPlaceholderText("コメントを入力..."), "新しいコメント");
+    await user.type(
+      screen.getByPlaceholderText("コメントを入力..."),
+      "新しいコメント",
+    );
     await user.click(screen.getByRole("button", { name: "追加" }));
 
     expect(onCommentsChange).toHaveBeenCalledWith(

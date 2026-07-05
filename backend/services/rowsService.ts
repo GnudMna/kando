@@ -30,7 +30,7 @@ export async function createRow(
  * @param title - 行タイトル
  * @param position - 行の表示順
  * @param userId - 所有者ユーザー ID
- * @returns 作成された行（デフォルトカラムを含む）
+ * @returns 作成された行(デフォルトカラムを含む)
  * @throws Error トランザクションが失敗した場合
  */
 export async function createRowWithDefaultColumns(
@@ -73,7 +73,7 @@ export async function createRowWithDefaultColumns(
  * 行タイトルを更新する。
  * @param id - 行 ID
  * @param title - 新しいタイトル
- * @param userId - リクエストユーザー ID（所有権確認に使用）
+ * @param userId - リクエストユーザー ID(所有権確認に使用)
  * @returns 更新後の行レコード。対象が見つからない場合は `null`
  */
 export async function updateRowTitle(
@@ -85,9 +85,9 @@ export async function updateRowTitle(
 }
 
 /**
- * 行を削除する（配下カラム・タスクも CASCADE で削限される）。
+ * 行を削除する(配下カラム・タスクも CASCADE で削除される)。
  * @param id - 行 ID
- * @param userId - リクエストユーザー ID（所有権確認に使用）
+ * @param userId - リクエストユーザー ID(所有権確認に使用)
  * @returns 削除に成功した場合は `true`、対象が見つからない場合は `false`
  */
 export async function deleteRow(id: number, userId: number): Promise<boolean> {

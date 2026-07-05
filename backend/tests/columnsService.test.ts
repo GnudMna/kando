@@ -43,7 +43,7 @@ describe("columnsService", () => {
       position: 1000,
       row_id: 1,
     };
-    // INSERT...SELECT が行を返すようモックする（所有権確認と挿入を1クエリで処理）
+    // INSERT...SELECT が行を返すようモックする。所有権確認と挿入を1クエリで処理
     mockedPool.query.mockResolvedValueOnce({ rows: [column] });
 
     const result = await service.createColumn("新カラム", 1000, 1, 99);
@@ -59,7 +59,7 @@ describe("columnsService", () => {
   });
 
   it("createColumn は所有権チェックが失敗したら null を返す", async () => {
-    // INSERT...SELECT が何も返さない場合（row が見つからない）は null
+    // INSERT...SELECT が何も返さない場合。row が見つからないは null
     mockedPool.query.mockResolvedValueOnce({ rows: [] });
 
     const result = await service.createColumn("新カラム", 1000, 1, 99);

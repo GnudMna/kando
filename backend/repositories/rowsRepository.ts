@@ -51,7 +51,7 @@ export async function insertColumn(
  * @param client - クエリ実行クライアント
  * @param id - 行 ID
  * @param title - 新しいタイトル
- * @param userId - 所有者ユーザー ID（権限確認に使用）
+ * @param userId - 所有者ユーザー ID。権限確認に使用
  * @returns 更新後の行レコード。対象が見つからない場合は `null`
  */
 export async function updateRowTitle(
@@ -68,10 +68,10 @@ export async function updateRowTitle(
 }
 
 /**
- * 行を DB から削除する（配下カラム・タスクも CASCADE で削除される）。
+ * 行を DB から削除する。配下カラム・タスクも CASCADE で削除される。
  * @param client - クエリ実行クライアント
  * @param id - 行 ID
- * @param userId - 所有者ユーザー ID（権限確認に使用）
+ * @param userId - 所有者ユーザー ID。権限確認に使用
  * @returns 削除に成功した場合は `true`、対象が見つからない場合は `false`
  */
 export async function deleteRow(

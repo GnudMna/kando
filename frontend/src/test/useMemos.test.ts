@@ -66,9 +66,9 @@ describe("useMemoMutations", () => {
     });
 
     await waitFor(() =>
-      expect(
-        queryClient.getQueryData<Memo[]>(queryKeys.memos.list()),
-      ).toEqual(sampleMemos),
+      expect(queryClient.getQueryData<Memo[]>(queryKeys.memos.list())).toEqual(
+        sampleMemos,
+      ),
     );
 
     await act(async () => {
@@ -107,9 +107,9 @@ describe("useMemoMutations", () => {
       });
     });
 
-    expect(queryClient.getQueryData<Memo[]>(queryKeys.memos.list())?.[0].title).toBe(
-      "更新後",
-    );
+    expect(
+      queryClient.getQueryData<Memo[]>(queryKeys.memos.list())?.[0].title,
+    ).toBe("更新後");
   });
 
   it("削除成功時にキャッシュからメモを除去する", async () => {
@@ -131,6 +131,8 @@ describe("useMemoMutations", () => {
       await mutations.current.remove.mutateAsync(1);
     });
 
-    expect(queryClient.getQueryData<Memo[]>(queryKeys.memos.list())).toEqual([]);
+    expect(queryClient.getQueryData<Memo[]>(queryKeys.memos.list())).toEqual(
+      [],
+    );
   });
 });

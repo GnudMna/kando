@@ -1,5 +1,5 @@
 /**
- * OpenAPI components（スキーマ・セキュリティ定義）を登録する。
+ * OpenAPI components(スキーマ・セキュリティ定義)を登録する。
  */
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 import { z } from "./setup.js";
@@ -221,24 +221,28 @@ export function registerComponents(registry: OpenAPIRegistry): void {
     type: "apiKey",
     in: "cookie",
     name: "token",
-    description: "HttpOnly JWT Cookie（推奨）",
+    description: "HttpOnly JWT Cookie(推奨)",
   });
 
   registry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",
     scheme: "bearer",
     bearerFormat: "JWT",
-    description: "Authorization: Bearer <token> ヘッダー（フォールバック）",
+    description: "Authorization: Bearer <token> ヘッダー(フォールバック)",
   });
 }
 
-/** 認証が必要なエンドポイント向けのセキュリティ定義（Cookie または Bearer）。 */
+/** 認証が必要なエンドポイント向けのセキュリティ定義(Cookie または Bearer)。 */
 export const authenticatedSecurity: Array<Record<string, string[]>> = [
   { cookieAuth: [] },
   { bearerAuth: [] },
 ];
 
-/** JSON レスポンス定義を生成する。 */
+/** JSON レスポンス定義を生成する。
+ * @param schema - レスポンスボディの Zod スキーマ
+ * @param description - OpenAPI レスポンス説明
+ * @returns OpenAPI JSON レスポンス定義オブジェクト
+ */
 export function jsonResponse(
   schema: z.ZodType,
   description: string,

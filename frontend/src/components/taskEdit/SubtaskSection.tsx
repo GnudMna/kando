@@ -54,6 +54,8 @@ interface SubtaskSectionProps {
 
 /**
  * サブタスク一覧と追加フォームを描画する。
+ * @param props - `SubtaskSectionProps`(同ファイル interface を参照)
+ * @returns サブタスクセクションの JSX 要素
  */
 export function SubtaskSection({
   subtasks,

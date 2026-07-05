@@ -1,4 +1,3 @@
-// ログイン・ユーザー登録画面コンポーネント
 import { useState, useId, useRef, useEffect } from "react";
 import { LogIn, UserPlus } from "lucide-react";
 
@@ -17,7 +16,7 @@ interface LoginScreenProps {
 /**
  * ログイン／ユーザー登録画面を描画する。
  * initialMode="register" のときは登録フォームが表示され、モード切替も可能。
- * @param initialMode - 初期モード（デフォルト: `"login"`）
+ * @param initialMode - 初期モード(デフォルト: `"login"`)
  * @param onLogin - ログインコールバック
  * @param onRegister - ユーザー登録コールバック
  * @param error - 表示するエラーメッセージ。なければ `null`
@@ -67,7 +66,6 @@ export function LoginScreen({
   /**
    * フォームモードを切り替え、入力内容とエラーをリセットする。
    * @param newMode - 切り替え先モード
-   * @returns なし
    */
   const switchMode = (newMode: ScreenMode) => {
     onClearError();

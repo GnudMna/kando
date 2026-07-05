@@ -147,7 +147,9 @@ function KanbanRowBlock({
 }
 
 /**
- * かんばん表示（行・カラム・タスクの DnD）を行単位仮想スクロールで描画する。
+ * かんばん表示(行・カラム・タスクの DnD)を行単位仮想スクロールで描画する。
+ * @param props - `KanbanRowsViewProps`(同ファイル interface を参照)
+ * @returns かんばん行ビューの JSX 要素
  */
 export function KanbanRowsView({
   rows,

@@ -1,3 +1,6 @@
+/**
+ * フロントエンド API クライアントのバレルエクスポート。
+ */
 export { setOnUnauthorized } from "./client.js";
 export type { AuthStatusResult } from "./auth.js";
 export { checkStatus, verify, login, register, logout } from "./auth.js";

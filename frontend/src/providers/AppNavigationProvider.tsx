@@ -7,7 +7,11 @@ import {
 type OpenTaskHandler = (taskId: number) => void;
 type SelectMemoHandler = (memoId: number) => void;
 
-/** メモ帳・タスク編集間のナビゲーション状態を提供する。 */
+/**
+ * メモ帳・タスク編集間のナビゲーション状態を提供する。
+ * @param children - 子要素
+ * @returns AppNavigationContext.Provider でラップした JSX
+ */
 export function AppNavigationProvider({ children }: { children: ReactNode }) {
   const [memoOpen, setMemoOpen] = useState(false);
   const [activeMemoId, setActiveMemoId] = useState<number | null>(null);

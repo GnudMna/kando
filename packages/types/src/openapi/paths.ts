@@ -1,5 +1,5 @@
 /**
- * OpenAPI パス定義をレジストリへ登録する。
+ * OpenAPI パス定義モジュール。
  */
 import type { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 import { z } from "./setup.js";
@@ -182,7 +182,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
           .openapi({
             param: { name: "limit", in: "query" },
             example: "20",
-            description: "取得件数の上限（最大 100）",
+            description: "取得件数の上限(最大 100)",
           }),
         offset: z
           .string()
@@ -198,7 +198,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
           .optional()
           .openapi({
             param: { name: "detail", in: "query" },
-            description: "取得詳細度。既定は summary（子要素は件数のみ、軽量）",
+            description: "取得詳細度。既定は summary(子要素は件数のみ、軽量)",
           }),
         q: z
           .string()
@@ -207,7 +207,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
           .openapi({
             param: { name: "q", in: "query" },
             description:
-              "横断検索キーワード（指定時は一致タスクのみフル詳細で返す）",
+              "横断検索キーワード(指定時は一致タスクのみフル詳細で返す)",
           }),
       }),
     },
@@ -743,7 +743,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     security: authenticatedSecurity,
     request: { params: z.object({ id: pathIdParam }) },
     responses: {
-      204: { description: "削除成功（ボディなし）" },
+      204: { description: "削除成功(ボディなし)" },
       400: standardErrors[400],
       401: standardErrors[401],
       404: standardErrors[404],

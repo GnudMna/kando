@@ -24,6 +24,8 @@ interface UseTaskEditFormOptions {
 
 /**
  * TaskEditModal のローカル編集状態と保存ロジックを管理する。
+ * @param options - 編集対象タスクとコールバック
+ * @returns フォーム state と操作ハンドラー
  */
 export function useTaskEditForm({
   task,

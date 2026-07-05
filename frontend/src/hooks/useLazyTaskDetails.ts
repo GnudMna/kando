@@ -9,7 +9,7 @@ import { taskNeedsDetailLoad } from "../utils/taskSummary";
  * ビューポート内のサマリータスクについて、詳細を遅延取得する。
  * @param task - 表示中タスク
  * @param onLoaded - 詳細取得後に親 state へマージするコールバック
- * @returns 監視用 ref（カードルート要素に付与）
+ * @returns 監視用 ref。カードルート要素に付与
  */
 export function useLazyTaskDetails(task: Task, onLoaded: (task: Task) => void) {
   const rootRef = useRef<HTMLDivElement>(null);

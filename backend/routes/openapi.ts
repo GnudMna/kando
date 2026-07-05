@@ -1,4 +1,3 @@
-// OpenAPI 仕様の配信ルート（認証不要）
 import { readFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +12,7 @@ const backendRoot = currentDir.endsWith(`${sep}dist${sep}routes`)
   : join(currentDir, "..");
 const specPath = join(backendRoot, "openapi", "openapi.json");
 
-/** ビルド時に生成した OpenAPI 仕様（初回読み込み後キャッシュ）。 */
+/** ビルド時に生成した OpenAPI 仕様(初回読み込み後キャッシュ)。 */
 let cachedSpec: Record<string, unknown> | null = null;
 
 /**

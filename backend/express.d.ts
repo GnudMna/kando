@@ -4,7 +4,7 @@ export {};
 declare global {
   namespace Express {
     interface Request {
-      /** 認証済みユーザーの DB ID（authenticate ミドルウェアが設定する） */
+      /** 認証済みユーザーの DB ID。authenticate ミドルウェアが設定する */
       userId?: number;
     }
   }

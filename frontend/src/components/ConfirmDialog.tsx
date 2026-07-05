@@ -1,6 +1,3 @@
-// 削除確認ダイアログコンポーネント
-// React Portal を使って document.body 直下にレンダリングし、
-// オーバーレイクリックでキャンセルできる
 import { useId } from "react";
 import { createPortal } from "react-dom";
 

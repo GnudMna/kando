@@ -19,7 +19,9 @@ interface BoardRowHeaderProps {
 }
 
 /**
- * 行ヘッダー（タイトル編集と操作ボタン）を描画する。
+ * 行ヘッダー(タイトル編集と操作ボタン)を描画する。
+ * @param props - `BoardRowHeaderProps`(同ファイル interface を参照)
+ * @returns 行ヘッダーの JSX 要素
  */
 export function BoardRowHeader({
   row,

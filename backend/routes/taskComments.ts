@@ -1,4 +1,3 @@
-// タスクコメントに対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbTaskComment } from "../types.js";
@@ -11,11 +10,11 @@ import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
-// 新しいコメントを作成する: POST /api/task-comments
 router.post(
   "/",
   validateBody(createTaskCommentBodySchema),
   /**
+   * POST /api/task-comments
    * タスクコメントを作成する。
    * @param req - `task_id` と `content` を含むリクエスト
    * @param res - 作成したコメントを返すレスポンス
@@ -69,11 +68,11 @@ router.post(
   },
 );
 
-// コメント内容を更新する: PUT /api/task-comments/:id
 router.put(
   "/:id",
   validateBody(updateTaskCommentBodySchema),
   /**
+   * PUT /api/task-comments/:id
    * タスクコメントを更新する。
    * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
    * @param res - 更新後コメントを返すレスポンス
@@ -141,10 +140,10 @@ router.put(
   },
 );
 
-// コメントを削除する: DELETE /api/task-comments/:id
 router.delete(
   "/:id",
   /**
+   * DELETE /api/task-comments/:id
    * タスクコメントを削除する。
    * @param req - パスパラメータ `id` を含むリクエスト
    * @param res - 削除結果を返すレスポンス

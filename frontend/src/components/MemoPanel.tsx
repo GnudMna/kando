@@ -1,5 +1,3 @@
-// メモ帳パネルコンポーネント
-// メモの一覧表示・作成・編集・削除を管理する
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Plus, Trash2, X, FileText } from "lucide-react";
 import type { Memo } from "../api/memos";
@@ -51,6 +49,8 @@ function resolveInitialTarget(
 /**
  * メモ帳パネル。
  * メモの一覧・作成・編集・削除・自動保存を提供する。
+ * @param onClose - パネルを閉じるコールバック
+ * @returns メモ帳パネルの JSX 要素
  */
 export function MemoPanel({ onClose }: MemoPanelProps) {
   const { data: memos = [], isLoading, error: queryError } = useMemosQuery();

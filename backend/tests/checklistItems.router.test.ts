@@ -44,7 +44,7 @@ function setupConnectedClient(): MockedClient {
 function createApp() {
   const app = express();
   app.use(express.json());
-  // テスト用: 認証済みユーザー（id=99）をシミュレートする
+  // テスト用: 認証済みユーザー。id=99をシミュレートする
   app.use((_req, _res, next) => {
     (_req as express.Request & { userId?: number }).userId = 99;
     next();

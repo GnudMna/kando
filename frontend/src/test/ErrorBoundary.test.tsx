@@ -36,10 +36,12 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>,
     );
 
+    expect(screen.getByRole("alert", { name: undefined })).toHaveTextContent(
+      "予期しないエラーが発生しました",
+    );
     expect(
-      screen.getByRole("alert", { name: undefined }),
-    ).toHaveTextContent("予期しないエラーが発生しました");
-    expect(screen.getByRole("button", { name: "再読み込み" })).toBeInTheDocument();
+      screen.getByRole("button", { name: "再読み込み" }),
+    ).toBeInTheDocument();
   });
 
   it("再読み込みボタンで location.reload を呼ぶ", async () => {

@@ -40,7 +40,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     onConsoleLog(log, type) {
-      // React の act 警告は console.error 経由で stderr に出る（失敗ではないノイズ）
+      // React の act 警告は console.error 経由で stderr に出る。失敗ではないノイズ
       if (
         type === "stderr" &&
         (log.includes("not wrapped in act") ||
@@ -60,11 +60,7 @@ export default defineConfig({
         functions: 57,
         lines: 60,
       },
-      exclude: [
-        "**/dist/**",
-        "**/node_modules/**",
-        "src/main.tsx",
-      ],
+      exclude: ["**/dist/**", "**/node_modules/**", "src/main.tsx"],
     },
   },
 });

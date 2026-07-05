@@ -6,6 +6,7 @@ import { updateBoardRows, type BoardCache } from "./boardCache";
 /**
  * ボードミューテーション共通のキャッシュ更新・エラーハンドリング。
  * @param setOperationError - 操作エラー表示用 setter
+ * @returns キャッシュ更新関数とエラーハンドラ
  */
 export function useBoardMutationContext(
   setOperationError: Dispatch<SetStateAction<string | null>>,

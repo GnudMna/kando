@@ -18,7 +18,16 @@ type MoveTaskResult = {
   newPosition: number;
 };
 
-/** タスク移動の楽観的更新結果。無効な操作の場合は null。 */
+/**
+ * タスク移動の楽観的更新結果を計算する。無効な操作の場合は `null`。
+ * @param params.rows - 現在の行配列
+ * @param params.indexMap - ドロップ先カラムの位置マップ
+ * @param params.srcDroppableId - 移動元ドロップゾーン ID
+ * @param params.dstDroppableId - 移動先ドロップゾーン ID
+ * @param params.srcIndex - 移動元インデックス
+ * @param params.dstIndex - 移動先インデックス
+ * @returns 楽観的更新結果。無効な操作の場合は `null`
+ */
 export function computeMoveTaskUpdate({
   rows,
   indexMap,
@@ -145,7 +154,15 @@ type MoveColumnResult = {
   newPosition: number;
 };
 
-/** カラム移動の楽観的更新結果。無効な操作の場合は null。 */
+/**
+ * カラム移動の楽観的更新結果を計算する。無効な操作の場合は `null`。
+ * @param params.rows - 現在の行配列
+ * @param params.rowIndexById - 行 ID → インデックスのマップ
+ * @param params.rowId - 対象行 ID
+ * @param params.srcIndex - 移動元カラムインデックス
+ * @param params.dstIndex - 移動先カラムインデックス
+ * @returns 楽観的更新結果。無効な操作の場合は `null`
+ */
 export function computeMoveColumnUpdate({
   rows,
   rowIndexById,

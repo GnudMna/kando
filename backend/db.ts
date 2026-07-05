@@ -1,4 +1,3 @@
-// PostgreSQL接続プールと接続待機処理を管理するモジュール
 import { Pool } from "pg";
 
 /**
@@ -16,8 +15,8 @@ export const pool = new Pool({
  * DB への疎通確認をリトライ付きで実行する。
  * PostgreSQL の起動完了前にアプリが先行した場合でも接続を待機できるよう、
  * 指定回数だけリトライを行う。全リトライ失敗時はエラーを投げる。
- * @param retries - リトライ上限回数（デフォルト: 10）
- * @param delayMs - リトライ間隔（ミリ秒、デフォルト: 3000）
+ * @param retries - リトライ上限回数(デフォルト: 10)
+ * @param delayMs - リトライ間隔(ミリ秒、デフォルト: 3000)
  * @returns 接続確認完了時に解決される Promise
  * @throws Error 全リトライで接続に失敗した場合
  */

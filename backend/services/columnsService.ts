@@ -1,4 +1,3 @@
-// カラムのビジネスロジックを提供するサービス層
 import { pool } from "../db.js";
 import type { DbColumn } from "../types.js";
 import {
@@ -12,7 +11,7 @@ import {
  * @param title - カラムタイトル
  * @param position - 表示順
  * @param row_id - 所属行 ID
- * @param userId - リクエストユーザー ID（所有権確認に使用）
+ * @param userId - リクエストユーザー ID(所有権確認に使用)
  * @returns 作成されたカラムレコード。所有者の行が見つからない場合は `null`
  */
 export async function createColumn(
@@ -35,7 +34,7 @@ export async function createColumn(
  * カラムタイトルを更新する。
  * @param id - カラム ID
  * @param title - 新しいタイトル
- * @param userId - リクエストユーザー ID（所有権確認に使用）
+ * @param userId - リクエストユーザー ID(所有権確認に使用)
  * @returns 更新後のカラムレコード。対象が見つからない場合は `null`
  */
 export async function updateColumnTitle(
@@ -50,7 +49,7 @@ export async function updateColumnTitle(
  * カラムの表示順を更新する。
  * @param id - カラム ID
  * @param position - 新しい表示順
- * @param userId - リクエストユーザー ID（所有権確認に使用）
+ * @param userId - リクエストユーザー ID(所有権確認に使用)
  * @returns 更新後のカラムレコード。対象が見つからない場合は `null`
  */
 export async function moveColumn(
@@ -62,9 +61,9 @@ export async function moveColumn(
 }
 
 /**
- * カラムを削除する（配下タスクも CASCADE で削除される）。
+ * カラムを削除する(配下タスクも CASCADE で削除される)。
  * @param id - カラム ID
- * @param userId - リクエストユーザー ID（所有権確認に使用）
+ * @param userId - リクエストユーザー ID(所有権確認に使用)
  * @returns 削除に成功した場合は `true`、対象が見つからない場合は `false`
  */
 export async function deleteColumn(

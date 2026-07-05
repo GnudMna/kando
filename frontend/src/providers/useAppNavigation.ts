@@ -1,7 +1,10 @@
 import { useContext } from "react";
 import { AppNavigationContext } from "./appNavigationContext";
 
-/** アプリ内ナビゲーション（メモ帳・タスク編集）のコンテキストを取得する。 */
+/**
+ * アプリ内ナビゲーション(メモ帳・タスク編集)のコンテキストを取得する。
+ * @returns `AppNavigationContextValue`
+ */
 export function useAppNavigation() {
   const ctx = useContext(AppNavigationContext);
   if (!ctx) {

@@ -1,6 +1,6 @@
 /**
  * API バリデーション用の Zod フィールドビルダー。
- * 既存 API のエラーメッセージ形式（`'field' is required` 等）と互換性を保つ。
+ * 既存 API のエラーメッセージ形式。`'field' is required` 等と互換性を保つ。
  */
 import { z } from "zod";
 
@@ -54,7 +54,7 @@ export function requiredString(field: string, maxLength: number) {
 }
 
 /**
- * 任意の文字列フィールドを定義する（未指定可、指定時は型・長さを検証）。
+ * 任意の文字列フィールドを定義する。未指定可、指定時は型・長さを検証。
  * @param field - エラーメッセージに使用するフィールド名
  * @param maxLength - 許容最大文字数
  * @returns 検証済み文字列を返す Zod スキーマ
@@ -76,7 +76,7 @@ export function optionalString(field: string, maxLength: number) {
 }
 
 /**
- * 任意の非空文字列フィールドを定義する（未指定可、指定時は空文字不可）。
+ * 任意の非空文字列フィールドを定義する。未指定可、指定時は空文字不可。
  * @param field - エラーメッセージに使用するフィールド名
  * @param maxLength - 許容最大文字数
  * @returns 検証済み文字列を返す Zod スキーマ

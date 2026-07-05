@@ -1,5 +1,3 @@
-// アプリケーションのルートコンポーネント
-// ヘッダーとメインコンテンツ（かんばんボード）を配置する
 import { useEffect, useState } from "react";
 import { Moon, Sun, NotebookPen } from "lucide-react";
 import { KanbanBoard } from "./components/KanbanBoard";
@@ -35,12 +33,12 @@ function App() {
 
   const isDarkMode = themeMode === "dark";
 
-  // 認証確認中はスピナーなしで待機（チラつき防止）
+  // 認証確認中はスピナーなしで待機(チラつき防止)
   if (status === "checking") {
     return null;
   }
 
-  // ユーザー未登録の場合は登録画面を表示（初回セットアップ）
+  // ユーザー未登録の場合は登録画面を表示(初回セットアップ)
   if (status === "unregistered") {
     return (
       <LoginScreen

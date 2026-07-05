@@ -1,5 +1,3 @@
-// シンプルなリクエストロギングミドルウェア
-// メソッド・パス・ステータスコード・レスポンス時間を標準出力に記録する
 import { Request, Response, NextFunction } from "express";
 
 /**
@@ -8,7 +6,6 @@ import { Request, Response, NextFunction } from "express";
  * @param req - Express リクエスト
  * @param res - Express レスポンス
  * @param next - 次のミドルウェアへ処理を渡す関数
- * @returns なし
  */
 export function requestLogger(
   req: Request,

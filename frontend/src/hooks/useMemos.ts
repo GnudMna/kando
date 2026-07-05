@@ -3,7 +3,10 @@ import { createMemo, deleteMemo, fetchMemos, updateMemo } from "../api/memos";
 import { queryKeys } from "../api/queryKeys";
 import type { Memo } from "@kando/types";
 
-/** メモ一覧の取得・更新を React Query で管理する。 */
+/**
+ * メモ一覧の取得・更新を React Query で管理する。
+ * @returns メモ一覧クエリ結果(`data`, `isLoading`, `error` 等)
+ */
 export function useMemosQuery() {
   return useQuery({
     queryKey: queryKeys.memos.list(),
@@ -12,7 +15,10 @@ export function useMemosQuery() {
   });
 }
 
-/** メモの作成・更新・削除ミューテーション。 */
+/**
+ * メモの作成・更新・削除ミューテーション。
+ * @returns `create` / `update` / `remove` ミューテーションとキャッシュ操作関数
+ */
 export function useMemoMutations() {
   const queryClient = useQueryClient();
 
