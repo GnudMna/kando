@@ -102,6 +102,15 @@ export interface Task extends DbTask {
   checklists: ChecklistItem[];
   /** タスクコメント */
   comments: TaskComment[];
+  /**
+   * `GET /api/board?detail=summary` 時のコメント件数。
+   * 子配列は空のため、カード表示や遅延読み込み判定に使用する。
+   */
+  comment_count?: number;
+  /** `detail=summary` 時のサブタスク件数 */
+  subtask_count?: number;
+  /** `detail=summary` 時のタスク直下チェックリスト件数 */
+  checklist_count?: number;
 }
 
 /** タスク一覧を含むカラム型。 */

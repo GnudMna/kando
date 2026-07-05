@@ -10,6 +10,7 @@ export AUTH_SECRET="${AUTH_SECRET:-dev-only-secret-change-in-production}"
 export CORS_ORIGIN="${CORS_ORIGIN:-http://localhost:5173}"
 export PORT="${PORT:-3001}"
 export E2E_TEST="true"
+export VITE_E2E_TEST="true"
 
 echo "E2E: DB マイグレーションを実行しています..."
 npm --prefix backend run migrate:dev

@@ -16,6 +16,7 @@ import {
   moveTask,
   copyTask,
   deleteTask,
+  getTask,
 } from "../services/tasksService.js";
 
 const router = Router();
@@ -53,6 +54,22 @@ function normalizeDueDate(
 }
 
 // ─── ルートハンドラ ──────────────────────────────────────────────────────────
+
+// タスク詳細を取得する: GET /api/tasks/:id
+router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  const id = parseId(req.params.id);
+  if (!id) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  try {
+    const task = await getTask(id, req.userId!);
+    res.json(task);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // 新しいタスクを作成する: POST /api/tasks
 router.post(

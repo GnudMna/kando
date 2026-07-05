@@ -50,6 +50,7 @@ export function KanbanBoard() {
     boardStats,
     matchedTaskCount,
     isDeferredSearchActive,
+    isSearchLoading,
     activeViewMode,
     setViewMode,
     activeRows,
@@ -121,6 +122,8 @@ export function KanbanBoard() {
           onStartAddRow={startAddRow}
           onClearSearch={() => setSearchQuery("")}
         />
+      ) : activeRows.length === 0 && isSearchLoading ? (
+        <div className="kanban-wrapper kanban-loading">検索中…</div>
       ) : activeRows.length === 0 ? (
         <BoardEmptyState
           variant="no-search-results"
@@ -135,7 +138,7 @@ export function KanbanBoard() {
       ) : activeViewMode === "kanban" ? (
         <KanbanRowsView
           rows={activeRows}
-          boardWrapperRef={boardWrapperRef}
+          dragSurfaceRef={boardWrapperRef}
           onDragEnd={handleDragEnd}
           editingRow={editingRow}
           onEditingRowChange={setEditingRow}

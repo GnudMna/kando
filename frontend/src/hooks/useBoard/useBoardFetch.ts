@@ -17,7 +17,7 @@ import {
 } from "./boardIndexes";
 
 async function fetchInitialBoard(): Promise<BoardCache> {
-  const rows = await fetchBoard({ limit: BOARD_PAGE_SIZE });
+  const rows = await fetchBoard({ limit: BOARD_PAGE_SIZE, detail: "summary" });
   return { rows, hasMore: rows.length === BOARD_PAGE_SIZE };
 }
 
@@ -81,6 +81,7 @@ export function useBoardFetch() {
       const more = await fetchBoard({
         limit: BOARD_PAGE_SIZE,
         offset: current.rows.length,
+        detail: "summary",
       });
       if (more.length > 0) {
         appendBoardRows(queryClient, more, BOARD_PAGE_SIZE);

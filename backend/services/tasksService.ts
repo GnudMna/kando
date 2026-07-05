@@ -398,6 +398,37 @@ export async function copyTask(id: number, userId: number): Promise<Task> {
 }
 
 /**
+ * タスク詳細（サブタスク・チェックリスト・コメント含む）を取得する。
+ * @param id - 取得対象タスク ID
+ * @param userId - 操作ユーザーの ID
+ * @returns タスク詳細
+ * @throws NotFoundError タスクがユーザーのものでない場合
+ */
+export async function getTask(id: number, userId: number): Promise<Task> {
+  const client = await pool.connect();
+  try {
+    const ownerCheck = await client.query<{ id: number }>(
+      `SELECT t.id FROM tasks t
+       JOIN columns c ON c.id = t.column_id
+       JOIN rows r ON r.id = c.row_id
+       WHERE t.id = $1 AND r.user_id = $2`,
+      [id, userId],
+    );
+    if (!ownerCheck.rows[0]) {
+      throw new NotFoundError("Task not found");
+    }
+
+    const task = await fetchTaskSnapshot(client, id);
+    if (!task) {
+      throw new NotFoundError("Task not found");
+    }
+    return task;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * タスクを削除する（サブタスク・チェックリストも CASCADE で削除）。
  * @param id - 削除対象タスク ID
  * @param userId - 操作ユーザーの ID

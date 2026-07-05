@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, memo, useEffect } from "react";
 import { Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DraggableProvided } from "@hello-pangea/dnd";
 import { createPortal } from "react-dom";
@@ -8,6 +8,10 @@ import type { Column, Task } from "../../types";
 import { getDueHighlight } from "../../utils/dueDate";
 import type { DueHighlightResult } from "../../utils/dueDate";
 import { taskDragPortalTarget } from "./constants";
+
+/** カラム内で初回に描画するタスク数（超過分は「さらに表示」）。 */
+const INITIAL_VISIBLE_TASKS = 30;
+const TASK_LOAD_MORE_STEP = 30;
 
 interface BoardColumnProps {
   column: Column;
@@ -45,6 +49,16 @@ export const BoardColumn = memo(function BoardColumn({
 }: BoardColumnProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(column.title);
+  const [visibleTaskCount, setVisibleTaskCount] = useState(
+    INITIAL_VISIBLE_TASKS,
+  );
+
+  useEffect(() => {
+    setVisibleTaskCount(INITIAL_VISIBLE_TASKS);
+  }, [column.id, column.tasks.length]);
+
+  const visibleTasks = column.tasks.slice(0, visibleTaskCount);
+  const hiddenTaskCount = column.tasks.length - visibleTasks.length;
 
   const {
     innerRef: columnInnerRef,
@@ -120,7 +134,7 @@ export const BoardColumn = memo(function BoardColumn({
             ref={taskProvided.innerRef}
             {...taskProvided.droppableProps}
           >
-            {column.tasks.map((task, index) => (
+            {visibleTasks.map((task, index) => (
               <Draggable
                 draggableId={`task-${task.id}`}
                 index={index}
@@ -169,6 +183,17 @@ export const BoardColumn = memo(function BoardColumn({
                 }}
               </Draggable>
             ))}
+            {hiddenTaskCount > 0 && (
+              <button
+                type="button"
+                className="column-load-more-tasks text-btn text-muted"
+                onClick={() =>
+                  setVisibleTaskCount((count) => count + TASK_LOAD_MORE_STEP)
+                }
+              >
+                さらに {hiddenTaskCount} 件のタスクを表示
+              </button>
+            )}
             {taskProvided.placeholder}
           </div>
         )}

@@ -57,9 +57,10 @@ export async function addRow(page, title) {
     .click();
   await toolbar.getByLabel("行のタイトル").fill(title);
   await toolbar.getByRole("button", { name: "追加", exact: true }).click();
-  await page
-    .getByRole("button", { name: title, exact: true })
-    .waitFor({ state: "visible" });
+  const rowButton = page.getByRole("button", { name: title, exact: true });
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await rowButton.scrollIntoViewIfNeeded();
+  await rowButton.waitFor({ state: "visible", timeout: 15_000 });
 
   const row = rowByTitle(page, title);
   for (const columnTitle of DEFAULT_COLUMNS) {

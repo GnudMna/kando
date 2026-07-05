@@ -52,3 +52,7 @@ export const deleteTask = (id: number): Promise<void> =>
 
 export const copyTask = (id: number): Promise<Task> =>
   apiClient.request<Task>(`${API_URL}/tasks/${id}/copy`, { method: "POST" });
+
+/** タスク詳細（サブタスク・チェックリスト・コメント含む）を取得する。 */
+export const fetchTask = (id: number): Promise<Task> =>
+  apiClient.request<Task>(`${API_URL}/tasks/${id}`);
