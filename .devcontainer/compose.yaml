@@ -7,6 +7,7 @@ services:
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER:-kando_user}:${POSTGRES_PASSWORD:-kando_password}@db:5432/${POSTGRES_DB:-kanban_db}
       - AUTH_SECRET=${AUTH_SECRET:-dev-only-secret-change-in-production}
+      - TZ=Asia/Tokyo
     depends_on:
       db:
         condition: service_healthy
@@ -20,6 +21,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kando_password}
       POSTGRES_DB: ${POSTGRES_DB:-kanban_db}
       PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: Asia/Tokyo
     volumes:
       - ../pgdata:/var/lib/postgresql/data/pgdata
     healthcheck:
