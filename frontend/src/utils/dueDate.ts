@@ -57,10 +57,10 @@ function toDateOnlyString(parts: {
 }
 
 /**
- * 受け取った文字列を UTC の日付（00:00:00）としてミリ秒へ変換する。
+ * 受け取った文字列を UTC の日付。00:00:00としてミリ秒へ変換する。
  * パース失敗時は `null` を返す。
  * @param value - 日付文字列
- * @returns UTC 基準の Unix time（ms）。無効値は `null`
+ * @returns UTC 基準の Unix time。ms。無効値は `null`
  */
 function parseDueDateToUtcMs(value: string): number | null {
   const parts = extractDateParts(value);
@@ -74,7 +74,7 @@ function parseDueDateToUtcMs(value: string): number | null {
 /**
  * 期限日の入力値を `YYYY-MM-DD` に正規化する。
  * パースできない値は `null` を返し、表示側で非期限扱いにできるようにする。
- * @param value - 入力値（`YYYY-MM-DD` もしくは ISO 文字列、`null`）
+ * @param value - 入力値。`YYYY-MM-DD` もしくは ISO 文字列、`null`
  * @returns 正規化済み日付文字列。無効値や未指定は `null`
  */
 export function normalizeDueDateValue(value: string | null): string | null {
@@ -102,9 +102,9 @@ function normalizeDueSoonDays(value: number): number {
  * 期限日は UTC 00:00 としてパースし、「今日」はローカル暦日を UTC ms に変換して比較する。
  * タイムゾーン境界で off-by-one になり得るが、入力が日付のみのためこの方針を採用している。
  *
- * @param dueDate - 期限日（`YYYY-MM-DD`）
+ * @param dueDate - 期限日。`YYYY-MM-DD`
  * @param dueSoonDays - 「期限が近い」と判定する日数しきい値
- * @param now - 比較基準日時（テスト時に差し替え可能）
+ * @param now - 比較基準日時。テスト時に差し替え可能
  * @param completed - タスクが完了済みの場合は常に `none` を返す
  * @returns バッジ状態と残日数
  */
@@ -126,7 +126,7 @@ export function getDueHighlight(
     return { status: "none", daysUntilDue: null };
   }
 
-  // ローカル暦日を UTC ms に変換して日単位差分を算出する（上記 JSDoc のタイムゾーン方針）
+  // ローカル暦日を UTC ms に変換して日単位差分を算出する。上記 JSDoc のタイムゾーン方針
   const todayUtcMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const daysUntilDue = Math.trunc((dueUtcMs - todayUtcMs) / DAY_MS);
 
@@ -177,7 +177,7 @@ const dueDateFormatter = new Intl.DateTimeFormat("ja-JP", {
  * 期限日を `ja-JP` ロケールの表示文字列へ変換する。
  * 無効値はそのまま返し、入力値の情報を失わないようにする。
  * @param value - 表示対象の期限日文字列
- * @returns ロケール変換済み文字列（変換不可時は元値）
+ * @returns ロケール変換済み文字列。変換不可時は元値
  */
 export function formatDueDate(value: string): string {
   const normalized = normalizeDueDateValue(value);

@@ -1,4 +1,4 @@
-/** React Query のクエリキー定義（キャッシュの単一ソース）。 */
+/** React Query のクエリキー定義。キャッシュの単一ソース。 */
 export const queryKeys = {
   board: {
     all: ["board"] as const,

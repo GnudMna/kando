@@ -18,6 +18,8 @@ interface MemoLinkSectionProps {
 
 /**
  * タスクに関連付けられたメモの表示・追加・解除 UI。
+ * @param props - `MemoLinkSectionProps`(同ファイル interface を参照)
+ * @returns メモ連携セクションの JSX 要素
  */
 export function MemoLinkSection({
   taskId,

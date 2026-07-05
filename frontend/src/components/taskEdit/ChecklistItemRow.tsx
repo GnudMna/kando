@@ -36,7 +36,9 @@ interface ChecklistItemRowProps {
 }
 
 /**
- * チェックリスト項目 1 行を描画する（ドラッグ並び替え対応）。
+ * チェックリスト項目 1 行を描画する(ドラッグ並び替え対応)。
+ * @param props - `ChecklistItemRowProps`(同ファイル interface を参照)
+ * @returns チェックリスト項目行の JSX 要素
  */
 export function ChecklistItemRow({
   item,

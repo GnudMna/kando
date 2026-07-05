@@ -1,4 +1,3 @@
-// タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
 import { useId } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -20,6 +19,11 @@ interface Props {
 
 /**
  * タスク詳細を編集するモーダルコンポーネント。
+ * チェックリスト・サブタスク・コメント・メモ連携を含む編集内容を保存時に API へ一括反映する。
+ * @param task - 編集対象タスク
+ * @param onClose - モーダル終了コールバック(保存または破棄の理由を渡す)
+ * @param onTaskUpdated - 保存後のタスク更新コールバック
+ * @returns タスク編集モーダルの JSX 要素
  */
 export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
   const form = useTaskEditForm({ task, onClose, onTaskUpdated });

@@ -133,7 +133,7 @@ export function useTaskActions({
       try {
         await removeTaskMutation.mutateAsync({ colId, taskId });
       } catch {
-        // onError で operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [removeTaskMutation],
@@ -213,7 +213,7 @@ export function useTaskActions({
           optimisticRows: result.newRows,
         });
       } catch {
-        // onError でロールバックと operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [boardIndexesRef, moveTaskMutation, rowsRef],

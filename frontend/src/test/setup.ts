@@ -31,7 +31,7 @@ Object.defineProperty(window, "matchMedia", {
 
 beforeEach(() => {
   // モジュール共有のメモキャッシュを毎テスト初期化し、
-  // test.sh 全件実行時の fetchMemos 非同期更新（act 警告）を防ぐ
+  // test.sh 全件実行時の fetchMemos 非同期更新。act 警告を防ぐ
   invalidateMemoCache();
   vi.spyOn(Date, "now").mockReturnValue(1_000_000);
   setCachedMemos([]);

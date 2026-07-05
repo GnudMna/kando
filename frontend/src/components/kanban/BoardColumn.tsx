@@ -9,7 +9,7 @@ import { getDueHighlight } from "../../utils/dueDate";
 import type { DueHighlightResult } from "../../utils/dueDate";
 import { taskDragPortalTarget } from "./constants";
 
-/** カラム内で初回に描画するタスク数（超過分は「さらに表示」）。 */
+/** カラム内で初回に描画するタスク数(超過分は「さらに表示」)。 */
 const INITIAL_VISIBLE_TASKS = 30;
 const TASK_LOAD_MORE_STEP = 30;
 
@@ -30,7 +30,9 @@ interface BoardColumnProps {
 }
 
 /**
- * カラムヘッダー（インライン編集）とタスク一覧を管理する memoized コンポーネント。
+ * カラムヘッダー(インライン編集)とタスク一覧を管理する memoized コンポーネント。
+ * @param props - `BoardColumnProps`(同ファイル interface を参照)
+ * @returns カラムの JSX 要素
  */
 export const BoardColumn = memo(function BoardColumn({
   column,

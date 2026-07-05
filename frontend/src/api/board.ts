@@ -6,13 +6,17 @@ export interface FetchBoardOptions {
   row_id?: number;
   limit?: number;
   offset?: number;
-  /** 既定 `summary`（軽量）。`full` で子要素をすべて含める。 */
+  /** 既定 `summary`(軽量)。`full` で子要素をすべて含める。 */
   detail?: "summary" | "full";
-  /** サーバー側横断検索（指定時は `detail` を無視して一致タスクのみ返す） */
+  /** サーバー側横断検索(指定時は `detail` を無視して一致タスクのみ返す) */
   q?: string;
 }
 
-/** ボード全体のデータ（行 -> カラム -> タスク の階層構造）を取得する。 */
+/**
+ * ボード全体のデータ(行 → カラム → タスクの階層構造)を取得する。
+ * @param options - ページング・詳細度・検索オプション
+ * @returns 行階層の配列
+ */
 export const fetchBoard = (options?: FetchBoardOptions): Promise<Row[]> => {
   const params = new URLSearchParams();
 

@@ -27,7 +27,7 @@ export function generateOpenApiDocument(): ReturnType<
       version: API_VERSION,
       description:
         "Kando かんばんボードアプリの REST API。\n\n" +
-        "認証は HttpOnly Cookie（`token`）を優先し、未設定時は `Authorization: Bearer <JWT>` ヘッダーにフォールバックする。",
+        "認証は HttpOnly Cookie(`token`)を優先し、未設定時は `Authorization: Bearer <JWT>` ヘッダーにフォールバックする。",
       license: {
         name: "MIT",
         url: "https://opensource.org/licenses/MIT",
@@ -36,19 +36,19 @@ export function generateOpenApiDocument(): ReturnType<
     servers: [
       {
         url: "http://localhost:8080",
-        description: "Docker Compose（nginx 経由）",
+        description: "Docker Compose(nginx 経由)",
       },
       {
         url: "http://localhost:3001",
-        description: "ローカル開発（バックエンド直接）",
+        description: "ローカル開発(バックエンド直接)",
       },
     ],
     tags: [
       { name: "System", description: "ヘルスチェック" },
       { name: "Auth", description: "認証" },
       { name: "Board", description: "ボード取得" },
-      { name: "Rows", description: "行（プロジェクト）" },
-      { name: "Columns", description: "カラム（ステータス列）" },
+      { name: "Rows", description: "行(プロジェクト)" },
+      { name: "Columns", description: "カラム(ステータス列)" },
       { name: "Tasks", description: "タスク" },
       { name: "Subtasks", description: "サブタスク" },
       { name: "TaskComments", description: "タスクコメント" },

@@ -36,7 +36,7 @@ describe("TaskEditModal", () => {
     });
   };
 
-  /** 保存処理（非同期 state 更新）が完了するまで待つ。 */
+  /** 保存処理。非同期 state 更新が完了するまで待つ。 */
   const waitForSaveToSettle = async () => {
     await waitFor(() => {
       const saveButton = screen.queryByRole("button", {

@@ -31,8 +31,7 @@ describe("App", () => {
     document.documentElement.dataset.theme = "";
   });
 
-  const renderApp = () =>
-    render(<App />, { wrapper: createQueryWrapper() });
+  const renderApp = () => render(<App />, { wrapper: createQueryWrapper() });
 
   it("認証確認中は何も表示しない", () => {
     vi.mocked(useAuth).mockReturnValue({
@@ -75,7 +74,9 @@ describe("App", () => {
     });
 
     renderApp();
-    expect(screen.getByRole("button", { name: "ログイン" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "ログイン" }),
+    ).toBeInTheDocument();
   });
 
   it("認証済み時はボードとヘッダーを表示する", () => {
@@ -91,7 +92,9 @@ describe("App", () => {
     renderApp();
     expect(screen.getByText("Kando")).toBeInTheDocument();
     expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "ログアウト" }),
+    ).toBeInTheDocument();
   });
 
   it("テーマ切替で data-theme を更新する", async () => {

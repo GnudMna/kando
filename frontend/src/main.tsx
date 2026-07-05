@@ -8,7 +8,6 @@ import { QueryProvider } from "./providers/QueryProvider";
 /**
  * 指定した root 要素へ React アプリをマウントする。
  * @param rootElement - マウント先の DOM 要素
- * @returns なし
  */
 function mountApp(rootElement: HTMLElement): void {
   createRoot(rootElement).render(

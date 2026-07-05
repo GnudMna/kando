@@ -7,6 +7,9 @@ interface BoardErrorBannerProps {
 
 /**
  * ボード操作エラーのアラートバナーを描画する。
+ * @param message - 表示するエラーメッセージ
+ * @param onDismiss - バナーを閉じるコールバック
+ * @returns エラーバナーの JSX 要素
  */
 export function BoardErrorBanner({
   message,

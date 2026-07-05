@@ -1,5 +1,3 @@
-// チェックリスト項目に対する CRUD エンドポイントを定義するルーター
-// チェックリストはタスク直下またはサブタスク配下に紐付けられる
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbChecklistItem } from "../types.js";
@@ -14,14 +12,13 @@ const router = Router();
 
 const POSITION_INCREMENT = 1000;
 
-// 新しいチェックリスト項目を作成する: POST /api/checklist-items
-// task_id または subtask_id のどちらか一方のみ必須
 router.post(
   "/",
   validateBody(createChecklistItemBodySchema),
   /**
-   * チェックリスト項目を作成する。
-   * @param req - 本文 `content` と親参照（`task_id` または `subtask_id`）を含むリクエスト
+   * POST /api/checklist-items
+   * チェックリスト項目を作成する。`task_id` または `subtask_id` のどちらか一方のみ必須。
+   * @param req - 本文 `content` と親参照(`task_id` または `subtask_id`)を含むリクエスト
    * @param res - 作成した項目を返すレスポンス
    * @param next - エラーハンドラへ委譲する関数
    * @returns 作成処理完了時に解決される Promise
@@ -108,11 +105,11 @@ router.post(
   },
 );
 
-// チェックリスト項目の内容・完了状態・並び順を更新する: PUT /api/checklist-items/:id
 router.put(
   "/:id",
   validateBody(updateChecklistItemBodySchema),
   /**
+   * PUT /api/checklist-items/:id
    * チェックリスト項目を更新する。
    * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
    * @param res - 更新後項目を返すレスポンス
@@ -200,10 +197,10 @@ router.put(
   },
 );
 
-// チェックリスト項目を削除する: DELETE /api/checklist-items/:id
 router.delete(
   "/:id",
   /**
+   * DELETE /api/checklist-items/:id
    * チェックリスト項目を削除する。
    * @param req - パスパラメータ `id` を含むリクエスト
    * @param res - 削除結果を返すレスポンス

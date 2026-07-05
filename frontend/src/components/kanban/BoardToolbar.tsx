@@ -23,7 +23,9 @@ interface BoardToolbarProps {
 }
 
 /**
- * ボード上部のツールバー（行追加・検索・統計・表示切替）を描画する。
+ * ボード上部のツールバー(行追加・検索・統計・表示切替)を描画する。
+ * @param props - `BoardToolbarProps`(同ファイル interface を参照)
+ * @returns ツールバーの JSX 要素
  */
 export function BoardToolbar({
   isAddingRow,

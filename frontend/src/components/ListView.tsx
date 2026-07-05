@@ -189,7 +189,14 @@ function ListRowBlock({
 }
 
 /**
- * リストビューコンポーネント（行単位の仮想スクロール）。
+ * リストビューコンポーネント(行単位の仮想スクロール)。
+ * @param rows - 表示する行配列
+ * @param taskDueHighlights - タスク ID → 期限強調状態のマップ
+ * @param onRowHeaderRender - 行ヘッダー描画コールバック
+ * @param onTaskClick - タスククリックコールバック
+ * @param onDeleteTask - タスク削除コールバック
+ * @param onAddTask - タスク追加コールバック
+ * @returns リストビューの JSX 要素
  */
 export function ListView({
   rows,

@@ -1,5 +1,3 @@
-// グローバルエラーハンドラーミドルウェア
-// すべてのルートで捕捉されなかったエラーをここで処理する
 import { Request, Response, NextFunction } from "express";
 import { HttpError } from "../errors.js";
 
@@ -8,10 +6,9 @@ import { HttpError } from "../errors.js";
  * `HttpError` はそのステータスコードで返す。
  * それ以外は本番環境では汎用メッセージ、開発環境ではエラー詳細を 500 で返す。
  * @param err - スローされたエラーオブジェクト
- * @param _req - Express リクエスト（使用しない）
+ * @param _req - Express リクエスト(使用しない)
  * @param res - Express レスポンス
- * @param _next - 次のミドルウェア（使用しない）
- * @returns なし
+ * @param _next - 次のミドルウェア(使用しない)
  */
 export function errorHandler(
   err: Error,

@@ -4,7 +4,7 @@ import { queryKeys } from "../../api/queryKeys";
 
 /**
  * サーバー側横断検索の結果を React Query で管理する。
- * @param searchQuery - ユーザー入力の検索文字列（トリム済みを渡す想定）
+ * @param searchQuery - ユーザー入力の検索文字列。トリム済みを渡す想定
  * @returns 検索結果行・読み込み状態
  */
 export function useBoardSearch(searchQuery: string) {

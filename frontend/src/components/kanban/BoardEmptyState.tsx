@@ -13,7 +13,16 @@ interface BoardEmptyStatesProps {
 }
 
 /**
- * ボードの空状態（行なし / 検索結果なし）を描画する。
+ * ボードの空状態(行なし / 検索結果なし)を描画する。
+ * @param variant - 空状態の種類
+ * @param isAddingRow - 行追加フォーム表示中か
+ * @param newRowTitle - 新規行タイトル入力値
+ * @param onNewRowTitleChange - 行タイトル入力変更コールバック
+ * @param onSubmitAddRow - 行追加確定コールバック
+ * @param onCancelAddRow - 行追加キャンセルコールバック
+ * @param onStartAddRow - 行追加開始コールバック
+ * @param onClearSearch - 検索クリアコールバック
+ * @returns 空状態 UI の JSX 要素
  */
 export function BoardEmptyState({
   variant,

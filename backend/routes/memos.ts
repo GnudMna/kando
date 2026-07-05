@@ -1,4 +1,3 @@
-// メモに対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbMemo } from "@kando/types";
@@ -15,7 +14,7 @@ const router = Router();
 /**
  * メモに紐付くタスク一覧を含むメモを1件取得する。
  * @param memoId - 取得対象メモ ID
- * @param userId - 操作ユーザー ID（所有権確認に使用）
+ * @param userId - 操作ユーザー ID(所有権確認に使用)
  * @returns メモと関連タスク一覧。該当なしは `null`
  */
 async function getMemoWithTasks(
@@ -41,11 +40,11 @@ async function getMemoWithTasks(
   return result.rows[0] ?? null;
 }
 
-// メモ一覧を取得する: GET /api/memos
 router.get(
   "/",
   /**
-   * 認証ユーザーのメモを更新日時降順で返す（紐付くタスク情報を含む）。
+   * GET /api/memos
+   * 認証ユーザーのメモを更新日時降順で返す(紐付くタスク情報を含む)。
    * @param req - 認証済みリクエスト
    * @param res - メモ配列を返すレスポンス
    * @param next - エラーハンドラへ委譲する関数
@@ -76,11 +75,11 @@ router.get(
   },
 );
 
-// メモを作成する: POST /api/memos
 router.post(
   "/",
   validateBody(createMemoBodySchema),
   /**
+   * POST /api/memos
    * 新しいメモを作成する。
    * @param req - `title` と `content` を含むリクエスト
    * @param res - 作成したメモを返すレスポンス
@@ -103,11 +102,11 @@ router.post(
   },
 );
 
-// メモを更新する: PUT /api/memos/:id
 router.put(
   "/:id",
   validateBody(updateMemoBodySchema),
   /**
+   * PUT /api/memos/:id
    * 指定 ID のメモを更新する。
    * @param req - パスパラメータ `id`、更新値を含むリクエスト
    * @param res - 更新後メモを返すレスポンス
@@ -144,13 +143,13 @@ router.put(
   },
 );
 
-// メモを削除する: DELETE /api/memos/:id
 router.delete(
   "/:id",
   /**
+   * DELETE /api/memos/:id
    * 指定 ID のメモを削除する。
    * @param req - パスパラメータ `id` を含むリクエスト
-   * @param res - 空レスポンス（204）
+   * @param res - 空レスポンス(204)
    * @param next - エラーハンドラへ委譲する関数
    */
   async (req: Request, res: Response, next: NextFunction) => {
@@ -174,11 +173,11 @@ router.delete(
   },
 );
 
-// メモにタスクを関連付ける: POST /api/memos/:id/tasks
 router.post(
   "/:id/tasks",
   validateBody(linkMemoTaskBodySchema),
   /**
+   * POST /api/memos/:id/tasks
    * タスクとメモを関連付ける。
    * @param req - パスパラメータ `id` と `task_id` を含むリクエスト
    * @param res - 更新後メモを返すレスポンス
@@ -200,7 +199,7 @@ router.post(
       if ((memoCheck.rowCount ?? 0) === 0) {
         throw new NotFoundError("Memo not found");
       }
-      // タスクの所有権を確認する（rows -> columns -> tasks の経路で user_id を検証）
+      // タスクの所有権を確認する(rows -> columns -> tasks の経路で user_id を検証)
       const taskCheck = await pool.query(
         `SELECT t.id FROM tasks t
          JOIN columns c ON c.id = t.column_id
@@ -224,10 +223,10 @@ router.post(
   },
 );
 
-// メモとタスクの関連付けを解除する: DELETE /api/memos/:id/tasks/:taskId
 router.delete(
   "/:id/tasks/:taskId",
   /**
+   * DELETE /api/memos/:id/tasks/:taskId
    * タスクとメモの関連付けを解除する。
    * @param req - パスパラメータ `id` と `taskId` を含むリクエスト
    * @param res - 更新後メモを返すレスポンス

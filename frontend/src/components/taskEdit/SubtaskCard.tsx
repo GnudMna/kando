@@ -48,6 +48,8 @@ interface SubtaskCardProps {
 
 /**
  * サブタスク 1 件と配下チェックリストを描画する。
+ * @param props - `SubtaskCardProps`(同ファイル interface を参照)
+ * @returns サブタスクカードの JSX 要素
  */
 export function SubtaskCard({
   subtask,

@@ -23,9 +23,7 @@ describe("registerBodySchema / loginBodySchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(formatZodError(result.error)).toBe(
-        "'username' must not be empty",
-      );
+      expect(formatZodError(result.error)).toBe("'username' must not be empty");
     }
   });
 });
@@ -48,9 +46,7 @@ describe("createTaskBodySchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(formatZodError(result.error)).toBe(
-        "'due_date' must not be empty",
-      );
+      expect(formatZodError(result.error)).toBe("'due_date' must not be empty");
     }
   });
 

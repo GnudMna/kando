@@ -30,7 +30,7 @@ export const createFetchMock = (): FetchMock =>
  * 次の `fetch` 呼び出しに JSON レスポンスを返すようモックを設定する。
  * @param fetchMock - 設定対象の fetch モック
  * @param body - レスポンスボディ
- * @param status - HTTP ステータスコード（既定: 200）
+ * @param status - HTTP ステータスコード。既定: 200
  * @returns なし
  */
 export const respondWithJson = <T>(
@@ -64,7 +64,7 @@ export const respondWithJsonError = (
   });
 };
 
-/** `TaskCard` コンポーネントの props（テスト用）。 */
+/** `TaskCard` コンポーネントの props。テスト用。 */
 export interface TaskCardProps {
   task: Task;
   columnId: number;

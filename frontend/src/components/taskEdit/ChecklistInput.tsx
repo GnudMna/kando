@@ -8,6 +8,11 @@ interface ChecklistInputProps {
 /**
  * チェックリスト項目の入力フォームコンポーネント。
  * Enter キーで追加、Escape キーでキャンセルできる。
+ * @param value - 入力値
+ * @param onChange - 入力変更コールバック
+ * @param onAdd - 追加確定コールバック
+ * @param onCancel - キャンセルコールバック
+ * @returns 入力フォームの JSX 要素
  */
 export function ChecklistInput({
   value,

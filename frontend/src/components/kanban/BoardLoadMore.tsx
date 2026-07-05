@@ -7,6 +7,9 @@ interface BoardLoadMoreProps {
 
 /**
  * 追加行読み込みボタンを描画する。
+ * @param isLoadingMore - 読み込み中フラグ
+ * @param onLoadMore - 追加読み込みコールバック
+ * @returns 読み込みボタンの JSX 要素
  */
 export function BoardLoadMore({
   isLoadingMore,

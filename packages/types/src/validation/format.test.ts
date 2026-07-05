@@ -4,9 +4,7 @@ import { formatZodError } from "./format.js";
 
 describe("formatZodError", () => {
   it("カスタムメッセージをそのまま返す", () => {
-    const error = z
-      .object({ title: z.string() })
-      .safeParse({ title: 1 }).error;
+    const error = z.object({ title: z.string() }).safeParse({ title: 1 }).error;
     expect(error).toBeDefined();
 
     const schema = z.object({

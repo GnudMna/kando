@@ -61,7 +61,7 @@ export function useRowActions({
       try {
         await addRowMutation.mutateAsync({ title, position });
       } catch {
-        // onError で operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [addRowMutation, rowsRef],
@@ -72,7 +72,7 @@ export function useRowActions({
       try {
         await renameRowMutation.mutateAsync({ rowId, title });
       } catch {
-        // onError で operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [renameRowMutation],
@@ -83,7 +83,7 @@ export function useRowActions({
       try {
         await removeRowMutation.mutateAsync(rowId);
       } catch {
-        // onError で operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [removeRowMutation],

@@ -1,5 +1,3 @@
-// かんばんボードのメインコンポーネント
-// 行・カラム・タスクのレンダリング、ドラッグ＆ドロップ、各種操作ダイアログを管理する
 import { lazy, Suspense, useRef } from "react";
 import { useBoard } from "../hooks/useBoard";
 import { useKanbanBoardState } from "../hooks/useKanbanBoardState";

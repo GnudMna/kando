@@ -47,6 +47,8 @@ interface TaskChecklistSectionProps {
 
 /**
  * チェックリスト一覧と追加フォームを描画する。
+ * @param props - `TaskChecklistSectionProps`(同ファイル interface を参照)
+ * @returns チェックリストセクションの JSX 要素
  */
 export function TaskChecklistSection({
   items,

@@ -1,11 +1,10 @@
-// リクエストバリデーション用のミドルウェアおよびユーティリティ関数を提供するモジュール
 import { Request, Response, NextFunction } from "express";
 import type { ZodType } from "zod";
 import { formatZodError } from "@kando/types/validation";
 
 /**
  * ルートパラメータを正の整数にパースする。
- * @param id - パース対象の値（文字列以外は null 扱い）
+ * @param id - パース対象の値(文字列以外は null 扱い)
  * @returns 正の整数値、または不正な値の場合は null
  */
 export function parseId(id: string | string[] | undefined): number | null {

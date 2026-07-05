@@ -1,5 +1,3 @@
-// ボード全体のデータを返す GET /api/board エンドポイント
-// rows → columns → tasks → subtasks → checklist_items の順にネストして返す
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import { pushToGroupMap } from "../utils/groupMap.js";
@@ -27,9 +25,9 @@ class BoardQueryError extends Error {}
 /**
  * query 文字列を正の整数として検証する。
  * パラメータ未指定時は `null` を返し、`max` 指定時は上限チェックも行う。
- * @param raw - クエリ値（`req.query[field]`）
+ * @param raw - クエリ値(`req.query[field]`)
  * @param fieldName - エラーメッセージに表示するフィールド名
- * @param max - 許容上限（指定時のみ検証）
+ * @param max - 許容上限(指定時のみ検証)
  * @returns 検証済みの正の整数。未指定時は `null`
  * @throws BoardQueryError 値が整数として不正な場合
  */
@@ -63,7 +61,7 @@ function parsePositiveIntQuery(
 /**
  * query 文字列を 0 以上の整数として検証する。
  * パラメータ未指定時は `null` を返す。
- * @param raw - クエリ値（`req.query[field]`）
+ * @param raw - クエリ値(`req.query[field]`)
  * @param fieldName - エラーメッセージに表示するフィールド名
  * @returns 検証済みの非負整数。未指定時は `null`
  * @throws BoardQueryError 値が整数として不正な場合
@@ -131,7 +129,7 @@ function parseSearchQuery(raw: unknown): string | null {
 /**
  * ユーザー配下で検索クエリに一致するタスク ID を取得する。
  * @param userId - 操作ユーザー ID
- * @param searchPattern - ILIKE 用パターン（`%keyword%` 形式）
+ * @param searchPattern - ILIKE 用パターン(`%keyword%` 形式)
  * @returns 一致タスク ID の配列
  */
 async function findMatchingTaskIds(
@@ -183,7 +181,7 @@ async function fetchRowsForTaskIds(
   return result.rows;
 }
 
-/** フル詳細の階層取得 SQL（オプションでタスク ID を絞り込み可能）。 */
+/** フル詳細の階層取得 SQL(オプションでタスク ID を絞り込み可能)。 */
 const FULL_HIERARCHY_SQL = `WITH
   sub_chk AS (
     SELECT
@@ -316,7 +314,7 @@ LEFT JOIN agg_cols ac ON ac.row_id = r.id
 WHERE r.id = ANY($1::int[])
 ORDER BY r.position ASC`;
 
-/** サマリー取得用の軽量階層 SQL（子要素のネストを省略し件数のみ返す）。 */
+/** サマリー取得用の軽量階層 SQL(子要素のネストを省略し件数のみ返す)。 */
 const SUMMARY_HIERARCHY_SQL = `WITH
   agg_tasks AS (
     SELECT
@@ -381,7 +379,7 @@ ORDER BY r.position ASC`;
  * 行 ID 群に対するボード階層を DB から取得する。
  * @param rowIds - 取得対象の行 ID 配列
  * @param detail - 詳細度
- * @param taskIdsFilter - タスク ID で絞り込む場合の配列（検索時）
+ * @param taskIdsFilter - タスク ID で絞り込む場合の配列(検索時)
  * @returns ネスト済み行配列
  */
 async function fetchBoardHierarchy(
@@ -510,107 +508,98 @@ export function buildBoardHierarchy(
   }));
 }
 
-// ボード全体のデータを一括取得して階層構造に組み立てて返す
-router.get(
-  "/",
-  /**
-   * ボード全体を取得し、行・カラム・タスクの階層構造で返す。
-   * @param req - クエリ `row_id` `limit` `offset` を含むリクエスト
-   * @param res - ボード階層データを返すレスポンス
-   * @param next - エラーハンドラへ委譲する関数
-   * @returns 取得処理完了時に解決される Promise
-   */
-  async (req: Request, res: Response, next: NextFunction) => {
-    let rowIdFilter: number | null;
-    let limit: number | null;
-    let offset: number | null;
-    let detail: BoardDetailLevel;
-    let searchQuery: string | null;
+/**
+ * GET /api/board
+ * ボード全体を取得し、行・カラム・タスクの階層構造で返す。
+ * `detail=summary` 時は子要素を件数のみ返し、`q` 指定時はサーバー側検索を行う。
+ */
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  let rowIdFilter: number | null;
+  let limit: number | null;
+  let offset: number | null;
+  let detail: BoardDetailLevel;
+  let searchQuery: string | null;
 
-    try {
-      rowIdFilter = parsePositiveIntQuery(req.query.row_id, "row_id");
-      limit = parsePositiveIntQuery(req.query.limit, "limit", MAX_BOARD_LIMIT);
-      offset = parseNonNegativeIntQuery(req.query.offset, "offset");
-      detail = parseDetailQuery(req.query.detail);
-      searchQuery = parseSearchQuery(req.query.q);
-    } catch (err) {
-      if (err instanceof BoardQueryError) {
-        res.status(400).json({ error: err.message });
-        return;
-      }
-      next(err);
+  try {
+    rowIdFilter = parsePositiveIntQuery(req.query.row_id, "row_id");
+    limit = parsePositiveIntQuery(req.query.limit, "limit", MAX_BOARD_LIMIT);
+    offset = parseNonNegativeIntQuery(req.query.offset, "offset");
+    detail = parseDetailQuery(req.query.detail);
+    searchQuery = parseSearchQuery(req.query.q);
+  } catch (err) {
+    if (err instanceof BoardQueryError) {
+      res.status(400).json({ error: err.message });
       return;
     }
+    next(err);
+    return;
+  }
 
-    try {
-      const userId = req.userId!;
+  try {
+    const userId = req.userId!;
 
-      // サーバー側検索: 一致タスクのみフル詳細で返す（未読み込み行も横断検索可能）
-      if (searchQuery !== null) {
-        const searchPattern = `%${searchQuery.replace(/[%_\\]/g, "\\$&")}%`;
-        const matchingTaskIds = await findMatchingTaskIds(
-          userId,
-          searchPattern,
-        );
-        if (matchingTaskIds.length === 0) {
-          res.json([]);
-          return;
-        }
-
-        const rows = await fetchRowsForTaskIds(userId, matchingTaskIds);
-        const hierarchy = await fetchBoardHierarchy(
-          rows.map((row) => row.id),
-          "full",
-          matchingTaskIds,
-        );
-        res.json(filterBoardToNonEmptyTasks(hierarchy));
-        return;
-      }
-
-      const rowQueryParams: number[] = [];
-      const rowWhereClauses: string[] = [];
-
-      rowQueryParams.push(userId);
-      rowWhereClauses.push(`user_id = $${rowQueryParams.length}`);
-
-      if (rowIdFilter !== null) {
-        rowQueryParams.push(rowIdFilter);
-        rowWhereClauses.push(`id = $${rowQueryParams.length}`);
-      }
-
-      let rowsQuery = "SELECT * FROM rows";
-      if (rowWhereClauses.length > 0) {
-        rowsQuery += ` WHERE ${rowWhereClauses.join(" AND ")}`;
-      }
-      rowsQuery += " ORDER BY position ASC";
-
-      if (limit !== null) {
-        rowQueryParams.push(limit);
-        rowsQuery += ` LIMIT $${rowQueryParams.length}`;
-      }
-      if (offset !== null) {
-        rowQueryParams.push(offset);
-        rowsQuery += ` OFFSET $${rowQueryParams.length}`;
-      }
-
-      const rowsResult = await pool.query<DbRow>(rowsQuery, rowQueryParams);
-      const rows = rowsResult.rows;
-
-      if (rows.length === 0) {
+    // サーバー側検索: 一致タスクのみフル詳細で返す(未読み込み行も横断検索可能)
+    if (searchQuery !== null) {
+      const searchPattern = `%${searchQuery.replace(/[%_\\]/g, "\\$&")}%`;
+      const matchingTaskIds = await findMatchingTaskIds(userId, searchPattern);
+      if (matchingTaskIds.length === 0) {
         res.json([]);
         return;
       }
 
+      const rows = await fetchRowsForTaskIds(userId, matchingTaskIds);
       const hierarchy = await fetchBoardHierarchy(
         rows.map((row) => row.id),
-        detail,
+        "full",
+        matchingTaskIds,
       );
-      res.json(hierarchy);
-    } catch (err) {
-      next(err);
+      res.json(filterBoardToNonEmptyTasks(hierarchy));
+      return;
     }
-  },
-);
+
+    const rowQueryParams: number[] = [];
+    const rowWhereClauses: string[] = [];
+
+    rowQueryParams.push(userId);
+    rowWhereClauses.push(`user_id = $${rowQueryParams.length}`);
+
+    if (rowIdFilter !== null) {
+      rowQueryParams.push(rowIdFilter);
+      rowWhereClauses.push(`id = $${rowQueryParams.length}`);
+    }
+
+    let rowsQuery = "SELECT * FROM rows";
+    if (rowWhereClauses.length > 0) {
+      rowsQuery += ` WHERE ${rowWhereClauses.join(" AND ")}`;
+    }
+    rowsQuery += " ORDER BY position ASC";
+
+    if (limit !== null) {
+      rowQueryParams.push(limit);
+      rowsQuery += ` LIMIT $${rowQueryParams.length}`;
+    }
+    if (offset !== null) {
+      rowQueryParams.push(offset);
+      rowsQuery += ` OFFSET $${rowQueryParams.length}`;
+    }
+
+    const rowsResult = await pool.query<DbRow>(rowsQuery, rowQueryParams);
+    const rows = rowsResult.rows;
+
+    if (rows.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const hierarchy = await fetchBoardHierarchy(
+      rows.map((row) => row.id),
+      detail,
+    );
+    res.json(hierarchy);
+  } catch (err) {
+    next(err);
+  }
+});
 
 /** ボード階層データ取得 API の Express ルーター。 */
 export default router;

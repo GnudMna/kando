@@ -110,7 +110,7 @@ export function useColumnActions({
       try {
         await addColumnMutation.mutateAsync({ title, position, rowId });
       } catch {
-        // onError で operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [addColumnMutation, rowsRef],
@@ -121,7 +121,7 @@ export function useColumnActions({
       try {
         await renameColumnMutation.mutateAsync({ colId, title });
       } catch {
-        // onError で operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [renameColumnMutation],
@@ -132,7 +132,7 @@ export function useColumnActions({
       try {
         await removeColumnMutation.mutateAsync(colId);
       } catch {
-        // onError で operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [removeColumnMutation],
@@ -163,7 +163,7 @@ export function useColumnActions({
           optimisticRows: result.newRows,
         });
       } catch {
-        // onError でロールバックと operationError を設定済み
+        /* mutation onError が UI エラーを処理する */
       }
     },
     [boardIndexesRef, moveColumnMutation, rowsRef],

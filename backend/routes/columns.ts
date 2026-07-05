@@ -1,4 +1,3 @@
-// カラム（ステータス列）に対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
 import {
   createColumn,
@@ -16,11 +15,11 @@ import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
-// 新しいカラムを作成する: POST /api/columns
 router.post(
   "/",
   validateBody(createColumnBodySchema),
   /**
+   * POST /api/columns
    * カラムを作成する。
    * @param req - `title` `position` `row_id` を含むリクエスト
    * @param res - 作成したカラムを返すレスポンス
@@ -45,11 +44,11 @@ router.post(
   },
 );
 
-// カラムのタイトルを更新する: PUT /api/columns/:id
 router.put(
   "/:id",
   validateBody(updateColumnTitleBodySchema),
   /**
+   * PUT /api/columns/:id
    * カラムタイトルを更新する。
    * @param req - パスパラメータ `id` と本文 `title` を含むリクエスト
    * @param res - 更新後カラムを返すレスポンス
@@ -75,11 +74,11 @@ router.put(
   },
 );
 
-// カラムの表示順（position）を更新する: PUT /api/columns/:id/move
 router.put(
   "/:id/move",
   validateBody(moveColumnBodySchema),
   /**
+   * PUT /api/columns/:id/move
    * カラムの表示順を更新する。
    * @param req - パスパラメータ `id` と本文 `position` を含むリクエスト
    * @param res - 更新後カラムを返すレスポンス
@@ -105,11 +104,11 @@ router.put(
   },
 );
 
-// カラムを削除する（配下のタスクも CASCADE で削除される）: DELETE /api/columns/:id
 router.delete(
   "/:id",
   /**
-   * カラムを削除する。
+   * DELETE /api/columns/:id
+   * カラムを削除する(配下のタスクも CASCADE で削除される)。
    * @param req - パスパラメータ `id` を含むリクエスト
    * @param res - 削除結果を返すレスポンス
    * @param next - エラーハンドラへ委譲する関数

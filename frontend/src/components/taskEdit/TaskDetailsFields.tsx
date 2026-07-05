@@ -11,6 +11,11 @@ interface TaskDetailsFieldsProps {
 
 /**
  * タスク本文・期限・完了状態の入力フィールドを描画する。
+ * @param localTask - 編集中のローカルタスク
+ * @param onLocalTaskChange - ローカルタスク更新コールバック
+ * @param taskContentInputId - タスク内容入力の `id` 属性
+ * @param taskDueDateInputId - 期限日入力の `id` 属性
+ * @returns 入力フィールドの JSX 要素
  */
 export function TaskDetailsFields({
   localTask,

@@ -1,4 +1,3 @@
-// タスクに対する CRUD・移動エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
 import type { TaskSnapshotPayload } from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
@@ -53,9 +52,10 @@ function normalizeDueDate(
   return rawDueDate;
 }
 
-// ─── ルートハンドラ ──────────────────────────────────────────────────────────
-
-// タスク詳細を取得する: GET /api/tasks/:id
+/**
+ * GET /api/tasks/:id
+ * タスク詳細(サブタスク・チェックリスト・コメント含む)を取得する。
+ */
 router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   const id = parseId(req.params.id);
   if (!id) {
@@ -71,7 +71,10 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// 新しいタスクを作成する: POST /api/tasks
+/**
+ * POST /api/tasks
+ * 新しいタスクを作成する。
+ */
 router.post(
   "/",
   validateBody(createTaskBodySchema),
@@ -108,7 +111,10 @@ router.post(
   },
 );
 
-// タスクの内容・期限を更新する: PUT /api/tasks/:id
+/**
+ * PUT /api/tasks/:id
+ * タスクの内容・期限・完了状態を部分更新する。
+ */
 router.put(
   "/:id",
   validateBody(updateTaskBodySchema),
@@ -178,7 +184,10 @@ router.put(
   },
 );
 
-// タスク編集モーダルの内容を単一トランザクションで一括保存する: PUT /api/tasks/:id/snapshot
+/**
+ * PUT /api/tasks/:id/snapshot
+ * タスク編集モーダルの内容を単一トランザクションで一括保存する。
+ */
 router.put(
   "/:id/snapshot",
   validateBody(taskSnapshotBodySchema),
@@ -219,7 +228,10 @@ router.put(
   },
 );
 
-// タスクを別カラムへ移動する: PUT /api/tasks/:id/move
+/**
+ * PUT /api/tasks/:id/move
+ * タスクを別カラムへ移動する。
+ */
 router.put(
   "/:id/move",
   validateBody(moveTaskBodySchema),
@@ -242,7 +254,10 @@ router.put(
   },
 );
 
-// タスクをコピーする: POST /api/tasks/:id/copy
+/**
+ * POST /api/tasks/:id/copy
+ * タスクを複製する(未完了状態でコピー)。
+ */
 router.post(
   "/:id/copy",
   async (req: Request, res: Response, next: NextFunction) => {
@@ -261,7 +276,10 @@ router.post(
   },
 );
 
-// タスクを削除する: DELETE /api/tasks/:id
+/**
+ * DELETE /api/tasks/:id
+ * タスクを削除する。
+ */
 router.delete(
   "/:id",
   async (req: Request, res: Response, next: NextFunction) => {

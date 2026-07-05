@@ -1,5 +1,7 @@
-// フロントエンド専用の型定義を定義する場所。
-// 共通 API 型は @kando/types から再利用する。
+/**
+ * フロントエンド専用の型定義。
+ * 共通 API 型は `@kando/types` から再利用する。
+ */
 
 import type {
   ChecklistItem,
@@ -10,7 +12,7 @@ import type {
   Row,
 } from "@kando/types";
 
-/** かんばんボードのドメインモデル型（`@kando/types` から再エクスポート）。 */
+/** かんばんボードのドメインモデル型(`@kando/types` から再エクスポート)。 */
 export type { ChecklistItem, TaskComment, Subtask, Task, Column, Row };
 
 /**
@@ -18,9 +20,6 @@ export type { ChecklistItem, TaskComment, Subtask, Task, Column, Row };
  * 通常の string と区別することで、一時 ID を実 DB ID として誤用するのを防ぐ。
  */
 export type TempId = string & { readonly __brand: "TempId" };
-
-// ---- ローカル編集状態用の型（TaskEditModal 内でのみ使用）----
-// DB 保存前の一時 ID（TempId）を許容するバリアント
 
 /**
  * ローカル編集中のチェックリスト項目。

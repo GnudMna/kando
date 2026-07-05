@@ -9,7 +9,7 @@ import { useBoardFetch } from "./useBoardFetch";
  * rows の CRUD およびタスク・カラム移動のロジックを提供する。
  * マウント時に自動でボードデータを取得する。
  *
- * @returns ボード state（`rows`, `isLoading`, `hasMore` 等）と操作ハンドラー（`addRow`, `moveTask` 等）
+ * @returns ボード state。`rows`, `isLoading`, `hasMore` 等と操作ハンドラー。`addRow`, `moveTask` 等
  */
 export function useBoard() {
   const fetch = useBoardFetch();

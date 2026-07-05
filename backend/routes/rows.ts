@@ -1,4 +1,3 @@
-// 行（プロジェクト単位）に対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
 import {
   createRow,
@@ -15,11 +14,11 @@ import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
-// 新しい行を作成する: POST /api/rows
 router.post(
   "/",
   validateBody(createRowBodySchema),
   /**
+   * POST /api/rows
    * 行を作成する。
    * @param req - `title` と `position` を含むリクエスト
    * @param res - 作成した行を返すレスポンス
@@ -37,11 +36,11 @@ router.post(
   },
 );
 
-// 行とデフォルト3カラムを一括作成する: POST /api/rows/with-default-columns
 router.post(
   "/with-default-columns",
   validateBody(createRowBodySchema),
   /**
+   * POST /api/rows/with-default-columns
    * 行とデフォルト3カラムを単一トランザクションで作成する。
    * @param req - `title` と `position` を含むリクエスト
    * @param res - デフォルトカラムを含む行を返すレスポンス
@@ -63,11 +62,11 @@ router.post(
   },
 );
 
-// 行のタイトルを更新する: PUT /api/rows/:id
 router.put(
   "/:id",
   validateBody(updateRowTitleBodySchema),
   /**
+   * PUT /api/rows/:id
    * 行タイトルを更新する。
    * @param req - パスパラメータ `id` と本文 `title` を含むリクエスト
    * @param res - 更新結果を返すレスポンス
@@ -93,11 +92,11 @@ router.put(
   },
 );
 
-// 行を削除する（配下のカラム・タスクも CASCADE で削除される）: DELETE /api/rows/:id
 router.delete(
   "/:id",
   /**
-   * 行を削除する。
+   * DELETE /api/rows/:id
+   * 行を削除する(配下のカラム・タスクも CASCADE で削除される)。
    * @param req - パスパラメータ `id` を含むリクエスト
    * @param res - 削除結果を返すレスポンス
    * @param next - エラーハンドラへ委譲する関数
@@ -121,5 +120,5 @@ router.delete(
   },
 );
 
-/** 行（プロジェクト）CRUD API の Express ルーター。 */
+/** 行(プロジェクト)CRUD API の Express ルーター。 */
 export default router;

@@ -103,7 +103,7 @@ export function useBoardFetch() {
     try {
       await loadMoreMutation.mutateAsync();
     } catch {
-      // onError で operationError を設定済み
+      /* mutation onError が UI エラーを処理する */
     }
   }, [loadMoreMutation]);
 
