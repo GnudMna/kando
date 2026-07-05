@@ -38,7 +38,7 @@ function setupConnectedClient(): MockedClient {
 }
 
 /**
- * task-comments ルーター統合テスト用の Express アプリを生成する。
+ * task-comments ルーターテスト用の Express アプリを生成する。
  * @returns task-comments API をマウントした Express アプリ
  */
 function createApp() {
@@ -54,7 +54,7 @@ function createApp() {
   return app;
 }
 
-describe("task-comments router integration", () => {
+describe("task-comments router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

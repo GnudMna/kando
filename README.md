@@ -162,9 +162,10 @@ scripts\windows\test.bat
 個別実行:
 
 ```bash
-# backend
+# backend（単体テスト: services / middleware 等）
 npm --workspace backend run test
-npm --workspace backend run test:integration
+# backend（ルーターテスト: DB モックで HTTP 結合を検証）
+npm --workspace backend run test:router
 npm --workspace backend run test:coverage
 
 # frontend

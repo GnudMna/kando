@@ -25,7 +25,7 @@ type MockedPool = {
 const mockedPool = pool as unknown as MockedPool;
 
 /**
- * tasks ルーター統合テスト用の Express アプリを生成する。
+ * tasks ルーターテスト用の Express アプリを生成する。
  * @returns tasks API をマウントした Express アプリ
  */
 function createApp() {
@@ -41,7 +41,7 @@ function createApp() {
   return app;
 }
 
-describe("tasks snapshot integration", () => {
+describe("tasks snapshot router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

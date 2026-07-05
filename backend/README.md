@@ -232,23 +232,23 @@ Docker Compose 起動時:
 
 ## npm scripts
 
-| コマンド                   | 説明                                      |
-| -------------------------- | ----------------------------------------- |
-| `npm run migrate:dev`      | マイグレーションを TypeScript で実行      |
-| `npm run migrate`          | ビルド済みマイグレーションを実行          |
-| `npm run migrate:create`   | 新しい SQL マイグレーションファイルを作成 |
-| `npm run migrate:down`     | 直前のマイグレーションをロールバック      |
-| `npm run dev`              | 開発サーバー起動（`tsx watch server.ts`） |
-| `npm run build`            | TypeScript ビルド (`dist/` 生成)          |
-| `npm run start`            | 本番サーバー起動 (`dist/server.js`)       |
-| `npm run lint`             | ESLint 実行                               |
-| `npm run lint:fix`         | ESLint 自動修正                           |
-| `npm run format`           | Prettier 整形                             |
-| `npm run typecheck`        | TypeScript 型チェック                     |
-| `npm run test`             | テスト実行                                |
-| `npm run test:integration` | 統合テスト実行                            |
-| `npm run test:coverage`    | カバレッジ付きテスト実行                  |
-| `npm run test:watch`       | Vitest watch                              |
+| コマンド                 | 説明                                      |
+| ------------------------ | ----------------------------------------- |
+| `npm run migrate:dev`    | マイグレーションを TypeScript で実行      |
+| `npm run migrate`        | ビルド済みマイグレーションを実行          |
+| `npm run migrate:create` | 新しい SQL マイグレーションファイルを作成 |
+| `npm run migrate:down`   | 直前のマイグレーションをロールバック      |
+| `npm run dev`            | 開発サーバー起動（`tsx watch server.ts`） |
+| `npm run build`          | TypeScript ビルド (`dist/` 生成)          |
+| `npm run start`          | 本番サーバー起動 (`dist/server.js`)       |
+| `npm run lint`           | ESLint 実行                               |
+| `npm run lint:fix`       | ESLint 自動修正                           |
+| `npm run format`         | Prettier 整形                             |
+| `npm run typecheck`      | TypeScript 型チェック                     |
+| `npm run test`           | テスト実行                                |
+| `npm run test:router`    | ルーターテスト実行（DB モック）           |
+| `npm run test:coverage`  | カバレッジ付きテスト実行                  |
+| `npm run test:watch`     | Vitest watch                              |
 
 ## テスト
 
@@ -256,10 +256,10 @@ Docker Compose 起動時:
 npm run test
 ```
 
-統合テストのみ:
+ルーターテストのみ（DB はモック。HTTP ルーターとミドルウェアの結合を検証）:
 
 ```bash
-npm run test:integration
+npm run test:router
 ```
 
 カバレッジ付きテスト:

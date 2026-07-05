@@ -18,7 +18,7 @@ type MockedPool = { query: MockFn; connect: MockFn };
 const mockedPool = pool as unknown as MockedPool;
 
 /**
- * subtasks ルーター統合テスト用の Express アプリを生成する。
+ * subtasks ルーターテスト用の Express アプリを生成する。
  * @returns subtasks API をマウントした Express アプリ
  */
 function createApp() {
@@ -33,7 +33,7 @@ function createApp() {
   return app;
 }
 
-describe("subtasks router integration", () => {
+describe("subtasks router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

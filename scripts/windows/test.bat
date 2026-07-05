@@ -58,11 +58,11 @@ if errorlevel 1 (
 )
 echo.
 
-REM バックエンドの統合テスト
-echo バックエンドの統合テストを実行中...
-call npm --prefix backend run test:integration
+REM バックエンドのルーターテスト（DB モック）
+echo バックエンドのルーターテストを実行中...
+call npm --prefix backend run test:router
 if errorlevel 1 (
-    echo バックエンドの統合テストに失敗しました
+    echo バックエンドのルーターテストに失敗しました
     pause
     exit /b 1
 )

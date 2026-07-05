@@ -38,7 +38,7 @@ function setupConnectedClient(): MockedClient {
 }
 
 /**
- * checklist-items ルーター統合テスト用の Express アプリを生成する。
+ * checklist-items ルーターテスト用の Express アプリを生成する。
  * @returns checklist-items API をマウントした Express アプリ
  */
 function createApp() {
@@ -54,7 +54,7 @@ function createApp() {
   return app;
 }
 
-describe("checklist-items router integration", () => {
+describe("checklist-items router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -34,7 +34,7 @@ type MockedPool = {
 const mockedPool = pool as unknown as MockedPool;
 
 /**
- * 認証ルーター統合テスト用の Express アプリを生成する。
+ * 認証ルーターテスト用の Express アプリを生成する。
  * @returns auth API をマウントした Express アプリ
  */
 function createApp() {
@@ -64,7 +64,7 @@ async function createAuthCookie(userId: number): Promise<string> {
   return `token=${token}`;
 }
 
-describe("auth router integration", () => {
+describe("auth router", () => {
   const originalAuthSecret = process.env.AUTH_SECRET;
 
   beforeEach(() => {
