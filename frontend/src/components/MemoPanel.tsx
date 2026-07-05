@@ -58,8 +58,19 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 直前に保存済みの値（差分判定に使用）
   const savedRef = useRef<{ title: string; content: string } | null>(null);
+  // 自動保存時に最新の編集内容を参照する（連続入力時のクロージャ不整合を防ぐ）
+  const selectedIdRef = useRef<number | null>(null);
+  const draftRef = useRef({ title: "", content: "" });
 
   const selectedMemo = memos.find((m) => m.id === selectedId) ?? null;
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  useEffect(() => {
+    draftRef.current = { title: editTitle, content: editContent };
+  }, [editTitle, editContent]);
 
   // 初回マウント時にメモ一覧を取得する
   useEffect(() => {
@@ -127,47 +138,61 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
   );
 
   // 自動保存をスケジュールする
-  const scheduleAutosave = useCallback(
-    (title: string, content: string) => {
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-      autosaveTimer.current = setTimeout(async () => {
-        if (selectedId === null) return;
-        if (
-          savedRef.current?.title === title &&
-          savedRef.current?.content === content
-        )
-          return;
-        setSaving(true);
-        try {
-          const updated = await updateMemo(selectedId, { title, content });
-          setMemos((prev) =>
-            prev.map((m) => (m.id === updated.id ? updated : m)),
-          );
-          savedRef.current = { title, content };
-        } catch {
-          // 自動保存失敗は静かに無視する
-        } finally {
-          setSaving(false);
-        }
-      }, AUTOSAVE_DELAY_MS);
-    },
-    [selectedId],
-  );
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(async () => {
+      const memoId = selectedIdRef.current;
+      const { title, content } = draftRef.current;
+      if (memoId === null) return;
+      if (
+        savedRef.current?.title === title &&
+        savedRef.current?.content === content
+      )
+        return;
+      setSaving(true);
+      try {
+        const updated = await updateMemo(memoId, { title, content });
+        setMemos((prev) =>
+          prev.map((m) => (m.id === updated.id ? updated : m)),
+        );
+        savedRef.current = { title, content };
+      } catch {
+        // 自動保存失敗は静かに無視する
+      } finally {
+        setSaving(false);
+      }
+    }, AUTOSAVE_DELAY_MS);
+  }, []);
+
+  const flushPendingSave = useCallback(() => {
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+    const memoId = selectedIdRef.current;
+    const { title, content } = draftRef.current;
+    if (memoId === null || !savedRef.current) return;
+    if (savedRef.current.title === title && savedRef.current.content === content)
+      return;
+    void updateMemo(memoId, { title, content }).catch(() => {});
+  }, []);
 
   const handleTitleChange = useCallback(
     (value: string) => {
       setEditTitle(value);
-      scheduleAutosave(value, editContent);
+      draftRef.current = { title: value, content: draftRef.current.content };
+      scheduleAutosave();
     },
-    [editContent, scheduleAutosave],
+    [scheduleAutosave],
   );
 
   const handleContentChange = useCallback(
     (value: string) => {
       setEditContent(value);
-      scheduleAutosave(editTitle, value);
+      draftRef.current = { title: draftRef.current.title, content: value };
+      scheduleAutosave();
     },
-    [editTitle, scheduleAutosave],
+    [scheduleAutosave],
   );
 
   // 新しいメモを作成する
@@ -217,11 +242,9 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
   // アンマウント時に未保存変更を保存する
   useEffect(() => {
     return () => {
-      if (autosaveTimer.current) {
-        clearTimeout(autosaveTimer.current);
-      }
+      flushPendingSave();
     };
-  }, []);
+  }, [flushPendingSave]);
 
   // パネルが開いている状態で kando:open-memo イベントを受け取ったらメモを切り替える
   useEffect(() => {
