@@ -1,6 +1,6 @@
 {
   "name": "kando-backend",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Kando API",
   "license": "MIT",
   "main": "dist/server.js",
