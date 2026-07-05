@@ -4,7 +4,7 @@
  * テスト実行前に一度だけ走り、新規ユーザーを登録してログイン状態を
  * `e2e/.auth/user.json` に保存する。以降のテストはこのストレージ状態を再利用する。
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test as setup } from "@playwright/test";
@@ -43,4 +43,8 @@ setup("認証状態を保存する", async ({ page }) => {
   // ログイン完了後、ボードが表示されるまで待ってからセッションを保存する
   await page.getByLabel("ボード統計").waitFor({ state: "visible", timeout: 30_000 });
   await page.context().storageState({ path: authFile });
+  writeFileSync(
+    path.join(path.dirname(authFile), "credentials.json"),
+    JSON.stringify({ username, password }),
+  );
 });

@@ -230,7 +230,12 @@ export const createTask = (
 ): Promise<Task> =>
   client.request<Task>(
     `${API_URL}/tasks`,
-    client.json("POST", { column_id, content, position, due_date }),
+    client.json("POST", {
+      column_id,
+      content,
+      position,
+      ...(due_date != null ? { due_date } : {}),
+    }),
   );
 
 /**

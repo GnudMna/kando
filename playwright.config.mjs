@@ -38,7 +38,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "bash scripts/linux/e2e-server.sh",
-    url: baseURL,
+    url: `${baseURL}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
