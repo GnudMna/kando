@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoLinkSection } from "../components/taskEdit/MemoLinkSection";
 import * as api from "../api/boardApi";
 import type { Memo } from "../api/boardApi";
+import { createQueryWrapper } from "./testUtils";
 
 vi.mock("../api/boardApi");
 
@@ -58,6 +59,7 @@ describe("MemoLinkSection", () => {
         showMemoPicker={overrides?.showMemoPicker ?? false}
         onShowMemoPickerChange={onShowMemoPickerChange}
       />,
+      { wrapper: createQueryWrapper() },
     );
 
   it("読み込み中メッセージを表示する", () => {

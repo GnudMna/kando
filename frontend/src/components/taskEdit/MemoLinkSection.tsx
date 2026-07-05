@@ -3,6 +3,7 @@ import { Plus, FileText, X } from "lucide-react";
 import type { Memo } from "../../api/boardApi";
 import * as api from "../../api/boardApi";
 import { invalidateMemoCache } from "./memoCache";
+import { useAppNavigation } from "../../providers/useAppNavigation";
 
 interface MemoLinkSectionProps {
   taskId: number;
@@ -28,6 +29,7 @@ export function MemoLinkSection({
   showMemoPicker,
   onShowMemoPickerChange,
 }: MemoLinkSectionProps) {
+  const { openMemo } = useAppNavigation();
   const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -141,13 +143,7 @@ export function MemoLinkSection({
                   type="button"
                   className="memo-linked-chip-open"
                   aria-label={`「${memo.title || "メモ"}」を開く`}
-                  onClick={() => {
-                    window.dispatchEvent(
-                      new CustomEvent("kando:open-memo", {
-                        detail: { memoId: memo.id },
-                      }),
-                    );
-                  }}
+                  onClick={() => openMemo(memo.id)}
                 >
                   <FileText size={11} aria-hidden="true" />
                   <span className="memo-linked-chip-title">

@@ -5,6 +5,7 @@ import { Plus, Trash2, X, FileText } from "lucide-react";
 import type { Memo } from "../api/memos";
 import { useMemoMutations, useMemosQuery } from "../hooks/useMemos";
 import { useDraggable } from "../hooks/useDraggable";
+import { useAppNavigation } from "../providers/useAppNavigation";
 
 const memoDateFormatter = new Intl.DateTimeFormat("ja-JP", {
   month: "short",
@@ -26,8 +27,6 @@ function formatDate(iso: string): string {
 interface MemoPanelProps {
   /** パネルを閉じるコールバック */
   onClose: () => void;
-  /** 初期選択するメモ ID（任意） */
-  initialMemoId?: number;
 }
 
 const AUTOSAVE_DELAY_MS = 800;
@@ -53,9 +52,11 @@ function resolveInitialTarget(
  * メモ帳パネル。
  * メモの一覧・作成・編集・削除・自動保存を提供する。
  */
-export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
+export function MemoPanel({ onClose }: MemoPanelProps) {
   const { data: memos = [], isLoading, error: queryError } = useMemosQuery();
   const { create, update, remove } = useMemoMutations();
+  const { activeMemoId, openTask, registerSelectMemoHandler } =
+    useAppNavigation();
   const updateMutationRef = useRef(update);
   const createMutationRef = useRef(create);
   const removeMutationRef = useRef(remove);
@@ -67,8 +68,8 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
   }, [update, create, remove]);
 
   const initialTarget = useMemo(
-    () => resolveInitialTarget(memos, initialMemoId),
-    [memos, initialMemoId],
+    () => resolveInitialTarget(memos, activeMemoId ?? undefined),
+    [memos, activeMemoId],
   );
 
   const [userDraft, setUserDraft] = useState<MemoDraft | null>(null);
@@ -85,6 +86,7 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
   const draftRef = useRef({ title: "", content: "" });
 
   const selectedMemo = memos.find((m) => m.id === selectedId) ?? null;
+  const memosRef = useRef(memos);
   const loading = isLoading;
   const displayError =
     error ??
@@ -261,14 +263,15 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
   }, [flushPendingSave]);
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const memoId = (e as CustomEvent<{ memoId: number }>).detail.memoId;
-      const target = memos.find((m) => m.id === memoId);
+    memosRef.current = memos;
+  }, [memos]);
+
+  useEffect(() => {
+    return registerSelectMemoHandler((memoId) => {
+      const target = memosRef.current.find((m) => m.id === memoId);
       if (target) handleSelect(target);
-    };
-    window.addEventListener("kando:open-memo", handler);
-    return () => window.removeEventListener("kando:open-memo", handler);
-  }, [memos, handleSelect]);
+    });
+  }, [registerSelectMemoHandler, handleSelect]);
 
   const { containerRef, onHandleMouseDown, posStyle, isDragging } =
     useDraggable();
@@ -411,13 +414,7 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
                         key={t.id}
                         type="button"
                         className="memo-linked-task-chip"
-                        onClick={() => {
-                          window.dispatchEvent(
-                            new CustomEvent("kando:open-task", {
-                              detail: { taskId: t.id },
-                            }),
-                          );
-                        }}
+                        onClick={() => openTask(t.id)}
                         aria-label={`「${t.content}」を開く`}
                       >
                         {t.content}

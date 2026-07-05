@@ -5,7 +5,12 @@ import userEvent from "@testing-library/user-event";
 import { TaskEditModal } from "../components/TaskEditModal";
 import * as api from "../api/boardApi";
 import { invalidateMemoCache } from "../components/taskEdit/memoCache";
-import { baseTask, taskWithChecklists, taskWithSubtasks } from "./testUtils";
+import {
+  baseTask,
+  taskWithChecklists,
+  taskWithSubtasks,
+  createQueryWrapper,
+} from "./testUtils";
 
 vi.mock("../api/boardApi");
 
@@ -21,6 +26,7 @@ describe("TaskEditModal", () => {
         onClose={onClose}
         onTaskUpdated={onTaskUpdated}
       />,
+      { wrapper: createQueryWrapper() },
     );
 
     await waitFor(() => {
@@ -181,6 +187,7 @@ describe("TaskEditModal", () => {
         onClose={onClose}
         onTaskUpdated={onTaskUpdated}
       />,
+      { wrapper: createQueryWrapper() },
     );
 
     await waitFor(() => {

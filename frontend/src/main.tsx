@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
+import { AppNavigationProvider } from "./providers/AppNavigationProvider";
 import { QueryProvider } from "./providers/QueryProvider";
 
 /**
@@ -13,7 +14,9 @@ function mountApp(rootElement: HTMLElement): void {
   createRoot(rootElement).render(
     <StrictMode>
       <QueryProvider>
-        <App />
+        <AppNavigationProvider>
+          <App />
+        </AppNavigationProvider>
       </QueryProvider>
     </StrictMode>,
   );

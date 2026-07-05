@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoPanel } from "../components/MemoPanel";
 import { createMemo, deleteMemo, fetchMemos, updateMemo } from "../api/memos";
 import type { Memo } from "../api/memos";
+import { useAppNavigation } from "../providers/useAppNavigation";
 import { createQueryWrapper } from "./testUtils";
 
 vi.mock("../api/memos");
@@ -39,8 +40,8 @@ const sampleMemos: Memo[] = [
 describe("MemoPanel", () => {
   const onClose = vi.fn();
 
-  const renderMemoPanel = (props: { initialMemoId?: number } = {}) =>
-    render(<MemoPanel onClose={onClose} {...props} />, {
+  const renderMemoPanel = () =>
+    render(<MemoPanel onClose={onClose} />, {
       wrapper: createQueryWrapper(),
     });
 
@@ -60,8 +61,22 @@ describe("MemoPanel", () => {
     expect(fetchMemos).toHaveBeenCalledTimes(1);
   });
 
-  it("initialMemoId で指定メモを選択する", async () => {
-    renderMemoPanel({ initialMemoId: 2 });
+  it("activeMemoId で指定メモを選択する", async () => {
+    function MemoPanelWithMemoId() {
+      const { openMemo } = useAppNavigation();
+      return (
+        <>
+          <button type="button" onClick={() => openMemo(2)}>
+            メモ2を開く
+          </button>
+          <MemoPanel onClose={onClose} />
+        </>
+      );
+    }
+
+    render(<MemoPanelWithMemoId />, { wrapper: createQueryWrapper() });
+    await waitFor(() => screen.getByText("メモA"));
+    fireEvent.click(screen.getByRole("button", { name: "メモ2を開く" }));
 
     await waitFor(() => {
       expect(screen.getByDisplayValue("メモB")).toBeInTheDocument();
@@ -125,7 +140,21 @@ describe("MemoPanel", () => {
   });
 
   it("関連タスクを表示する", async () => {
-    renderMemoPanel({ initialMemoId: 2 });
+    function MemoPanelWithMemo2() {
+      const { openMemo } = useAppNavigation();
+      return (
+        <>
+          <button type="button" onClick={() => openMemo(2)}>
+            メモ2を開く
+          </button>
+          <MemoPanel onClose={onClose} />
+        </>
+      );
+    }
+
+    render(<MemoPanelWithMemo2 />, { wrapper: createQueryWrapper() });
+    await waitFor(() => screen.getByText("メモA"));
+    fireEvent.click(screen.getByRole("button", { name: "メモ2を開く" }));
 
     await waitFor(() => {
       expect(
