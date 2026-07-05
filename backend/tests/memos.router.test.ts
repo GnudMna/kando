@@ -31,7 +31,7 @@ const sampleMemo = {
 };
 
 /**
- * memos ルーター統合テスト用の Express アプリを生成する。
+ * memos ルーターテスト用の Express アプリを生成する。
  * @returns memos API をマウントした Express アプリ
  */
 function createApp() {
@@ -46,7 +46,7 @@ function createApp() {
   return app;
 }
 
-describe("memos router integration", () => {
+describe("memos router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

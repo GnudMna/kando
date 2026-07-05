@@ -21,7 +21,7 @@ type Column = {
 };
 
 /**
- * columns ルーター統合テスト用の Express アプリを生成する。
+ * columns ルーターテスト用の Express アプリを生成する。
  * @returns columns API をマウントした Express アプリ
  */
 function createApp() {
@@ -37,7 +37,7 @@ function createApp() {
   return app;
 }
 
-describe("columns router integration", () => {
+describe("columns router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

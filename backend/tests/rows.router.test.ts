@@ -26,7 +26,7 @@ type MockedPool = {
 const mockedPool = pool as unknown as MockedPool;
 
 /**
- * rows ルーター統合テスト用の Express アプリを生成する。
+ * rows ルーターテスト用の Express アプリを生成する。
  * @returns rows API をマウントした Express アプリ
  */
 function createApp() {
@@ -37,7 +37,7 @@ function createApp() {
   return app;
 }
 
-describe("rows router integration", () => {
+describe("rows router", () => {
   const consoleErrorSpy = vi
     .spyOn(console, "error")
     .mockImplementation(() => undefined);

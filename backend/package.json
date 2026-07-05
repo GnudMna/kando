@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build --workspace @kando/types",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:router": "vitest run --config vitest.router.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },

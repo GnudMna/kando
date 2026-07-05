@@ -15,7 +15,7 @@ export default {
       exclude: [
         "**/dist/**",
         "**/node_modules/**",
-        "tests/**/*.integration.test.ts",
+        "tests/**/*.router.test.ts",
       ],
     },
   },

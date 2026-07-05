@@ -21,7 +21,7 @@ type MockedPool = {
 const mockedPool = pool as unknown as MockedPool;
 
 /**
- * board ルーター統合テスト用の Express アプリを生成する。
+ * board ルーターテスト用の Express アプリを生成する。
  * @returns board API をマウントした Express アプリ
  */
 function createApp() {
@@ -37,7 +37,7 @@ function createApp() {
   return app;
 }
 
-describe("board router integration", () => {
+describe("board router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
