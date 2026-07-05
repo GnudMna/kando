@@ -1,5 +1,6 @@
+import { useMutation } from "@tanstack/react-query";
 import { useCallback } from "react";
-import type { Task } from "../../types";
+import type { Row, Task } from "../../types";
 import {
   copyTask as copyTaskApi,
   createTask,
@@ -7,7 +8,9 @@ import {
   moveTask as moveTaskApi,
 } from "../../api/tasks";
 import { POSITION_GAP } from "../../utils/constants";
+import { computeMoveTaskUpdate } from "./boardOptimisticUpdates";
 import type { BoardActionContext } from "./types";
+import { useBoardMutationContext } from "./useBoardMutationContext";
 
 /**
  * タスクの CRUD・更新・並び替え操作を提供する。
@@ -20,81 +23,131 @@ export function useTaskActions({
   setRows,
   setOperationError,
 }: BoardActionContext) {
+  const { setBoardRows, getBoardRows, onMutationError } =
+    useBoardMutationContext(setOperationError);
+
+  const addTaskMutation = useMutation({
+    mutationFn: ({
+      colId,
+      position,
+    }: {
+      colId: number;
+      position: number;
+      rowId: number;
+    }) => createTask(colId, "新しいタスク", position),
+    onSuccess: (newTask, { rowId, colId }) => {
+      setBoardRows((rows) =>
+        rows.map((r) =>
+          r.id === rowId
+            ? {
+                ...r,
+                columns: r.columns.map((c) =>
+                  c.id === colId ? { ...c, tasks: [...c.tasks, newTask] } : c,
+                ),
+              }
+            : r,
+        ),
+      );
+    },
+    onError: onMutationError("タスクの追加に失敗しました"),
+  });
+
+  const removeTaskMutation = useMutation({
+    mutationFn: ({ taskId }: { taskId: number; colId: number }) =>
+      deleteTask(taskId),
+    onSuccess: (_result, { colId, taskId }) => {
+      setBoardRows((rows) =>
+        rows.map((r) => ({
+          ...r,
+          columns: r.columns.map((c) =>
+            c.id === colId
+              ? { ...c, tasks: c.tasks.filter((t) => t.id !== taskId) }
+              : c,
+          ),
+        })),
+      );
+    },
+    onError: onMutationError("タスクの削除に失敗しました"),
+  });
+
+  const copyTaskMutation = useMutation({
+    mutationFn: ({ taskId }: { taskId: number; colId: number }) =>
+      copyTaskApi(taskId),
+    onSuccess: (copied, { colId }) => {
+      setBoardRows((rows) =>
+        rows.map((r) => ({
+          ...r,
+          columns: r.columns.map((c) =>
+            c.id === colId ? { ...c, tasks: [...c.tasks, copied] } : c,
+          ),
+        })),
+      );
+    },
+    onError: onMutationError("タスクのコピーに失敗しました"),
+  });
+
+  const moveTaskMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      destColId,
+      newPosition,
+    }: {
+      taskId: number;
+      destColId: number;
+      newPosition: number;
+      optimisticRows: Row[];
+    }) => moveTaskApi(taskId, destColId, newPosition),
+    onMutate: ({ optimisticRows }) => {
+      const prevRows = getBoardRows();
+      setRows(optimisticRows);
+      return { prevRows };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.prevRows) {
+        setRows(context.prevRows);
+      }
+      onMutationError("タスクの移動に失敗しました")(err);
+    },
+  });
+
   const addTask = useCallback(
     async (colId: number, rowId: number): Promise<Task | null> => {
+      const row = rowsRef.current.find((r) => r.id === rowId);
+      const col = row?.columns.find((c) => c.id === colId);
+      if (!col) return null;
+      const position =
+        col.tasks.length > 0
+          ? col.tasks[col.tasks.length - 1].position + POSITION_GAP
+          : POSITION_GAP;
       try {
-        const row = rowsRef.current.find((r) => r.id === rowId);
-        const col = row?.columns.find((c) => c.id === colId);
-        if (!col) return null;
-        const position =
-          col.tasks.length > 0
-            ? col.tasks[col.tasks.length - 1].position + POSITION_GAP
-            : POSITION_GAP;
-        const newTask = await createTask(colId, "新しいタスク", position);
-        setRows((prev) =>
-          prev.map((r) =>
-            r.id === rowId
-              ? {
-                  ...r,
-                  columns: r.columns.map((c) =>
-                    c.id === colId ? { ...c, tasks: [...c.tasks, newTask] } : c,
-                  ),
-                }
-              : r,
-          ),
-        );
-        return newTask;
-      } catch (err) {
-        console.error(err);
-        setOperationError("タスクの追加に失敗しました");
+        return await addTaskMutation.mutateAsync({ colId, rowId, position });
+      } catch {
         return null;
       }
     },
-    [rowsRef, setRows, setOperationError],
+    [addTaskMutation, rowsRef],
   );
 
   const removeTask = useCallback(
     async (colId: number, taskId: number) => {
       try {
-        await deleteTask(taskId);
-        setRows((prev) =>
-          prev.map((r) => ({
-            ...r,
-            columns: r.columns.map((c) =>
-              c.id === colId
-                ? { ...c, tasks: c.tasks.filter((t) => t.id !== taskId) }
-                : c,
-            ),
-          })),
-        );
-      } catch (err) {
-        console.error(err);
-        setOperationError("タスクの削除に失敗しました");
+        await removeTaskMutation.mutateAsync({ colId, taskId });
+      } catch {
+        // onError で operationError を設定済み
       }
     },
-    [setRows, setOperationError],
+    [removeTaskMutation],
   );
 
   const copyTask = useCallback(
     async (colId: number, taskId: number): Promise<Task | null> => {
       try {
-        const copied = await copyTaskApi(taskId);
-        setRows((prev) =>
-          prev.map((r) => ({
-            ...r,
-            columns: r.columns.map((c) =>
-              c.id === colId ? { ...c, tasks: [...c.tasks, copied] } : c,
-            ),
-          })),
-        );
-        return copied;
-      } catch (err) {
-        console.error(err);
-        setOperationError("タスクのコピーに失敗しました");
+        return await copyTaskMutation.mutateAsync({ colId, taskId });
+      } catch {
         return null;
       }
     },
-    [setRows, setOperationError],
+    [copyTaskMutation],
   );
 
   const updateTask = useCallback(
@@ -140,120 +193,30 @@ export function useTaskActions({
       dstDroppableId: string,
       srcIndex: number,
       dstIndex: number,
-      taskId: number,
+      _taskId: number,
     ) => {
-      const rows = rowsRef.current;
-      const indexMap = boardIndexesRef.current.columnLocationByDroppableId;
-      const srcInfo = indexMap.get(srcDroppableId);
-      const dstInfo = indexMap.get(dstDroppableId);
-      if (!srcInfo || !dstInfo) return;
-
-      const srcRow = rows[srcInfo.rowIndex];
-      const dstRow = rows[dstInfo.rowIndex];
-      if (!srcRow || !dstRow) return;
-
-      const srcCol = srcRow.columns[srcInfo.columnIndex];
-      const dstCol = dstRow.columns[dstInfo.columnIndex];
-      if (!srcCol || !dstCol) return;
-
-      const isSameCol = srcDroppableId === dstDroppableId;
-      const maxDstIndex = isSameCol
-        ? srcCol.tasks.length - 1
-        : dstCol.tasks.length;
-      if (
-        srcIndex < 0 ||
-        srcIndex >= srcCol.tasks.length ||
-        dstIndex < 0 ||
-        dstIndex > maxDstIndex
-      ) {
-        return;
-      }
-
-      const prevRows = rows;
-      const srcTasks = [...srcCol.tasks];
-      const dstTasks = isSameCol ? srcTasks : [...dstCol.tasks];
-      const destColId = dstCol.id;
-
-      const [movedTask] = srcTasks.splice(srcIndex, 1);
-      if (!movedTask) return;
-      dstTasks.splice(dstIndex, 0, movedTask);
-
-      const prev = dstTasks[dstIndex - 1];
-      const next = dstTasks[dstIndex + 1];
-      let newPosition: number;
-      if (prev && next) {
-        newPosition = (prev.position + next.position) / 2;
-      } else if (prev) {
-        newPosition = prev.position + POSITION_GAP;
-      } else if (next) {
-        newPosition = next.position / 2;
-      } else {
-        newPosition = POSITION_GAP;
-      }
-      dstTasks[dstIndex] = {
-        ...movedTask,
-        column_id: destColId,
-        position: newPosition,
-      };
-
-      const newRows = [...rows];
-      if (isSameCol) {
-        const nextColumns = [...srcRow.columns];
-        nextColumns[srcInfo.columnIndex] = {
-          ...srcCol,
-          tasks: dstTasks,
-        };
-        newRows[srcInfo.rowIndex] = {
-          ...srcRow,
-          columns: nextColumns,
-        };
-      } else if (srcInfo.rowIndex === dstInfo.rowIndex) {
-        const nextColumns = [...srcRow.columns];
-        nextColumns[srcInfo.columnIndex] = {
-          ...srcCol,
-          tasks: srcTasks,
-        };
-        nextColumns[dstInfo.columnIndex] = {
-          ...dstCol,
-          tasks: dstTasks,
-        };
-        newRows[srcInfo.rowIndex] = {
-          ...srcRow,
-          columns: nextColumns,
-        };
-      } else {
-        const nextSrcColumns = [...srcRow.columns];
-        nextSrcColumns[srcInfo.columnIndex] = {
-          ...srcCol,
-          tasks: srcTasks,
-        };
-        newRows[srcInfo.rowIndex] = {
-          ...srcRow,
-          columns: nextSrcColumns,
-        };
-
-        const nextDstColumns = [...dstRow.columns];
-        nextDstColumns[dstInfo.columnIndex] = {
-          ...dstCol,
-          tasks: dstTasks,
-        };
-        newRows[dstInfo.rowIndex] = {
-          ...dstRow,
-          columns: nextDstColumns,
-        };
-      }
-
-      setRows(newRows);
+      const result = computeMoveTaskUpdate({
+        rows: rowsRef.current,
+        indexMap: boardIndexesRef.current.columnLocationByDroppableId,
+        srcDroppableId,
+        dstDroppableId,
+        srcIndex,
+        dstIndex,
+      });
+      if (!result) return;
 
       try {
-        await moveTaskApi(taskId, destColId, newPosition);
-      } catch (err) {
-        console.error("Failed to move task:", err);
-        setRows(prevRows);
-        setOperationError("タスクの移動に失敗しました");
+        await moveTaskMutation.mutateAsync({
+          taskId: result.taskId,
+          destColId: result.destColId,
+          newPosition: result.newPosition,
+          optimisticRows: result.newRows,
+        });
+      } catch {
+        // onError でロールバックと operationError を設定済み
       }
     },
-    [boardIndexesRef, rowsRef, setRows, setOperationError],
+    [boardIndexesRef, moveTaskMutation, rowsRef],
   );
 
   return { addTask, removeTask, copyTask, updateTask, moveTask };
