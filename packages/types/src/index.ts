@@ -3,6 +3,8 @@
  * - バックエンド・フロントエンドの両方で同じ型を参照するための共通定義
  */
 
+export * from "./validation/index.js";
+
 /** DB の `rows` テーブルに対応する行レコード。 */
 export interface DbRow {
   /** 行の一意 ID */
@@ -33,7 +35,7 @@ export interface DbTask {
   column_id: number;
   /** タスク内容 */
   content: string;
-  /** 期限日（`YYYY-MM-DD` 形式、未設定の場合は `null`） */
+  /** 期限日。`YYYY-MM-DD` 形式、未設定の場合は `null` */
   due_date: string | null;
   /** 表示順を表す浮動小数点値 */
   position: number;
@@ -49,7 +51,7 @@ export interface DbTaskComment {
   task_id: number;
   /** コメント内容 */
   content: string;
-  /** 作成日時（ISO 8601 形式） */
+  /** 作成日時。ISO 8601 形式 */
   created_at: string;
   /** 表示順を表す浮動小数点値 */
   position: number;
@@ -69,9 +71,9 @@ export interface DbSubtask {
 export interface DbChecklistItem {
   /** チェックリスト項目の一意 ID */
   id: number;
-  /** 紐付くタスクの ID（サブタスク配下の場合は `null`） */
+  /** 紐付くタスクの ID。サブタスク配下の場合は `null` */
   task_id: number | null;
-  /** 紐付くサブタスクの ID（タスク直下の場合は `null`） */
+  /** 紐付くサブタスクの ID。タスク直下の場合は `null` */
   subtask_id: number | null;
   /** 項目内容 */
   content: string;
@@ -100,6 +102,15 @@ export interface Task extends DbTask {
   checklists: ChecklistItem[];
   /** タスクコメント */
   comments: TaskComment[];
+  /**
+   * `GET /api/board?detail=summary` 時のコメント件数。
+   * 子配列は空のため、カード表示や遅延読み込み判定に使用する。
+   */
+  comment_count?: number;
+  /** `detail=summary` 時のサブタスク件数 */
+  subtask_count?: number;
+  /** `detail=summary` 時のタスク直下チェックリスト件数 */
+  checklist_count?: number;
 }
 
 /** タスク一覧を含むカラム型。 */
@@ -116,7 +127,7 @@ export interface Row extends DbRow {
 
 /** タスク一括保存ペイロードのチェックリスト項目。 */
 export interface TaskSnapshotChecklistPayload {
-  /** 既存項目の ID（新規の場合は省略） */
+  /** 既存項目の ID。新規の場合は省略 */
   id?: number;
   /** 項目内容 */
   content: string;
@@ -126,7 +137,7 @@ export interface TaskSnapshotChecklistPayload {
 
 /** タスク一括保存ペイロードのサブタスク。 */
 export interface TaskSnapshotSubtaskPayload {
-  /** 既存サブタスクの ID（新規の場合は省略） */
+  /** 既存サブタスクの ID。新規の場合は省略 */
   id?: number;
   /** サブタスク内容 */
   content: string;
@@ -136,7 +147,7 @@ export interface TaskSnapshotSubtaskPayload {
 
 /** タスク一括保存ペイロードのコメント。 */
 export interface TaskSnapshotCommentPayload {
-  /** 既存コメントの ID（新規の場合は省略） */
+  /** 既存コメントの ID。新規の場合は省略 */
   id?: number;
   /** コメント内容 */
   content: string;
@@ -146,7 +157,7 @@ export interface TaskSnapshotCommentPayload {
 export interface TaskSnapshotPayload {
   /** タスク内容 */
   content: string;
-  /** 期限日（`YYYY-MM-DD` 形式、未設定の場合は `null`） */
+  /** 期限日。`YYYY-MM-DD` 形式、未設定の場合は `null` */
   due_date: string | null;
   /** 完了済みフラグ */
   completed: boolean;
@@ -168,9 +179,9 @@ export interface DbMemo {
   title: string;
   /** メモ内容 */
   content: string;
-  /** 作成日時（ISO 8601 形式） */
+  /** 作成日時。ISO 8601 形式 */
   created_at: string;
-  /** 更新日時（ISO 8601 形式） */
+  /** 更新日時。ISO 8601 形式 */
   updated_at: string;
 }
 

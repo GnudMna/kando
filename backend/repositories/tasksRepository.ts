@@ -1,4 +1,3 @@
-// タスク関連の DB クエリを提供するリポジトリ層
 import type { PoolClient } from "pg";
 import type {
   DbTask,
@@ -25,7 +24,7 @@ export function calcPosition(index: number): number {
  * 既存 ID 集合から保持対象を除いた、削除すべき ID の配列を返す。
  * @param existingIds - DB 上に存在する ID 集合
  * @param keepIds - スナップショットで保持する ID 集合
- * @returns 削除対象の ID 配列（順序は `existingIds` の走査順）
+ * @returns 削除対象の ID 配列(順序は `existingIds` の走査順)
  */
 export function idsToDelete(
   existingIds: Set<number>,
@@ -47,7 +46,7 @@ export function idsToDelete(
  * ID なし項目は新規挿入する。未知の ID が含まれる場合は 400 エラーを投げる。
  *
  * @param client - トランザクション中の DB クライアント
- * @param parent - 親エンティティ（タスクまたはサブタスク）
+ * @param parent - 親エンティティ(タスクまたはサブタスク)
  * @param checklists - 同期後のチェックリスト内容
  * @returns 同期完了時に解決される Promise
  */
@@ -69,7 +68,7 @@ export async function syncChecklists(
   const keepIds = new Set<number>();
   const errorFieldPath = isTask ? "checklists" : "subtasks.checklists";
 
-  // id なし行はこのループでは keep 対象に含めない（後段の INSERT で新規作成する）
+  // id なし行はこのループでは keep 対象に含めない(後段の INSERT で新規作成する)
   for (const checklist of checklists) {
     if (checklist.id === undefined) continue;
     if (!existingIds.has(checklist.id)) {
@@ -193,7 +192,7 @@ export async function syncTaskComments(
   const existingIds = new Set(existingResult.rows.map((row) => row.id));
   const keepIds = new Set<number>();
 
-  // id なし行はこのループでは keep 対象に含めない（後段の INSERT で新規作成する）
+  // id なし行はこのループでは keep 対象に含めない(後段の INSERT で新規作成する)
   for (const comment of comments) {
     if (comment.id === undefined) continue;
     if (!existingIds.has(comment.id)) {
@@ -252,7 +251,7 @@ export async function syncTaskComments(
 }
 
 /**
- * 1件のタスクと関連子要素（サブタスク・チェックリスト・コメント）を単一 CTE クエリで
+ * 1件のタスクと関連子要素(サブタスク・チェックリスト・コメント)を単一 CTE クエリで
  * 再取得し、API レスポンスのスナップショット形式へ組み立てて返す。
  *
  * @param client - DB クライアント
@@ -349,15 +348,15 @@ export async function fetchTaskSnapshot(
 }
 
 /**
- * タスクを作成し、空の子要素（サブタスク・チェックリスト・コメント）を付けて返す。
- * 所有権確認は呼び出し元（サービス層）が行う。
+ * タスクを作成し、空の子要素(サブタスク・チェックリスト・コメント)を付けて返す。
+ * 所有権確認は呼び出し元(サービス層)が行う。
  *
  * @param client - DB クライアント
  * @param column_id - タスクを追加するカラム ID
  * @param content - タスク本文
- * @param due_date - 期限日（`YYYY-MM-DD`）。未設定は `null`
+ * @param due_date - 期限日(`YYYY-MM-DD`)。未設定は `null`
  * @param position - カラム内の表示順
- * @returns 作成されたタスク（子要素は空配列）
+ * @returns 作成されたタスク(子要素は空配列)
  */
 export async function insertTask(
   client: PoolClient,

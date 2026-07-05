@@ -5,8 +5,8 @@ import type React from "react";
  * ウィンドウ要素をドラッグ可能にするカスタムフック。
  *
  * - `containerRef` をドラッグ対象の最外 div に設定する
- * - `onHandleMouseDown` をドラッグハンドル（タイトルバー等）の onMouseDown に設定する
- * - `posStyle` をドラッグ対象の div の style に適用する（初回 fixed 化のみ React が管理）
+ * - `onHandleMouseDown` をドラッグハンドル。タイトルバー等の onMouseDown に設定する
+ * - `posStyle` をドラッグ対象の div の style に適用する。初回 fixed 化のみ React が管理
  * - `isDragged` が true になった後は CSS の bottom/right に代わり left/top で位置を管理する
  * - `isDragging` はドラッグ中のカーソル制御などに使用できる
  *
@@ -14,17 +14,15 @@ import type React from "react";
  * ドラッグ中に React の再レンダリングが一切発生しない。
  * ドラッグ終了時のみ dragPos state を同期し、再レンダリング後も正しい座標を復元する。
  *
- * @returns ドラッグ制御オブジェクト（`containerRef`, `onHandleMouseDown`, `posStyle`, `isDragged`, `isDragging`）
+ * @returns ドラッグ制御オブジェクト。`containerRef`, `onHandleMouseDown`, `posStyle`, `isDragged`, `isDragging`
  */
 export function useDraggable() {
   const [isDragged, setIsDragged] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  // レンダー時に posStyle へ渡す座標（ドラッグ開始・終了時にのみ更新）
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(
-    null,
-  );
+  // レンダー時に posStyle へ渡す座標。ドラッグ開始・終了時にのみ更新
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // mousemove 中は DOM を直接変更するための座標キャッシュ（setState を経由しない）
+  // mousemove 中は DOM を直接変更するための座標キャッシュ。setState を経由しない
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const onHandleMouseDown = useCallback(
@@ -58,7 +56,7 @@ export function useDraggable() {
         const rawX = originX + ev.clientX - mouseOriginX;
         const rawY = originY + ev.clientY - mouseOriginY;
         const x = Math.max(0, Math.min(window.innerWidth - elemW, rawX));
-        // 48px は画面上部の固定ヘッダー分の余白（モーダルがヘッダー下に隠れないようにする）
+        // 48px は画面上部の固定ヘッダー分の余白。モーダルがヘッダー下に隠れないようにする
         const y = Math.max(0, Math.min(window.innerHeight - 48, rawY));
 
         // setState を使わず DOM を直接変更 → React 再レンダリングなし
@@ -87,7 +85,7 @@ export function useDraggable() {
     [isDragged],
   );
 
-  // fixed 化後は dragPos state から座標を復元する（レンダー中に ref を読まない）
+  // fixed 化後は dragPos state から座標を復元する。レンダー中に ref を読まない
   const posStyle: React.CSSProperties =
     isDragged && dragPos !== null
       ? {

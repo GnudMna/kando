@@ -11,15 +11,19 @@ COPY backend/package.json ./backend/
 COPY packages/types ./packages/types
 RUN npm ci --workspace backend
 COPY backend ./backend
-RUN npm --workspace backend run build
+RUN npm --workspace @kando/types run build && npm --workspace backend run build
 
 # ---- 本番ランタイムステージ ----
 FROM node:24-alpine AS backend-runtime
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY backend/package.json ./backend/
+COPY packages/types/package.json ./packages/types/
+COPY --from=backend-build /app/packages/types/dist ./packages/types/dist
 RUN npm ci --omit=dev --workspace backend
 COPY --from=backend-build /app/backend/dist ./backend/dist
+COPY --from=backend-build /app/backend/openapi ./backend/openapi
+COPY backend/migrations ./backend/migrations
 
 EXPOSE 3001
 CMD ["sh", "-c", "npm --workspace backend run migrate && npm --workspace backend run start"]

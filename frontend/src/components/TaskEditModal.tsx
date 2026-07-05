@@ -1,64 +1,14 @@
-// タスク内容・チェックリスト・サブタスクの編集を行い、保存時に API へまとめて反映する
-import { useId, useState, useRef, useEffect } from "react";
+import { useId } from "react";
 import { createPortal } from "react-dom";
-import {
-  X,
-  Trash2,
-  Plus,
-  CheckSquare,
-  Square,
-  CornerDownRight,
-  GripVertical,
-  CircleCheck,
-  Circle,
-  FileText,
-} from "lucide-react";
+import { X } from "lucide-react";
 import { useDraggable } from "../hooks/useDraggable";
-import type {
-  Task,
-  LocalTask,
-  LocalSubtask,
-  LocalChecklistItem,
-  TempId,
-} from "../types";
-import type { Memo } from "../api/boardApi";
-import * as api from "../api/boardApi";
-import { formatDueDate, normalizeDueDateValue } from "../utils/dueDate";
-import { POSITION_GAP } from "../utils/constants";
-import { tempId, isTemp } from "../utils/localId";
+import { useTaskEditForm } from "../hooks/useTaskEditForm";
+import type { Task } from "../types";
 import { CommentSection } from "./CommentSection";
-
-const MEMO_CACHE_TTL_MS = 30_000;
-// モーダル間で共有するプロセス内キャッシュ（同一タブ内の再オープンを高速化する）
-let memoCacheValue: Memo[] | null = null;
-let memoCacheExpiry = 0;
-
-/**
- * TTL 内のメモ一覧キャッシュを返す。
- * @returns 有効なキャッシュ。期限切れまたは未設定時は `null`
- */
-function getCachedMemos(): Memo[] | null {
-  if (memoCacheValue && Date.now() < memoCacheExpiry) return memoCacheValue;
-  return null;
-}
-
-/**
- * メモ一覧キャッシュを更新する。
- * @param memos - キャッシュするメモ配列
- * @returns なし
- */
-function setCachedMemos(memos: Memo[]): void {
-  memoCacheValue = memos;
-  memoCacheExpiry = Date.now() + MEMO_CACHE_TTL_MS;
-}
-
-/**
- * メモ一覧キャッシュを無効化する。
- * @returns なし
- */
-function invalidateMemoCache(): void {
-  memoCacheExpiry = 0;
-}
+import { TaskDetailsFields } from "./taskEdit/TaskDetailsFields";
+import { TaskChecklistSection } from "./taskEdit/TaskChecklistSection";
+import { SubtaskSection } from "./taskEdit/SubtaskSection";
+import { MemoLinkSection } from "./taskEdit/MemoLinkSection";
 
 /** `TaskEditModal` コンポーネントの props。 */
 interface Props {
@@ -69,350 +19,19 @@ interface Props {
 
 /**
  * タスク詳細を編集するモーダルコンポーネント。
+ * チェックリスト・サブタスク・コメント・メモ連携を含む編集内容を保存時に API へ一括反映する。
  * @param task - 編集対象タスク
- * @param onClose - モーダルを閉じるコールバック
- * @param onTaskUpdated - 保存後タスクを反映するコールバック
+ * @param onClose - モーダル終了コールバック(保存または破棄の理由を渡す)
+ * @param onTaskUpdated - 保存後のタスク更新コールバック
  * @returns タスク編集モーダルの JSX 要素
  */
 export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
-  // モーダル内のローカル編集状態（保存前は外部に影響しない）
-  const [localTask, setLocalTask] = useState<LocalTask>(() => {
-    const cloned = structuredClone(task) as LocalTask;
-    cloned.due_date = normalizeDueDateValue(cloned.due_date);
-    return cloned;
-  });
-  // サブタスクのインライン編集状態
-  const [editingSubtaskId, setEditingSubtaskId] = useState<
-    number | TempId | null
-  >(null);
-  const [editingSubtaskContent, setEditingSubtaskContent] = useState("");
-  // サブタスク追加フォームの表示状態と入力値
-  const [newSubtaskContent, setNewSubtaskContent] = useState("");
-  const [addingSubtask, setAddingSubtask] = useState(false);
-  // チェックリスト追加フォームの表示状態（'task' | subtaskId | null）
-  const [addingChecklist, setAddingChecklist] = useState<
-    "task" | number | TempId | null
-  >(null);
-  // チェックリストドラッグ状態：親キー（'task' または subtaskId）とインデックス
-  const dragState = useRef<{
-    parentKey: "task" | number | TempId;
-    index: number;
-  } | null>(null);
-  const [dragOverKey, setDragOverKey] = useState<{
-    parentKey: "task" | number | TempId;
-    index: number;
-  } | null>(null);
-  const [newChecklistContent, setNewChecklistContent] = useState("");
-  // 保存中エラーとローディング状態
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  // 関連メモ状態（キャッシュ存在時はマウント時点で初期値として利用）
-  const [allMemos, setAllMemos] = useState<Memo[] | null>(() => getCachedMemos());
-  const [linkedMemoIds, setLinkedMemoIds] = useState<Set<number>>(() => {
-    const cached = getCachedMemos();
-    if (!cached) return new Set<number>();
-    return new Set(
-      cached
-        .filter((m) => m.tasks.some((t) => t.id === task.id))
-        .map((m) => m.id),
-    );
-  });
-  const [memoLinkError, setMemoLinkError] = useState<string | null>(null);
-  const [showMemoPicker, setShowMemoPicker] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
+  const form = useTaskEditForm({ task, onClose, onTaskUpdated });
+  const { containerRef, onHandleMouseDown, posStyle, isDragged, isDragging } =
+    useDraggable();
   const modalTitleId = useId();
   const taskContentInputId = useId();
   const taskDueDateInputId = useId();
-
-  // キャッシュが古い場合のみAPIからメモ一覧を取得する
-  useEffect(() => {
-    if (getCachedMemos()) return;
-
-    let cancelled = false;
-    api
-      .fetchMemos()
-      .then((memos) => {
-        if (cancelled) return;
-        setCachedMemos(memos);
-        setAllMemos(memos);
-        const linked = new Set(
-          memos
-            .filter((m) => m.tasks.some((t) => t.id === task.id))
-            .map((m) => m.id),
-        );
-        setLinkedMemoIds(linked);
-      })
-      .catch(() => {
-        if (!cancelled) setAllMemos([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [task.id]);
-
-  // ピッカー外クリックで閉じる
-  useEffect(() => {
-    if (!showMemoPicker) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setShowMemoPicker(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMemoPicker]);
-
-  /**
-   * ローカルの編集内容を API に保存してモーダルを閉じる。
-   * タスク本体・サブタスク・チェックリスト・コメントを単一 API で一括保存する。
-   * 失敗時はエラーメッセージを表示する。
-   * @returns 保存処理完了時に解決される Promise
-   */
-  const saveAndClose = async () => {
-    setSaveError(null);
-    setIsSaving(true);
-    try {
-      const final: LocalTask = structuredClone(localTask) as LocalTask;
-      final.due_date = normalizeDueDateValue(final.due_date);
-      const payload: api.TaskSnapshotPayload = {
-        content: final.content,
-        due_date: final.due_date,
-        completed: final.completed,
-        checklists: final.checklists.map((checklist) => ({
-          id: isTemp(checklist.id) ? undefined : checklist.id,
-          content: checklist.content,
-          completed: checklist.completed,
-        })),
-        subtasks: final.subtasks.map((subtask) => ({
-          id: isTemp(subtask.id) ? undefined : subtask.id,
-          content: subtask.content,
-          checklists: subtask.checklists.map((checklist) => ({
-            id: isTemp(checklist.id) ? undefined : checklist.id,
-            content: checklist.content,
-            completed: checklist.completed,
-          })),
-        })),
-        // comments 配列の順序が DB の position になる（CommentSection の表示ソートは反映されない）
-        comments: final.comments.map((comment) => ({
-          id: isTemp(comment.id) ? undefined : comment.id,
-          content: comment.content,
-        })),
-      };
-
-      const savedTask = await api.saveTaskSnapshot(task.id, payload);
-      onTaskUpdated(savedTask);
-      onClose("saved");
-    } catch (err) {
-      console.error(err);
-      setSaveError("保存中にエラーが発生しました。再試行してください。");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  /**
-   * 新しいサブタスクをローカル state に追加する。
-   * 保存は saveAndClose 呼び出し時にまとめて行う。
-   * @returns なし
-   */
-  const addSubtask = () => {
-    if (!newSubtaskContent.trim()) return;
-    const newSub: LocalSubtask = {
-      id: tempId(),
-      task_id: task.id,
-      content: newSubtaskContent,
-      checklists: [],
-    };
-    setLocalTask((prev) => ({ ...prev, subtasks: [...prev.subtasks, newSub] }));
-    setNewSubtaskContent("");
-    setAddingSubtask(false);
-  };
-
-  /**
-   * サブタスクのインライン編集を確定してローカル state を更新する。
-   * 内容が空の場合は編集をキャンセルする。
-   * @param subtaskId - 編集対象のサブタスク ID
-   * @returns なし
-   */
-  const saveSubtaskEdit = (subtaskId: number | TempId) => {
-    if (!editingSubtaskContent.trim()) {
-      setEditingSubtaskId(null);
-      return;
-    }
-    setLocalTask((prev) => ({
-      ...prev,
-      subtasks: prev.subtasks.map((s) =>
-        s.id === subtaskId ? { ...s, content: editingSubtaskContent } : s,
-      ),
-    }));
-    setEditingSubtaskId(null);
-  };
-
-  /**
-   * サブタスクをローカル state から削除する。
-   * @param subId - 削除対象のサブタスク ID
-   * @returns なし
-   */
-  const removeSubtask = (subId: number | TempId) => {
-    setLocalTask((prev) => ({
-      ...prev,
-      subtasks: prev.subtasks.filter((s) => s.id !== subId),
-    }));
-  };
-
-  /**
-   * 新しいチェックリスト項目をローカル state に追加する。
-   * @param type - 'task' の場合はタスク直下、'subtask' の場合はサブタスク配下に追加
-   * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
-   * @returns なし
-   */
-  const addChecklistItem = (
-    type: "task" | "subtask",
-    subtaskId: number | TempId | null = null,
-  ) => {
-    if (!newChecklistContent.trim()) return;
-    setLocalTask((prev) => {
-      if (type === "task") {
-        const position = (prev.checklists.length + 1) * POSITION_GAP;
-        const newItem: LocalChecklistItem = {
-          id: tempId(),
-          content: newChecklistContent,
-          completed: false,
-          task_id: task.id,
-          subtask_id: null,
-          position,
-        };
-        return { ...prev, checklists: [...prev.checklists, newItem] };
-      }
-      return {
-        ...prev,
-        subtasks: prev.subtasks.map((s) =>
-          s.id === subtaskId
-            ? {
-                ...s,
-                checklists: [
-                  ...s.checklists,
-                  {
-                    id: tempId(),
-                    content: newChecklistContent,
-                    completed: false,
-                    task_id: null,
-                    subtask_id: subtaskId,
-                    position: (s.checklists.length + 1) * POSITION_GAP,
-                  },
-                ],
-              }
-            : s,
-        ),
-      };
-    });
-    setNewChecklistContent("");
-    setAddingChecklist(null);
-  };
-
-  /**
-   * ドラッグ&ドロップでチェックリスト項目を並び替える。
-   * @param parentKey - 'task' またはサブタスク ID
-   * @param fromIndex - ドラッグ元インデックス
-   * @param toIndex - ドロップ先インデックス
-   * @returns なし
-   */
-  const moveChecklistItem = (
-    parentKey: "task" | number | TempId,
-    fromIndex: number,
-    toIndex: number,
-  ) => {
-    if (fromIndex === toIndex) return;
-    setLocalTask((prev) => {
-      if (parentKey === "task") {
-        const checklists = [...prev.checklists];
-        const [item] = checklists.splice(fromIndex, 1);
-        checklists.splice(toIndex, 0, item);
-        return { ...prev, checklists };
-      }
-      return {
-        ...prev,
-        subtasks: prev.subtasks.map((s) => {
-          if (s.id !== parentKey) return s;
-          const checklists = [...s.checklists];
-          const [item] = checklists.splice(fromIndex, 1);
-          checklists.splice(toIndex, 0, item);
-          return { ...s, checklists };
-        }),
-      };
-    });
-  };
-
-  /**
-   * チェックリスト項目の完了状態をローカル state 内でトグルする。
-   * 実際の API 更新は saveAndClose 時に行う。
-   * @param itemId - 対象項目 ID
-   * @param type - 'task' または 'subtask'
-   * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
-   * @returns なし
-   */
-  const toggleChecklist = (
-    itemId: number | TempId,
-    type: "task" | "subtask",
-    subtaskId: number | TempId | null = null,
-  ) => {
-    setLocalTask((prev) => {
-      if (type === "task") {
-        return {
-          ...prev,
-          checklists: prev.checklists.map((c) =>
-            c.id === itemId ? { ...c, completed: !c.completed } : c,
-          ),
-        };
-      }
-      return {
-        ...prev,
-        subtasks: prev.subtasks.map((s) =>
-          s.id === subtaskId
-            ? {
-                ...s,
-                checklists: s.checklists.map((c) =>
-                  c.id === itemId ? { ...c, completed: !c.completed } : c,
-                ),
-              }
-            : s,
-        ),
-      };
-    });
-  };
-
-  /**
-   * チェックリスト項目をローカル state から削除する。
-   * @param itemId - 削除対象項目 ID
-   * @param type - 'task' または 'subtask'
-   * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
-   * @returns なし
-   */
-  const removeChecklist = (
-    itemId: number | TempId,
-    type: "task" | "subtask",
-    subtaskId: number | TempId | null = null,
-  ) => {
-    setLocalTask((prev) => {
-      if (type === "task") {
-        return {
-          ...prev,
-          checklists: prev.checklists.filter((c) => c.id !== itemId),
-        };
-      }
-      return {
-        ...prev,
-        subtasks: prev.subtasks.map((s) =>
-          s.id === subtaskId
-            ? { ...s, checklists: s.checklists.filter((c) => c.id !== itemId) }
-            : s,
-        ),
-      };
-    });
-  };
-
-  const { containerRef, onHandleMouseDown, posStyle, isDragged, isDragging } =
-    useDraggable();
 
   return createPortal(
     <div
@@ -455,553 +74,104 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
         </div>
 
         <div className="modal-body">
-          <div className="modal-section">
-            <label htmlFor={taskContentInputId} className="modal-label">
-              タスク内容
-            </label>
-            <textarea
-              id={taskContentInputId}
-              className="task-content-input"
-              value={localTask.content}
-              onChange={(e) =>
-                setLocalTask((prev) => ({ ...prev, content: e.target.value }))
-              }
-              rows={3}
-              autoFocus
-              style={{ resize: "vertical" }}
-            />
-          </div>
-
-          <div className="modal-section">
-            <label htmlFor={taskDueDateInputId} className="modal-label">
-              期限
-            </label>
-            <input
-              id={taskDueDateInputId}
-              type="date"
-              className="task-content-input due-date-input"
-              value={localTask.due_date ?? ""}
-              onChange={(e) =>
-                setLocalTask((prev) => ({
-                  ...prev,
-                  due_date: e.target.value || null,
-                }))
-              }
-            />
-            <span className="text-muted">
-              {localTask.due_date
-                ? `現在の期限: ${formatDueDate(localTask.due_date)}`
-                : "期限未設定"}
-            </span>
-          </div>
-
-          <div className="modal-section">
-            <button
-              type="button"
-              className={`modal-complete-btn${localTask.completed ? " modal-complete-btn-done" : ""}`}
-              onClick={() =>
-                setLocalTask((prev) => ({
-                  ...prev,
-                  completed: !prev.completed,
-                }))
-              }
-            >
-              {localTask.completed ? (
-                <CircleCheck size={16} />
-              ) : (
-                <Circle size={16} />
-              )}
-              {localTask.completed
-                ? "完了済み（クリックで戻す）"
-                : "未完了（クリックで完了にする）"}
-            </button>
-          </div>
+          <TaskDetailsFields
+            localTask={form.localTask}
+            onLocalTaskChange={form.setLocalTask}
+            taskContentInputId={taskContentInputId}
+            taskDueDateInputId={taskDueDateInputId}
+          />
 
           <CommentSection
-            comments={localTask.comments}
+            comments={form.localTask.comments}
             taskId={task.id}
             onCommentsChange={(newComments) =>
-              setLocalTask((prev) => ({ ...prev, comments: newComments }))
+              form.setLocalTask((prev) => ({ ...prev, comments: newComments }))
             }
           />
 
           <div className="modal-section">
             <label className="modal-label">チェックリスト</label>
-            <div className="task-checklists">
-              {localTask.checklists.map((c, i) => (
-                <div
-                  key={c.id}
-                  className={[
-                    "checklist-item",
-                    dragOverKey?.parentKey === "task" && dragOverKey.index === i
-                      ? "checklist-drag-over"
-                      : "",
-                  ]
-                    .join(" ")
-                    .trim()}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    dragState.current = { parentKey: "task", index: i };
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOverKey({ parentKey: "task", index: i });
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (dragState.current?.parentKey === "task") {
-                      moveChecklistItem("task", dragState.current.index, i);
-                    }
-                    dragState.current = null;
-                    setDragOverKey(null);
-                  }}
-                  onDragEnd={() => {
-                    dragState.current = null;
-                    setDragOverKey(null);
-                  }}
-                >
-                  <span className="checklist-drag-handle" aria-hidden="true">
-                    <GripVertical size={12} />
-                  </span>
-                  <button
-                    type="button"
-                    className="checklist-toggle"
-                    onClick={() => toggleChecklist(c.id, "task")}
-                    aria-label={`チェックリスト「${c.content}」を${c.completed ? "未完了" : "完了"}にする`}
-                  >
-                    {c.completed ? (
-                      <CheckSquare size={14} className="accent" />
-                    ) : (
-                      <Square size={14} className="text-muted" />
-                    )}
-                  </button>
-                  <span
-                    className={
-                      c.completed
-                        ? "checklist-text completed text-muted"
-                        : "checklist-text"
-                    }
-                  >
-                    {c.content}
-                  </span>
-                  <button
-                    type="button"
-                    className="checklist-del modal-del-btn"
-                    onClick={() => removeChecklist(c.id, "task")}
-                    aria-label={`チェックリスト「${c.content}」を削除`}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            {addingChecklist === "task" ? (
-              <ChecklistInput
-                value={newChecklistContent}
-                onChange={setNewChecklistContent}
-                onAdd={() => addChecklistItem("task")}
-                onCancel={() => {
-                  setAddingChecklist(null);
-                  setNewChecklistContent("");
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                className="text-btn text-muted"
-                style={{ marginTop: "0.5rem" }}
-                onClick={() => {
-                  setAddingChecklist("task");
-                  setNewChecklistContent("");
-                }}
-              >
-                <Plus size={12} /> チェック項目を追加
-              </button>
-            )}
+            <TaskChecklistSection
+              items={form.localTask.checklists}
+              parentKey="task"
+              addingChecklist={form.addingChecklist}
+              newChecklistContent={form.newChecklistContent}
+              onNewChecklistContentChange={form.setNewChecklistContent}
+              onStartAdding={() => {
+                form.setAddingChecklist("task");
+                form.setNewChecklistContent("");
+              }}
+              onCancelAdding={() => {
+                form.setAddingChecklist(null);
+                form.setNewChecklistContent("");
+              }}
+              onAdd={() => form.addChecklistItem("task")}
+              dragStateRef={form.dragStateRef}
+              dragOverKey={form.dragOverKey}
+              onDragOverKeyChange={form.setDragOverKey}
+              onMove={form.moveChecklistItem}
+              onToggle={form.toggleChecklist}
+              onRemove={form.removeChecklist}
+            />
           </div>
 
-          <div className="modal-section">
-            <label className="modal-label">サブタスク</label>
-            {localTask.subtasks.map((subtask) => (
-              <div
-                key={subtask.id}
-                className="subtask-card"
-                style={{ marginBottom: "0.5rem" }}
-              >
-                <div className="subtask-header">
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                      flex: 1,
-                    }}
-                  >
-                    <CornerDownRight size={14} className="text-muted" />
-                    {editingSubtaskId === subtask.id ? (
-                      <input
-                        autoFocus
-                        className="task-content-input"
-                        style={{
-                          fontSize: "0.85rem",
-                          padding: "0.2rem 0.4rem",
-                          flex: 1,
-                        }}
-                        value={editingSubtaskContent}
-                        onChange={(e) =>
-                          setEditingSubtaskContent(e.target.value)
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveSubtaskEdit(subtask.id);
-                          if (e.key === "Escape") setEditingSubtaskId(null);
-                        }}
-                        onBlur={() => saveSubtaskEdit(subtask.id)}
-                      />
-                    ) : (
-                      <span
-                        className="subtask-title"
-                        style={{ cursor: "pointer", flex: 1 }}
-                        onClick={() => {
-                          setEditingSubtaskId(subtask.id);
-                          setEditingSubtaskContent(subtask.content);
-                        }}
-                        title="クリックして編集"
-                      >
-                        {subtask.content}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="action-btn"
-                    onClick={() => removeSubtask(subtask.id)}
-                    aria-label={`サブタスク「${subtask.content}」を削除`}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
+          <SubtaskSection
+            subtasks={form.localTask.subtasks}
+            editingSubtaskId={form.editingSubtaskId}
+            editingSubtaskContent={form.editingSubtaskContent}
+            onEditingSubtaskContentChange={form.setEditingSubtaskContent}
+            onStartEditingSubtask={(subtask) => {
+              form.setEditingSubtaskId(subtask.id);
+              form.setEditingSubtaskContent(subtask.content);
+            }}
+            onSaveSubtaskEdit={form.saveSubtaskEdit}
+            onCancelSubtaskEdit={() => form.setEditingSubtaskId(null)}
+            onRemoveSubtask={form.removeSubtask}
+            addingSubtask={form.addingSubtask}
+            newSubtaskContent={form.newSubtaskContent}
+            onNewSubtaskContentChange={form.setNewSubtaskContent}
+            onStartAddingSubtask={() => form.setAddingSubtask(true)}
+            onCancelAddingSubtask={() => {
+              form.setAddingSubtask(false);
+              form.setNewSubtaskContent("");
+            }}
+            onAddSubtask={form.addSubtask}
+            addingChecklist={form.addingChecklist}
+            newChecklistContent={form.newChecklistContent}
+            onNewChecklistContentChange={form.setNewChecklistContent}
+            onStartAddingChecklist={(subtaskId) => {
+              form.setAddingChecklist(subtaskId);
+              form.setNewChecklistContent("");
+            }}
+            onCancelAddingChecklist={() => {
+              form.setAddingChecklist(null);
+              form.setNewChecklistContent("");
+            }}
+            onAddChecklist={(subtaskId) =>
+              form.addChecklistItem("subtask", subtaskId)
+            }
+            dragStateRef={form.dragStateRef}
+            dragOverKey={form.dragOverKey}
+            onDragOverKeyChange={form.setDragOverKey}
+            onMoveChecklist={form.moveChecklistItem}
+            onToggleChecklist={form.toggleChecklist}
+            onRemoveChecklist={form.removeChecklist}
+          />
 
-                <div
-                  className="task-checklists"
-                  style={{ marginLeft: "1.25rem", marginTop: "0.25rem" }}
-                >
-                  {subtask.checklists.map((c, j) => (
-                    <div
-                      key={c.id}
-                      className={[
-                        "checklist-item",
-                        dragOverKey?.parentKey === subtask.id &&
-                        dragOverKey.index === j
-                          ? "checklist-drag-over"
-                          : "",
-                      ]
-                        .join(" ")
-                        .trim()}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = "move";
-                        dragState.current = { parentKey: subtask.id, index: j };
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setDragOverKey({ parentKey: subtask.id, index: j });
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (dragState.current?.parentKey === subtask.id) {
-                          moveChecklistItem(
-                            subtask.id,
-                            dragState.current.index,
-                            j,
-                          );
-                        }
-                        dragState.current = null;
-                        setDragOverKey(null);
-                      }}
-                      onDragEnd={() => {
-                        dragState.current = null;
-                        setDragOverKey(null);
-                      }}
-                    >
-                      <span
-                        className="checklist-drag-handle"
-                        aria-hidden="true"
-                      >
-                        <GripVertical size={12} />
-                      </span>
-                      <button
-                        type="button"
-                        className="checklist-toggle"
-                        onClick={() =>
-                          toggleChecklist(c.id, "subtask", subtask.id)
-                        }
-                        aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を${c.completed ? "未完了" : "完了"}にする`}
-                      >
-                        {c.completed ? (
-                          <CheckSquare size={14} className="accent" />
-                        ) : (
-                          <Square size={14} className="text-muted" />
-                        )}
-                      </button>
-                      <span
-                        className={
-                          c.completed
-                            ? "checklist-text completed text-muted"
-                            : "checklist-text"
-                        }
-                      >
-                        {c.content}
-                      </span>
-                      <button
-                        type="button"
-                        className="checklist-del modal-del-btn"
-                        onClick={() =>
-                          removeChecklist(c.id, "subtask", subtask.id)
-                        }
-                        aria-label={`サブタスク「${subtask.content}」のチェックリスト「${c.content}」を削除`}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {addingChecklist === subtask.id ? (
-                  <div style={{ marginLeft: "1.25rem", marginTop: "0.25rem" }}>
-                    <ChecklistInput
-                      value={newChecklistContent}
-                      onChange={setNewChecklistContent}
-                      onAdd={() => addChecklistItem("subtask", subtask.id)}
-                      onCancel={() => {
-                        setAddingChecklist(null);
-                        setNewChecklistContent("");
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-btn text-muted"
-                    style={{ marginLeft: "1.25rem", marginTop: "0.25rem" }}
-                    onClick={() => {
-                      setAddingChecklist(subtask.id);
-                      setNewChecklistContent("");
-                    }}
-                  >
-                    <Plus size={12} /> チェック項目を追加
-                  </button>
-                )}
-              </div>
-            ))}
-
-            {addingSubtask ? (
-              <div className="add-sub-form" style={{ marginTop: "0.5rem" }}>
-                <input
-                  autoFocus
-                  placeholder="サブタスク名..."
-                  className="task-content-input"
-                  style={{ fontSize: "0.85rem" }}
-                  value={newSubtaskContent}
-                  onChange={(e) => setNewSubtaskContent(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") addSubtask();
-                    if (e.key === "Escape") {
-                      setAddingSubtask(false);
-                      setNewSubtaskContent("");
-                    }
-                  }}
-                />
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-                    onClick={addSubtask}
-                  >
-                    追加
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-                    onClick={() => {
-                      setAddingSubtask(false);
-                      setNewSubtaskContent("");
-                    }}
-                  >
-                    キャンセル
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="text-btn text-muted"
-                style={{ marginTop: "0.5rem" }}
-                onClick={() => setAddingSubtask(true)}
-              >
-                <Plus size={12} /> サブタスクを追加
-              </button>
-            )}
-          </div>
-
-          {/* 関連メモセクション */}
-          <div className="modal-section">
-            <div className="memo-link-header">
-              <label className="modal-label">
-                <FileText
-                  size={13}
-                  aria-hidden="true"
-                  style={{ verticalAlign: "middle", marginRight: "0.3rem" }}
-                />
-                関連メモ
-              </label>
-              {allMemos !== null &&
-                allMemos.filter((m) => !linkedMemoIds.has(m.id)).length > 0 && (
-                  <div className="memo-picker-wrap" ref={pickerRef}>
-                    <button
-                      type="button"
-                      className="btn memo-picker-trigger"
-                      onClick={() => setShowMemoPicker((p) => !p)}
-                      aria-expanded={showMemoPicker}
-                      aria-haspopup="listbox"
-                    >
-                      <Plus size={13} />
-                      メモを追加
-                    </button>
-                    {showMemoPicker && (
-                      <div
-                        className="memo-picker-dropdown"
-                        role="listbox"
-                        aria-label="メモを選択"
-                      >
-                        {allMemos
-                          .filter((m) => !linkedMemoIds.has(m.id))
-                          .map((memo) => (
-                            <button
-                              key={memo.id}
-                              type="button"
-                              className="memo-picker-item"
-                              role="option"
-                              aria-selected="false"
-                              onClick={() => {
-                                setMemoLinkError(null);
-                                api
-                                  .linkMemoTask(memo.id, task.id)
-                                  .then(() => {
-                                    invalidateMemoCache();
-                                    setLinkedMemoIds(
-                                      (prev) => new Set([...prev, memo.id]),
-                                    );
-                                    setShowMemoPicker(false);
-                                  })
-                                  .catch((err: unknown) => {
-                                    setMemoLinkError(
-                                      err instanceof Error
-                                        ? err.message
-                                        : "関連付けに失敗しました",
-                                    );
-                                  });
-                              }}
-                            >
-                              <FileText size={12} aria-hidden="true" />
-                              {memo.title.trim() || "（タイトルなし）"}
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-            </div>
-
-            {allMemos === null && (
-              <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                読み込み中…
-              </p>
-            )}
-            {allMemos !== null && allMemos.length === 0 && (
-              <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                メモがありません。メモ帳からメモを作成してください。
-              </p>
-            )}
-            {memoLinkError && (
-              <p
-                style={{
-                  color: "var(--danger-color)",
-                  fontSize: "0.8rem",
-                  marginTop: "0.25rem",
-                }}
-              >
-                {memoLinkError}
-              </p>
-            )}
-            {allMemos !== null && linkedMemoIds.size > 0 && (
-              <div className="memo-linked-chips">
-                {allMemos
-                  .filter((m) => linkedMemoIds.has(m.id))
-                  .map((memo) => (
-                    <div key={memo.id} className="memo-linked-chip">
-                      <button
-                        type="button"
-                        className="memo-linked-chip-open"
-                        aria-label={`「${memo.title || "メモ"}」を開く`}
-                        onClick={() => {
-                          window.dispatchEvent(
-                            new CustomEvent("kando:open-memo", {
-                              detail: { memoId: memo.id },
-                            }),
-                          );
-                        }}
-                      >
-                        <FileText size={11} aria-hidden="true" />
-                        <span className="memo-linked-chip-title">
-                          {memo.title.trim() || "（タイトルなし）"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="memo-linked-chip-remove"
-                        aria-label={`「${memo.title || "メモ"}」の関連付けを解除`}
-                        onClick={() => {
-                          setMemoLinkError(null);
-                          api
-                            .unlinkMemoTask(memo.id, task.id)
-                            .then(() => {
-                              invalidateMemoCache();
-                              setLinkedMemoIds((prev) => {
-                                const next = new Set(prev);
-                                next.delete(memo.id);
-                                return next;
-                              });
-                            })
-                            .catch((err: unknown) => {
-                              setMemoLinkError(
-                                err instanceof Error
-                                  ? err.message
-                                  : "解除に失敗しました",
-                              );
-                            });
-                        }}
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            )}
-            {allMemos !== null &&
-              allMemos.length > 0 &&
-              linkedMemoIds.size === 0 && (
-                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                  関連付けられたメモはありません
-                </p>
-              )}
-          </div>
+          <MemoLinkSection
+            taskId={task.id}
+            allMemos={form.allMemos}
+            linkedMemoIds={form.linkedMemoIds}
+            onLinkedMemoIdsChange={form.setLinkedMemoIds}
+            memoLinkError={form.memoLinkError}
+            onMemoLinkErrorChange={form.setMemoLinkError}
+            showMemoPicker={form.showMemoPicker}
+            onShowMemoPickerChange={form.setShowMemoPicker}
+          />
         </div>
 
         <div className="modal-footer">
-          {saveError && (
+          {form.saveError && (
             <span
               style={{
                 color: "var(--danger, #e53e3e)",
@@ -1009,78 +179,20 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
                 flex: 1,
               }}
             >
-              {saveError}
+              {form.saveError}
             </span>
           )}
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => void saveAndClose()}
-            disabled={isSaving}
+            onClick={() => void form.saveAndClose()}
+            disabled={form.isSaving}
           >
-            {isSaving ? "保存中..." : "保存して閉じる"}
+            {form.isSaving ? "保存中..." : "保存して閉じる"}
           </button>
         </div>
       </div>
     </div>,
     document.body,
-  );
-}
-
-interface ChecklistInputProps {
-  value: string;
-  onChange: (v: string) => void;
-  onAdd: () => void;
-  onCancel: () => void;
-}
-
-/**
- * チェックリスト項目の入力フォームコンポーネント。
- * Enter キーで追加、Escape キーでキャンセルできる。
- * @param value - 入力内容
- * @param onChange - 入力変更コールバック
- * @param onAdd - 追加確定コールバック
- * @param onCancel - キャンセルコールバック
- * @returns 入力フォームの JSX 要素
- */
-function ChecklistInput({
-  value,
-  onChange,
-  onAdd,
-  onCancel,
-}: ChecklistInputProps) {
-  return (
-    <div className="add-sub-form" style={{ marginTop: "0.5rem" }}>
-      <input
-        autoFocus
-        placeholder="チェック項目..."
-        className="task-content-input"
-        style={{ fontSize: "0.85rem", padding: "0.35rem" }}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") onAdd();
-          if (e.key === "Escape") onCancel();
-        }}
-      />
-      <div className="form-actions">
-        <button
-          type="button"
-          className="btn btn-primary"
-          style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-          onClick={onAdd}
-        >
-          追加
-        </button>
-        <button
-          type="button"
-          className="btn"
-          style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-          onClick={onCancel}
-        >
-          キャンセル
-        </button>
-      </div>
-    </div>
   );
 }

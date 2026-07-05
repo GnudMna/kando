@@ -39,6 +39,17 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    onConsoleLog(log, type) {
+      // React の act 警告は console.error 経由で stderr に出る。失敗ではないノイズ
+      if (
+        type === "stderr" &&
+        (log.includes("not wrapped in act") ||
+          log.includes("wrap-tests-with-act") ||
+          log.includes("An update to TaskEditModal"))
+      ) {
+        return false;
+      }
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
@@ -49,18 +60,7 @@ export default defineConfig({
         functions: 57,
         lines: 60,
       },
-      exclude: [
-        "**/dist/**",
-        "**/node_modules/**",
-        "src/main.tsx",
-        "src/App.tsx",
-        "src/components/LoginScreen.tsx",
-        "src/components/ListView.tsx",
-        "src/components/MemoPanel.tsx",
-        "src/components/ErrorBoundary.tsx",
-        "src/components/CommentSection.tsx",
-        "src/hooks/useAuth.ts",
-      ],
+      exclude: ["**/dist/**", "**/node_modules/**", "src/main.tsx"],
     },
   },
 });

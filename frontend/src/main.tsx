@@ -2,16 +2,21 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
+import { AppNavigationProvider } from "./providers/AppNavigationProvider";
+import { QueryProvider } from "./providers/QueryProvider";
 
 /**
  * 指定した root 要素へ React アプリをマウントする。
  * @param rootElement - マウント先の DOM 要素
- * @returns なし
  */
 function mountApp(rootElement: HTMLElement): void {
   createRoot(rootElement).render(
     <StrictMode>
-      <App />
+      <QueryProvider>
+        <AppNavigationProvider>
+          <App />
+        </AppNavigationProvider>
+      </QueryProvider>
     </StrictMode>,
   );
 }

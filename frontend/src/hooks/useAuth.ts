@@ -1,4 +1,3 @@
-// 認証状態を管理するカスタムフック
 import { useState, useEffect, useCallback } from "react";
 import * as api from "../api/boardApi";
 import { setOnUnauthorized } from "../api/boardApi";
@@ -6,7 +5,7 @@ import { setOnUnauthorized } from "../api/boardApi";
 /** 認証フローの現在フェーズ。 */
 export type AuthStatus =
   | "checking" // 認証要否を確認中
-  | "unregistered" // ユーザー未登録（初回セットアップ）
+  | "unregistered" // ユーザー未登録(初回セットアップ)
   | "unauthenticated" // 未ログイン
   | "authenticated"; // 認証済み
 
@@ -14,11 +13,11 @@ export type AuthStatus =
 export interface UseAuthReturn {
   /** 現在の認証フェーズ */
   status: AuthStatus;
-  /** ログイン処理（失敗時は `error` にメッセージを設定） */
+  /** ログイン処理(失敗時は `error` にメッセージを設定) */
   login: (username: string, password: string) => Promise<void>;
-  /** 新規ユーザー登録（失敗時は `error` にメッセージを設定） */
+  /** 新規ユーザー登録(失敗時は `error` にメッセージを設定) */
   register: (username: string, password: string) => Promise<void>;
-  /** ログアウト処理（ローカル状態を未ログインへ遷移） */
+  /** ログアウト処理(ローカル状態を未ログインへ遷移) */
   logout: () => void;
   /** 直近の認証エラーメッセージ。なければ `null` */
   error: string | null;

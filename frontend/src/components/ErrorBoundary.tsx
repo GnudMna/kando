@@ -1,4 +1,3 @@
-// React レンダリングエラーをキャッチして UI が完全にクラッシュするのを防ぐ
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 /** `ErrorBoundary` コンポーネントの props。 */
@@ -15,6 +14,8 @@ interface State {
 /**
  * 子コンポーネントのレンダリングエラーをキャッチし、フォールバック UI を表示する。
  * エラーが発生してもアプリ全体がクラッシュするのを防ぐ。
+ * @param props.children - エラー監視対象の子要素
+ * @returns 子要素またはフォールバック UI
  */
 export class ErrorBoundary extends Component<Props, State> {
   /**
@@ -39,7 +40,6 @@ export class ErrorBoundary extends Component<Props, State> {
    * エラー発生後にコンソールへログを出力する。
    * @param error - 発生した Error オブジェクト
    * @param info - コンポーネントスタック情報を含む ErrorInfo
-   * @returns なし
    */
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error("ErrorBoundary caught an error:", error, info.componentStack);

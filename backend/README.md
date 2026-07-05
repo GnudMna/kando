@@ -2,19 +2,24 @@
 
 Kando のバックエンド API（Express + TypeScript + PostgreSQL）です。
 
+API のリクエスト/レスポンス型とバリデーションスキーマは [`@kando/types`](../packages/types/README.md) で定義されています。
+
 ## 役割
 
 - ユーザー登録・ログイン・ JWT 発行（`/api/auth`）
 - ボード階層（rows -> columns -> tasks -> subtasks/checklists/comments）の取得
 - 行・カラム・タスク・サブタスク・チェックリスト・コメントの CRUD
+- タスクのコピー（`POST /api/tasks/:id/copy`）
+- メモの CRUD とタスクとのリンク（`/api/memos`）
 - タスク編集内容の一括保存（`PUT /api/tasks/:id/snapshot`）
+- Zod によるリクエストバリデーション（`@kando/types/validation`）
 - マイグレーションによるスキーマ更新と初期データ投入
 
 ## 必要環境
 
 - Node.js 20+
-- npm 10+
-- PostgreSQL
+- npm 11+
+- PostgreSQL（Dev Container / Docker Compose 利用時はホストへのインストール不要）
 
 ## セットアップ
 
@@ -27,14 +32,16 @@ npm install
 | 変数名         | 必須     | 説明                                                                          | 既定値                 |
 | -------------- | -------- | ----------------------------------------------------------------------------- | ---------------------- |
 | `DATABASE_URL` | はい     | PostgreSQL 接続文字列                                                         | なし                   |
+| `AUTH_SECRET`  | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須）                        | なし                   |
 | `PORT`         | いいえ   | API 待ち受けポート                                                            | `3001`                 |
 | `NODE_ENV`     | いいえ   | 実行環境 (`production` で挙動変更)                                            | `development`          |
 | `CORS_ORIGIN`  | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可） | `*`（production 以外） |
 
-`.env` 例:
+`.env` 例（ルートの `.env.example` を参照）:
 
 ```bash
 DATABASE_URL=postgres://kando_user:kando_password@localhost:5432/kanban_db
+AUTH_SECRET=dev-only-secret-change-in-production
 PORT=3001
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
@@ -59,23 +66,60 @@ npm run start
 
 ## マイグレーション
 
+[node-pg-migrate](https://salsita.github.io/node-pg-migrate/) によるバージョン管理マイグレーションを使用しています。
+マイグレーションファイルは `migrations/` ディレクトリに SQL 形式で配置されます。
+
 ```bash
-# TypeScript を直接実行
+# TypeScript を直接実行（開発時）
 npm run migrate:dev
 
-# ビルド済み dist/migrate.js を実行
+# ビルド済み dist/migrate.js を実行（本番）
 npm run migrate
+
+# 新しいマイグレーションファイルを作成
+npm run migrate:create -- <migration_name>
+
+# 直前のマイグレーションをロールバック（開発時）
+npm run migrate:down
 ```
 
-このマイグレーションは以下を実施します。
+### マイグレーション履歴
 
-- テーブル作成（users, rows, columns, tasks, subtasks, checklist_items, task_comments）
-- `rows` テーブルへの `user_id` 列追加（認証対応）
-- 既存 DB 向け `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
-- 一覧取得最適化のインデックス作成
-- 初回起動時の初期データ投入
+| ファイル                            | 内容                               |
+| ----------------------------------- | ---------------------------------- |
+| `20260101000000_initial_schema.sql` | テーブル・インデックス・制約の作成 |
+| `20260101000001_seed_data.sql`      | 初期データ投入・レガシーデータ移行 |
+
+### レガシー DB からの移行
+
+旧 `migrate.ts`（単一スクリプト方式）で構築済みの DB は、起動時に自動検出されます。
+`users` テーブルが存在し `pgmigrations` に記録がない場合、既存マイグレーションを fake モードで履歴登録のみ行い、スキーマ変更は実行しません。
+
+### 新規マイグレーションの追加手順
+
+1. `npm run migrate:create -- add_new_feature` で SQL ファイルを生成
+2. `-- Up Migration` / `-- Down Migration` セクションに SQL を記述
+3. `npm run migrate:dev` で適用を確認
 
 ## API エンドポイント
+
+### OpenAPI 仕様（機械可読ドキュメント）
+
+Zod バリデーションスキーマ（`@kando/types/validation`）からビルド時に生成した OpenAPI 3.1 仕様を配信しています。
+
+| 形式 | URL                     | 説明                                |
+| ---- | ----------------------- | ----------------------------------- |
+| JSON | `GET /api/openapi.json` | OpenAPI 3.1 仕様（機械可読）        |
+| HTML | `GET /api/docs`         | Swagger UI による対話的ドキュメント |
+
+- 仕様のソース: [`packages/types/src/openapi/`](../packages/types/src/openapi/)（生成手順は [packages/types/README.md](../packages/types/README.md) 参照）
+- リクエストボディは既存の Zod スキーマと同期（単一の真実の源）
+- 認証方式: HttpOnly Cookie（`token`）を優先、`Authorization: Bearer <JWT>` にフォールバック
+
+Docker Compose 起動時:
+
+- http://localhost:8080/api/openapi.json
+- http://localhost:8080/api/docs
 
 ### ヘルスチェック
 
@@ -91,12 +135,14 @@ npm run migrate
 | `GET`    | `/api/auth/status`   | ユーザー登録済みかどうかを返す（認証不要）           |
 | `POST`   | `/api/auth/register` | 新規ユーザー登録・JWT 発行（パスワード 12 文字以上） |
 | `POST`   | `/api/auth/login`    | ログイン・JWT 発行                                   |
+| `POST`   | `/api/auth/logout`   | ログアウト（Cookie の JWT を削除）                   |
 
 補足:
 
 - `/api/auth/*` には認証レートリミットが適用される（15 分間に 10 リクエスト）
-- 発行された JWT は `Authorization: Bearer <token>` ヘッダーで送信する（有効期限 7 日）
-- 認証不要エンドポイント: `/api/health`、`/api/liveness`、`/api/auth/*`
+- 発行された JWT は HttpOnly Cookie（`token`）に保存される。API クライアント向けには `Authorization: Bearer <token>` ヘッダーも利用可能（有効期限 7 日）
+- 初回起動時は `GET /api/auth/status` が `{ "hasUsers": false }` を返し、フロントエンドは登録画面を表示する
+- 認証不要エンドポイント: `/api/health`、`/api/liveness`、`/api/auth/*`、`/api/openapi.json`、`/api/docs`
 
 ### ボード取得
 
@@ -107,8 +153,11 @@ npm run migrate
 クエリパラメータ（任意）:
 
 - `row_id`: 正の整数
-- `limit`: `1` 〜 `100`
+- `limit`: `1` 〜 `100`（フロントエンドは 20 行ずつページング）
 - `offset`: `0` 以上の整数
+- `detail`: `summary`（既定）または `full`
+  - `summary`: 子要素は件数のみ返し、表示時に `GET /api/tasks/:id` で遅延読み込み
+  - `full`: サブタスク・チェックリスト・コメントをすべて含めて返却
 
 ### rows
 
@@ -132,14 +181,17 @@ npm run migrate
 
 | メソッド | パス                      | 説明                         |
 | -------- | ------------------------- | ---------------------------- |
+| `GET`    | `/api/tasks/:id`          | タスク詳細を取得             |
 | `POST`   | `/api/tasks`              | タスク作成                   |
-| `PUT`    | `/api/tasks/:id`          | タスク本文・期限更新         |
+| `PUT`    | `/api/tasks/:id`          | タスク本文・期限・完了状態を部分更新 |
 | `PUT`    | `/api/tasks/:id/snapshot` | タスク詳細を一括保存         |
 | `PUT`    | `/api/tasks/:id/move`     | 所属カラム・並び順更新       |
+| `POST`   | `/api/tasks/:id/copy`     | タスクを複製（配下データ含む） |
 | `DELETE` | `/api/tasks/:id`          | タスク削除（配下は CASCADE） |
 
 補足:
 
+- `PUT /api/tasks/:id` のボディは `content` / `due_date` / `completed` のいずれか 1 つ以上を指定
 - `due_date` は `YYYY-MM-DD` 形式（`null` で解除可）
 
 ### subtasks
@@ -170,6 +222,17 @@ npm run migrate
 | `PUT`    | `/api/task-comments/:id` | コメント本文・並び順更新 |
 | `DELETE` | `/api/task-comments/:id` | コメント削除             |
 
+### memos
+
+| メソッド | パス                              | 説明                           |
+| -------- | --------------------------------- | ------------------------------ |
+| `GET`    | `/api/memos`                      | メモ一覧（紐付くタスクを含む） |
+| `POST`   | `/api/memos`                      | メモ作成                       |
+| `PUT`    | `/api/memos/:id`                  | メモタイトル・本文更新         |
+| `DELETE` | `/api/memos/:id`                  | メモ削除                       |
+| `POST`   | `/api/memos/:id/tasks`            | タスクをメモにリンク           |
+| `DELETE` | `/api/memos/:id/tasks/:taskId`    | タスクとメモのリンク解除       |
+
 ## タスクスナップショット保存 API
 
 `PUT /api/tasks/:id/snapshot` は、編集モーダル全体を 1 回で保存するための API です。
@@ -195,21 +258,24 @@ npm run migrate
 
 ## npm scripts
 
-| コマンド                   | 説明                                      |
-| -------------------------- | ----------------------------------------- |
-| `npm run migrate:dev`      | マイグレーションを TypeScript で実行      |
-| `npm run migrate`          | ビルド済みマイグレーションを実行          |
-| `npm run dev`              | 開発サーバー起動（`tsx watch server.ts`） |
-| `npm run build`            | TypeScript ビルド (`dist/` 生成)          |
-| `npm run start`            | 本番サーバー起動 (`dist/server.js`)       |
-| `npm run lint`             | ESLint 実行                               |
-| `npm run lint:fix`         | ESLint 自動修正                           |
-| `npm run format`           | Prettier 整形                             |
-| `npm run typecheck`        | TypeScript 型チェック                     |
-| `npm run test`             | テスト実行                                |
-| `npm run test:integration` | 統合テスト実行                            |
-| `npm run test:coverage`    | カバレッジ付きテスト実行                  |
-| `npm run test:watch`       | Vitest watch                              |
+| コマンド                 | 説明                                      |
+| ------------------------ | ----------------------------------------- |
+| `npm run migrate:dev`    | マイグレーションを TypeScript で実行      |
+| `npm run migrate`        | ビルド済みマイグレーションを実行          |
+| `npm run migrate:create` | 新しい SQL マイグレーションファイルを作成 |
+| `npm run migrate:down`   | 直前のマイグレーションをロールバック      |
+| `npm run dev`            | 開発サーバー起動（`tsx watch server.ts`） |
+| `npm run build`          | TypeScript ビルド + OpenAPI JSON 生成 (`dist/` 生成) |
+| `npm run openapi:generate` | `backend/openapi/openapi.json` を再生成              |
+| `npm run start`          | 本番サーバー起動 (`dist/server.js`)       |
+| `npm run lint`           | ESLint 実行                               |
+| `npm run lint:fix`       | ESLint 自動修正                           |
+| `npm run format`         | Prettier 整形                             |
+| `npm run typecheck`      | TypeScript 型チェック                     |
+| `npm run test`           | テスト実行                                |
+| `npm run test:router`    | ルーターテスト実行（DB モック）           |
+| `npm run test:coverage`  | カバレッジ付きテスト実行                  |
+| `npm run test:watch`     | Vitest watch                              |
 
 ## テスト
 
@@ -217,10 +283,10 @@ npm run migrate
 npm run test
 ```
 
-統合テストのみ:
+ルーターテストのみ（DB はモック。HTTP ルーターとミドルウェアの結合を検証）:
 
 ```bash
-npm run test:integration
+npm run test:router
 ```
 
 カバレッジ付きテスト:
@@ -234,12 +300,21 @@ npm run test:coverage
 ```text
 backend/
 ├── middleware/   # エラーハンドリング / 認証 / ロギング / バリデーション
+├── migrations/   # バージョン管理された SQL マイグレーション
+├── openapi/      # ビルド時生成の OpenAPI JSON（`openapi:generate`）
 ├── repositories/ # DB アクセス層
 ├── routes/       # API ルーティング
+├── scripts/      # OpenAPI 生成スクリプト等
 ├── services/     # ビジネスロジック
 ├── tests/        # Vitest テスト
 ├── db.ts         # DB 接続と接続待機
-├── migrate.ts    # マイグレーション
+├── migrate.ts    # マイグレーション実行エントリーポイント
 ├── server.ts     # Express エントリーポイント
 └── types.ts      # 型定義
 ```
+
+## 関連ドキュメント
+
+- [README.md](../README.md) — プロジェクト全体
+- [packages/types/README.md](../packages/types/README.md) — 共有型・Zod・OpenAPI 生成
+- [frontend/README.md](../frontend/README.md) — フロントエンド

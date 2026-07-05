@@ -1,6 +1,10 @@
-/** 認証フロー（セッション再利用・ログアウト）の E2E テスト。 */
+/** 認証フロー（セッション再利用・ログアウト・再ログイン）の E2E テスト。 */
 import { test, expect } from "@playwright/test";
-import { ensureBoardVisible } from "./helpers.mjs";
+import {
+  ensureBoardVisible,
+  loadAuthCredentials,
+  loginWithCredentials,
+} from "./helpers.mjs";
 
 test.describe("認証フロー", () => {
   test("セットアップ済みセッションでかんばんボードが表示される", async ({
@@ -22,5 +26,23 @@ test.describe("認証フロー", () => {
     await expect(
       page.getByRole("button", { name: "ログイン" }),
     ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("ログアウト後に再ログインしてボードに戻れる", async ({ page }) => {
+    const { username, password } = loadAuthCredentials();
+
+    await ensureBoardVisible(page);
+    await page.getByRole("button", { name: "ログアウト" }).click();
+    await expect(
+      page.getByRole("button", { name: "ログイン" }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    await loginWithCredentials(page, username, password);
+
+    await expect(page.getByRole("heading", { name: "Kando" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "行を追加", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel("ボード統計")).toBeVisible();
   });
 });

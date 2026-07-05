@@ -30,7 +30,7 @@ export async function insertColumn(
  * @param client - クエリ実行クライアント
  * @param id - カラム ID
  * @param title - 新しいタイトル
- * @param userId - 所有者ユーザー ID（権限確認に使用）
+ * @param userId - 所有者ユーザー ID。権限確認に使用
  * @returns 更新後のカラムレコード。対象が見つからない場合は `null`
  */
 export async function updateColumnTitle(
@@ -53,7 +53,7 @@ export async function updateColumnTitle(
  * @param client - クエリ実行クライアント
  * @param id - カラム ID
  * @param position - 新しい表示順
- * @param userId - 所有者ユーザー ID（権限確認に使用）
+ * @param userId - 所有者ユーザー ID。権限確認に使用
  * @returns 更新後のカラムレコード。対象が見つからない場合は `null`
  */
 export async function moveColumn(
@@ -72,10 +72,10 @@ export async function moveColumn(
 }
 
 /**
- * カラムを DB から削除する（配下タスクも CASCADE で削除される）。
+ * カラムを DB から削除する。配下タスクも CASCADE で削除される。
  * @param client - クエリ実行クライアント
  * @param id - カラム ID
- * @param userId - 所有者ユーザー ID（権限確認に使用）
+ * @param userId - 所有者ユーザー ID。権限確認に使用
  * @returns 削除に成功した場合は `true`、対象が見つからない場合は `false`
  */
 export async function deleteColumn(

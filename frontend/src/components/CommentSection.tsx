@@ -1,4 +1,3 @@
-// コメントの表示・追加・編集・削除・並び替えを担当するコンポーネント
 import { useState, useRef, useMemo, type ReactNode } from "react";
 import { Trash2, Plus, GripVertical } from "lucide-react";
 import type { LocalTaskComment, TempId } from "../types";
@@ -10,7 +9,7 @@ const URL_REGEX = /https?:\/\/[^\s<>'"]+/g;
 /**
  * 文字列を改行で分割し、`<br>` 要素を挿入した ReactNode 配列を返す。
  * @param segment - 改行分割する文字列
- * @param keyPrefix - key 属性のプレフィックス（重複回避に使用）
+ * @param keyPrefix - key 属性のプレフィックス(重複回避に使用)
  * @returns 改行配置済みの ReactNode 配列
  */
 function renderLineBreaks(segment: string, keyPrefix: string): ReactNode[] {
@@ -90,10 +89,10 @@ interface CommentSectionProps {
  * コメントの表示・追加・編集・削除・並び替えを担当するコンポーネント。
  *
  * 「古い順／最新順」は表示専用ソート。保存時は `comments` 配列の順序が
- * DB の `position`（インデックス由来）になるため、表示順と永続化順は一致しない。
+ * DB の `position`(インデックス由来)になるため、表示順と永続化順は一致しない。
  *
  * @param comments - 表示・編集対象のコメント配列
- * @param taskId - 親タスク ID（新規コメント作成時に使用）
+ * @param taskId - 親タスク ID(新規コメント作成時に使用)
  * @param onCommentsChange - コメント配列を更新するコールバック
  * @returns コメントセクションの JSX 要素
  */
@@ -117,7 +116,6 @@ export function CommentSection({
 
   /**
    * 入力テキストから新規コメントを作成してリストに追加する。
-   * @returns なし
    */
   const addComment = () => {
     const content = newCommentContent.trim();
@@ -139,7 +137,6 @@ export function CommentSection({
    * コメントのインライン編集を開始する。
    * @param commentId - 編集対象コメント ID
    * @param content - 編集初期内容
-   * @returns なし
    */
   const beginCommentEdit = (commentId: number | TempId, content: string) => {
     setEditingCommentId(commentId);
@@ -150,7 +147,6 @@ export function CommentSection({
    * 編集内容をコメント配列に保存してインライン編集を終了する。
    * 内容が空の場合は保存せず履歴を維持する。
    * @param commentId - 保存対象コメント ID
-   * @returns なし
    */
   const saveCommentEdit = (commentId: number | TempId) => {
     const content = editingCommentContent.trim();
@@ -170,7 +166,6 @@ export function CommentSection({
 
   /**
    * インライン編集をキャンセルして編集状態をリセットする。
-   * @returns なし
    */
   const cancelCommentEdit = () => {
     setEditingCommentId(null);
@@ -180,7 +175,6 @@ export function CommentSection({
   /**
    * 指定 ID のコメントをリストから削除する。
    * @param commentId - 削除対象コメント ID
-   * @returns なし
    */
   const removeComment = (commentId: number | TempId) => {
     onCommentsChange(comments.filter((comment) => comment.id !== commentId));
@@ -222,7 +216,6 @@ export function CommentSection({
    * 手動ソートモードのときだけコメントの順序を入れ替える。
    * @param fromIndex - 移動元インデックス
    * @param toIndex - 移動先インデックス
-   * @returns なし
    */
   const moveCommentInManualMode = (fromIndex: number, toIndex: number) => {
     if (commentSortMode !== "manual" || fromIndex === toIndex) return;
@@ -278,7 +271,7 @@ export function CommentSection({
         <span className="text-muted">コメントはまだありません</span>
       ) : (
         <div className="task-comments">
-          {/* visibleIndex は表示順、index は comments 配列内の実インデックス（DnD で使用） */}
+          {/* visibleIndex は表示順、index は comments 配列内の実インデックス(DnD で使用) */}
           {visibleComments.map(({ comment, index }, visibleIndex) => (
             <div
               key={comment.id}

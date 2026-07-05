@@ -1,12 +1,12 @@
-// タスクに対する CRUD・移動エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
-import type {
-  TaskSnapshotChecklistPayload,
-  TaskSnapshotSubtaskPayload,
-  TaskSnapshotCommentPayload,
-  TaskSnapshotPayload,
-} from "@kando/types";
+import type { TaskSnapshotPayload } from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createTaskBodySchema,
+  moveTaskBodySchema,
+  taskSnapshotBodySchema,
+  updateTaskBodySchema,
+} from "@kando/types/validation";
 import { HttpError, NotFoundError } from "../errors.js";
 import {
   createTask,
@@ -15,22 +15,19 @@ import {
   moveTask,
   copyTask,
   deleteTask,
+  getTask,
 } from "../services/tasksService.js";
 
 const router = Router();
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-type TaskSnapshotChecklistInput = TaskSnapshotChecklistPayload;
-type TaskSnapshotSubtaskInput = TaskSnapshotSubtaskPayload;
-type TaskSnapshotCommentInput = TaskSnapshotCommentPayload;
-
 /**
  * 期限日を `YYYY-MM-DD` の厳密形式で検証する。
  * 未指定/`null` はそのまま返し、明示指定時のみバリデーションする。
  * @param rawDueDate - 受信した期限日
  * @returns 検証済み期限日。未指定/`null` は入力値を維持
- * @throws Error `YYYY-MM-DD` 形式ではない場合
+ * @throws HttpError `YYYY-MM-DD` 形式ではない場合
  */
 function normalizeDueDate(
   rawDueDate: string | null | undefined,
@@ -56,278 +53,31 @@ function normalizeDueDate(
 }
 
 /**
- * 配列/`null` を除外したプレーンオブジェクトへ安全に絞り込む。
- * @param value - 判定対象値
- * @returns プレーンオブジェクト。対象外は `null`
+ * GET /api/tasks/:id
+ * タスク詳細(サブタスク・チェックリスト・コメント含む)を取得する。
  */
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return null;
+router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+  const id = parseId(req.params.id);
+  if (!id) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
   }
-  return value as Record<string, unknown>;
-}
+
+  try {
+    const task = await getTask(id, req.userId!);
+    res.json(task);
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
- * 任意 ID フィールドを正の整数として検証し、未指定時は `undefined` を返す。
- * @param value - 入力値
- * @param fieldPath - エラーメッセージに出すフィールドパス
- * @returns 検証済み ID。未指定時は `undefined`
- * @throws HttpError 値が正の整数でない場合
+ * POST /api/tasks
+ * 新しいタスクを作成する。
  */
-function parseOptionalId(
-  value: unknown,
-  fieldPath: string,
-): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    throw new HttpError(400, `'${fieldPath}' must be a positive integer`);
-  }
-  return value;
-}
-
-/**
- * 必須文字列フィールドを検証し、空文字・長過ぎる値を拒否する。
- * @param value - 入力値
- * @param fieldPath - エラーメッセージに出すフィールドパス
- * @param maxLength - 許容最大文字数
- * @returns 検証済み文字列
- * @throws HttpError 値が要件を満たさない場合
- */
-function parseRequiredString(
-  value: unknown,
-  fieldPath: string,
-  maxLength: number,
-): string {
-  if (typeof value !== "string") {
-    throw new HttpError(400, `'${fieldPath}' must be a string`);
-  }
-  if (value.trim().length === 0) {
-    throw new HttpError(400, `'${fieldPath}' must not be empty`);
-  }
-  if (value.length > maxLength) {
-    throw new HttpError(
-      400,
-      `'${fieldPath}' must be ${maxLength} characters or fewer`,
-    );
-  }
-  return value;
-}
-
-/**
- * タスク直下/サブタスク配下で共通利用するチェックリスト入力を検証する。
- * @param value - 生の入力値
- * @param fieldPath - エラーメッセージに出すフィールドパス
- * @returns 検証済みチェックリスト入力
- * @throws HttpError 値が要件を満たさない場合
- */
-function parseChecklistInput(
-  value: unknown,
-  fieldPath: string,
-): TaskSnapshotChecklistInput {
-  const record = asRecord(value);
-  if (!record) {
-    throw new HttpError(400, `'${fieldPath}' must be an object`);
-  }
-
-  const id = parseOptionalId(record.id, `${fieldPath}.id`);
-  const content = parseRequiredString(
-    record.content,
-    `${fieldPath}.content`,
-    500,
-  );
-  if (typeof record.completed !== "boolean") {
-    throw new HttpError(400, `'${fieldPath}.completed' must be a boolean`);
-  }
-
-  return {
-    id,
-    content,
-    completed: record.completed,
-  };
-}
-
-/**
- * サブタスク入力を検証し、配下チェックリストも再帰的に検証する。
- * @param value - 生の入力値
- * @param fieldPath - エラーメッセージに出すフィールドパス
- * @returns 検証済みサブタスク入力
- * @throws HttpError 値が要件を満たさない場合
- */
-function parseSubtaskInput(
-  value: unknown,
-  fieldPath: string,
-): TaskSnapshotSubtaskInput {
-  const record = asRecord(value);
-  if (!record) {
-    throw new HttpError(400, `'${fieldPath}' must be an object`);
-  }
-
-  const id = parseOptionalId(record.id, `${fieldPath}.id`);
-  const content = parseRequiredString(
-    record.content,
-    `${fieldPath}.content`,
-    2000,
-  );
-  if (!Array.isArray(record.checklists)) {
-    throw new HttpError(400, `'${fieldPath}.checklists' must be an array`);
-  }
-
-  const checklists = record.checklists.map((item, index) =>
-    parseChecklistInput(item, `${fieldPath}.checklists[${index}]`),
-  );
-
-  return {
-    id,
-    content,
-    checklists,
-  };
-}
-
-/**
- * コメント入力（任意 ID + 必須 content）を検証する。
- * @param value - 生の入力値
- * @param fieldPath - エラーメッセージに出すフィールドパス
- * @returns 検証済みコメント入力
- * @throws HttpError 値が要件を満たさない場合
- */
-function parseCommentInput(
-  value: unknown,
-  fieldPath: string,
-): TaskSnapshotCommentInput {
-  const record = asRecord(value);
-  if (!record) {
-    throw new HttpError(400, `'${fieldPath}' must be an object`);
-  }
-
-  const id = parseOptionalId(record.id, `${fieldPath}.id`);
-  const content = parseRequiredString(
-    record.content,
-    `${fieldPath}.content`,
-    2000,
-  );
-
-  return {
-    id,
-    content,
-  };
-}
-
-/**
- * `id` 指定を持つ配列で重複 ID を禁止し、更新対象の曖昧さを排除する。
- * @param values - 検証対象配列
- * @param fieldPath - エラーメッセージに出すフィールドパス
- * @returns なし
- * @throws HttpError 重複 ID が見つかった場合
- */
-function ensureNoDuplicateIds(
-  values: Array<{ id?: number }>,
-  fieldPath: string,
-): void {
-  const seen = new Set<number>();
-  for (const value of values) {
-    if (value.id === undefined) continue;
-    if (seen.has(value.id)) {
-      throw new HttpError(400, `Duplicate '${fieldPath}.id': ${value.id}`);
-    }
-    seen.add(value.id);
-  }
-}
-
-/**
- * タスク編集モーダルのスナップショット保存用ペイロードを検証して正規化する。
- * 型不整合や必須項目不足があれば `HttpError(400)` を投げる。
- * @param raw - 生のリクエストボディ
- * @returns 検証済みスナップショット
- * @throws HttpError 入力が不正な場合
- */
-function parseTaskSnapshotPayload(raw: unknown): TaskSnapshotPayload {
-  const body = asRecord(raw);
-  if (!body) {
-    throw new HttpError(400, "Invalid request body");
-  }
-
-  const content = parseRequiredString(body.content, "content", 2000);
-
-  let due_date: string | null;
-  if (body.due_date === null) {
-    due_date = null;
-  } else if (typeof body.due_date === "string") {
-    due_date = body.due_date;
-  } else {
-    throw new HttpError(400, "'due_date' must be a string or null");
-  }
-
-  if (!Array.isArray(body.checklists)) {
-    throw new HttpError(400, "'checklists' must be an array");
-  }
-  if (!Array.isArray(body.subtasks)) {
-    throw new HttpError(400, "'subtasks' must be an array");
-  }
-  if (!Array.isArray(body.comments)) {
-    throw new HttpError(400, "'comments' must be an array");
-  }
-
-  const checklists = body.checklists.map((item, index) =>
-    parseChecklistInput(item, `checklists[${index}]`),
-  );
-  const subtasks = body.subtasks.map((item, index) =>
-    parseSubtaskInput(item, `subtasks[${index}]`),
-  );
-  const comments = body.comments.map((item, index) =>
-    parseCommentInput(item, `comments[${index}]`),
-  );
-
-  ensureNoDuplicateIds(checklists, "checklists");
-  ensureNoDuplicateIds(subtasks, "subtasks");
-  ensureNoDuplicateIds(comments, "comments");
-  for (const [index, subtask] of subtasks.entries()) {
-    ensureNoDuplicateIds(subtask.checklists, `subtasks[${index}].checklists`);
-  }
-
-  let completed: boolean;
-  if (typeof body.completed === "boolean") {
-    completed = body.completed;
-  } else if (body.completed === undefined) {
-    completed = false;
-  } else {
-    throw new HttpError(400, "'completed' must be a boolean");
-  }
-
-  return {
-    content,
-    due_date,
-    completed,
-    checklists,
-    subtasks,
-    comments,
-  };
-}
-
-// ─── ルートハンドラ ──────────────────────────────────────────────────────────
-
-// 新しいタスクを作成する: POST /api/tasks
 router.post(
   "/",
-  validateBody({
-    column_id: {
-      type: "number",
-      required: true,
-      integer: true,
-      positive: true,
-    },
-    content: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 2000,
-    },
-    due_date: {
-      type: "string",
-      notEmpty: true,
-      maxLength: 10,
-    },
-    position: { type: "number", required: true, integer: true, positive: true },
-  }),
+  validateBody(createTaskBodySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     const { column_id, content, due_date, position } = req.body as {
       column_id: number;
@@ -361,24 +111,13 @@ router.post(
   },
 );
 
-// タスクの内容・期限を更新する: PUT /api/tasks/:id
+/**
+ * PUT /api/tasks/:id
+ * タスクの内容・期限・完了状態を部分更新する。
+ */
 router.put(
   "/:id",
-  validateBody({
-    content: {
-      type: "string",
-      notEmpty: true,
-      maxLength: 2000,
-    },
-    due_date: {
-      type: "string",
-      notEmpty: true,
-      maxLength: 10,
-    },
-    completed: {
-      type: "boolean",
-    },
-  }),
+  validateBody(updateTaskBodySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -445,9 +184,13 @@ router.put(
   },
 );
 
-// タスク編集モーダルの内容を単一トランザクションで一括保存する: PUT /api/tasks/:id/snapshot
+/**
+ * PUT /api/tasks/:id/snapshot
+ * タスク編集モーダルの内容を単一トランザクションで一括保存する。
+ */
 router.put(
   "/:id/snapshot",
+  validateBody(taskSnapshotBodySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -455,17 +198,7 @@ router.put(
       return;
     }
 
-    let payload: TaskSnapshotPayload;
-    try {
-      payload = parseTaskSnapshotPayload(req.body);
-    } catch (err) {
-      if (err instanceof HttpError) {
-        res.status(err.status).json({ error: err.message });
-        return;
-      }
-      next(err);
-      return;
-    }
+    const payload = req.body as TaskSnapshotPayload;
 
     let normalizedDueDate: string | null;
     try {
@@ -495,18 +228,13 @@ router.put(
   },
 );
 
-// タスクを別カラムへ移動する: PUT /api/tasks/:id/move
+/**
+ * PUT /api/tasks/:id/move
+ * タスクを別カラムへ移動する。
+ */
 router.put(
   "/:id/move",
-  validateBody({
-    column_id: {
-      type: "number",
-      required: true,
-      integer: true,
-      positive: true,
-    },
-    position: { type: "number", required: true, positive: true },
-  }),
+  validateBody(moveTaskBodySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     const id = parseId(req.params.id);
     if (!id) {
@@ -526,7 +254,10 @@ router.put(
   },
 );
 
-// タスクをコピーする: POST /api/tasks/:id/copy
+/**
+ * POST /api/tasks/:id/copy
+ * タスクを複製する(未完了状態でコピー)。
+ */
 router.post(
   "/:id/copy",
   async (req: Request, res: Response, next: NextFunction) => {
@@ -545,7 +276,10 @@ router.post(
   },
 );
 
-// タスクを削除する: DELETE /api/tasks/:id
+/**
+ * DELETE /api/tasks/:id
+ * タスクを削除する。
+ */
 router.delete(
   "/:id",
   async (req: Request, res: Response, next: NextFunction) => {

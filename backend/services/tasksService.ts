@@ -1,4 +1,3 @@
-// タスクのビジネスロジックを提供するサービス層
 import type { Pool } from "pg";
 import { pool } from "../db.js";
 import type { DbTask, Task, TaskSnapshotPayload } from "@kando/types";
@@ -17,10 +16,10 @@ import {
  * タスクを作成する。カラムの所有権を確認してから INSERT する。
  * @param column_id - タスクを追加するカラム ID
  * @param content - タスク本文
- * @param due_date - 期限日（`YYYY-MM-DD`）。未設定は `null`
+ * @param due_date - 期限日(`YYYY-MM-DD`)。未設定は `null`
  * @param position - カラム内の表示順
  * @param userId - 操作ユーザーの ID
- * @returns 作成したタスク（子要素は空配列）
+ * @returns 作成したタスク(子要素は空配列)
  * @throws NotFoundError カラムがユーザーのものでない場合
  */
 export async function createTask(
@@ -56,7 +55,7 @@ type TaskPatch = {
 /**
  * タスクのフィールドを部分更新する。
  * @param id - 更新対象タスク ID
- * @param patch - 更新するフィールド（`content` / `due_date` / `completed`）
+ * @param patch - 更新するフィールド(`content` / `due_date` / `completed`)
  * @param userId - 操作ユーザーの ID
  * @returns 更新後タスク
  * @throws NotFoundError タスクがユーザーのものでない場合
@@ -69,8 +68,8 @@ export async function updateTask(
   const updates: string[] = [];
   const values: Array<string | number | boolean | null> = [];
 
-  // hasOwnProperty でキーの「存在」を判定し、due_date: null（期限クリア）と
-  // キー未指定（フィールドを変更しない）を区別する
+  // hasOwnProperty でキーの「存在」を判定し、due_date: null(期限クリア)と
+  // キー未指定(フィールドを変更しない)を区別する
   if (Object.prototype.hasOwnProperty.call(patch, "content")) {
     updates.push(`content = $${values.length + 1}`);
     values.push(patch.content as string);
@@ -114,7 +113,7 @@ export async function updateTask(
  * @param payload - モーダル全体の保存ペイロード
  * @param due_date - 正規化済み期限日。未設定は `null`
  * @param userId - 操作ユーザーの ID
- * @returns 保存後タスク（全子要素を含む）
+ * @returns 保存後タスク(全子要素を含む)
  * @throws NotFoundError タスクがユーザーのものでない場合
  * @throws HttpError バリデーションエラー
  */
@@ -204,7 +203,7 @@ export async function saveTaskSnapshot(
       });
     }
 
-    // 新規 INSERT で ID が確定してから削除する（先に DELETE すると CASCADE で子が消える）
+    // 新規 INSERT で ID が確定してから削除する(先に DELETE すると CASCADE で子が消える)
     const subtaskIdsForDelete = idsToDelete(existingSubtaskIds, keepSubtaskIds);
     if (subtaskIdsForDelete.length > 0) {
       await client.query("DELETE FROM subtasks WHERE id = ANY($1::int[])", [
@@ -285,10 +284,10 @@ export async function moveTask(
 }
 
 /**
- * タスクを同一カラムの末尾にコピーする（サブタスク・チェックリスト・コメントも複製）。
+ * タスクを同一カラムの末尾にコピーする(サブタスク・チェックリスト・コメントも複製)。
  * @param id - コピー元タスク ID
  * @param userId - 操作ユーザーの ID
- * @returns 複製したタスク（全子要素を含む）
+ * @returns 複製したタスク(全子要素を含む)
  * @throws NotFoundError タスクがユーザーのものでない場合
  */
 export async function copyTask(id: number, userId: number): Promise<Task> {
@@ -398,7 +397,38 @@ export async function copyTask(id: number, userId: number): Promise<Task> {
 }
 
 /**
- * タスクを削除する（サブタスク・チェックリストも CASCADE で削除）。
+ * タスク詳細(サブタスク・チェックリスト・コメント含む)を取得する。
+ * @param id - 取得対象タスク ID
+ * @param userId - 操作ユーザーの ID
+ * @returns タスク詳細
+ * @throws NotFoundError タスクがユーザーのものでない場合
+ */
+export async function getTask(id: number, userId: number): Promise<Task> {
+  const client = await pool.connect();
+  try {
+    const ownerCheck = await client.query<{ id: number }>(
+      `SELECT t.id FROM tasks t
+       JOIN columns c ON c.id = t.column_id
+       JOIN rows r ON r.id = c.row_id
+       WHERE t.id = $1 AND r.user_id = $2`,
+      [id, userId],
+    );
+    if (!ownerCheck.rows[0]) {
+      throw new NotFoundError("Task not found");
+    }
+
+    const task = await fetchTaskSnapshot(client, id);
+    if (!task) {
+      throw new NotFoundError("Task not found");
+    }
+    return task;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * タスクを削除する(サブタスク・チェックリストも CASCADE で削除)。
  * @param id - 削除対象タスク ID
  * @param userId - 操作ユーザーの ID
  * @returns `true`: 削除成功、`false`: 対象なし

@@ -1,48 +1,67 @@
-// checklist_items の親参照検証ロジックのユニットテスト
-// task_id / subtask_id の排他制約と整数バリデーションを確認する
-import { describe, it, expect } from "vitest";
-import { validateChecklistParentRefs } from "../routes/checklistItems";
+import { describe, expect, it } from "vitest";
+import {
+  createChecklistItemBodySchema,
+  formatZodError,
+} from "@kando/types/validation";
 
-describe("validateChecklistParentRefs", () => {
-  it("task_id と subtask_id が両方未指定ならエラー", () => {
-    const result = validateChecklistParentRefs(undefined, undefined);
-    expect(result).toEqual({
-      ok: false,
-      error: "Exactly one of 'task_id' or 'subtask_id' is required",
+describe("createChecklistItemBodySchema", () => {
+  it("task_id と subtask_id が両方未指定ならエラーを返す", () => {
+    const result = createChecklistItemBodySchema.safeParse({
+      content: "項目",
     });
+    expect(result.success).toBe(false);
+    expect(formatZodError(result.error!)).toBe(
+      "Exactly one of 'task_id' or 'subtask_id' is required",
+    );
   });
 
-  it("task_id と subtask_id が両方指定ならエラー", () => {
-    const result = validateChecklistParentRefs(1, 2);
-    expect(result).toEqual({
-      ok: false,
-      error: "Exactly one of 'task_id' or 'subtask_id' is required",
+  it("task_id と subtask_id が両方指定ならエラーを返す", () => {
+    const result = createChecklistItemBodySchema.safeParse({
+      content: "項目",
+      task_id: 1,
+      subtask_id: 2,
     });
+    expect(result.success).toBe(false);
+    expect(formatZodError(result.error!)).toBe(
+      "Exactly one of 'task_id' or 'subtask_id' is required",
+    );
   });
 
-  it("task_id のみ指定で正の整数なら有効", () => {
-    const result = validateChecklistParentRefs(10, null);
-    expect(result).toEqual({ ok: true, taskId: 10, subtaskId: null });
-  });
-
-  it("subtask_id のみ指定で正の整数なら有効", () => {
-    const result = validateChecklistParentRefs(null, 20);
-    expect(result).toEqual({ ok: true, taskId: null, subtaskId: 20 });
-  });
-
-  it("task_id が正の整数でない場合はエラー", () => {
-    const result = validateChecklistParentRefs(0, null);
-    expect(result).toEqual({
-      ok: false,
-      error: "'task_id' must be a positive integer",
+  it("task_id のみ指定なら成功を返す", () => {
+    const result = createChecklistItemBodySchema.safeParse({
+      content: "項目",
+      task_id: 10,
     });
+    expect(result.success).toBe(true);
   });
 
-  it("subtask_id が正の整数でない場合はエラー", () => {
-    const result = validateChecklistParentRefs(null, 1.5);
-    expect(result).toEqual({
-      ok: false,
-      error: "'subtask_id' must be a positive integer",
+  it("subtask_id のみ指定なら成功を返す", () => {
+    const result = createChecklistItemBodySchema.safeParse({
+      content: "項目",
+      subtask_id: 20,
     });
+    expect(result.success).toBe(true);
+  });
+
+  it("task_id が 0 以下ならエラーを返す", () => {
+    const result = createChecklistItemBodySchema.safeParse({
+      content: "項目",
+      task_id: 0,
+    });
+    expect(result.success).toBe(false);
+    expect(formatZodError(result.error!)).toBe(
+      "'task_id' must be greater than 0",
+    );
+  });
+
+  it("subtask_id が非整数ならエラーを返す", () => {
+    const result = createChecklistItemBodySchema.safeParse({
+      content: "項目",
+      subtask_id: 1.5,
+    });
+    expect(result.success).toBe(false);
+    expect(formatZodError(result.error!)).toBe(
+      "'subtask_id' must be an integer",
+    );
   });
 });

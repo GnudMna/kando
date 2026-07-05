@@ -1,15 +1,9 @@
-// メモ帳パネルコンポーネント
-// メモの一覧表示・作成・編集・削除を管理する
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Plus, Trash2, X, FileText } from "lucide-react";
-import type { Memo } from "../api/boardApi";
-import {
-  fetchMemos,
-  createMemo,
-  updateMemo,
-  deleteMemo,
-} from "../api/boardApi";
+import type { Memo } from "../api/memos";
+import { useMemoMutations, useMemosQuery } from "../hooks/useMemos";
 import { useDraggable } from "../hooks/useDraggable";
+import { useAppNavigation } from "../providers/useAppNavigation";
 
 const memoDateFormatter = new Intl.DateTimeFormat("ja-JP", {
   month: "short",
@@ -31,71 +25,97 @@ function formatDate(iso: string): string {
 interface MemoPanelProps {
   /** パネルを閉じるコールバック */
   onClose: () => void;
-  /** 初期選択するメモ ID（任意） */
-  initialMemoId?: number;
 }
 
 const AUTOSAVE_DELAY_MS = 800;
 
+type MemoDraft = {
+  id: number;
+  title: string;
+  content: string;
+};
+
+function resolveInitialTarget(
+  memos: Memo[],
+  initialMemoId?: number,
+): Memo | null {
+  if (memos.length === 0) return null;
+  if (initialMemoId != null) {
+    return memos.find((m) => m.id === initialMemoId) ?? memos[0];
+  }
+  return memos[0];
+}
+
 /**
  * メモ帳パネル。
  * メモの一覧・作成・編集・削除・自動保存を提供する。
- * @param props - コンポーネント props
- * @param props.onClose - パネルを閉じるコールバック
- * @param props.initialMemoId - 初期選択するメモ ID（任意）
+ * @param onClose - パネルを閉じるコールバック
  * @returns メモ帳パネルの JSX 要素
  */
-export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
-  const [memos, setMemos] = useState<Memo[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editContent, setEditContent] = useState("");
-  const [loading, setLoading] = useState(true);
+export function MemoPanel({ onClose }: MemoPanelProps) {
+  const { data: memos = [], isLoading, error: queryError } = useMemosQuery();
+  const { create, update, remove } = useMemoMutations();
+  const { activeMemoId, openTask, registerSelectMemoHandler } =
+    useAppNavigation();
+  const updateMutationRef = useRef(update);
+  const createMutationRef = useRef(create);
+  const removeMutationRef = useRef(remove);
+
+  useEffect(() => {
+    updateMutationRef.current = update;
+    createMutationRef.current = create;
+    removeMutationRef.current = remove;
+  }, [update, create, remove]);
+
+  const initialTarget = useMemo(
+    () => resolveInitialTarget(memos, activeMemoId ?? undefined),
+    [memos, activeMemoId],
+  );
+
+  const [userDraft, setUserDraft] = useState<MemoDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // 自動保存タイマー
+  const selectedId = userDraft?.id ?? initialTarget?.id ?? null;
+  const editTitle = userDraft?.title ?? initialTarget?.title ?? "";
+  const editContent = userDraft?.content ?? initialTarget?.content ?? "";
+
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 直前に保存済みの値（差分判定に使用）
   const savedRef = useRef<{ title: string; content: string } | null>(null);
+  const selectedIdRef = useRef<number | null>(null);
+  const draftRef = useRef({ title: "", content: "" });
 
   const selectedMemo = memos.find((m) => m.id === selectedId) ?? null;
+  const memosRef = useRef(memos);
+  const loading = isLoading;
+  const displayError =
+    error ??
+    (queryError instanceof Error
+      ? queryError.message
+      : queryError
+        ? "取得に失敗しました"
+        : null);
 
-  // 初回マウント時にメモ一覧を取得する
   useEffect(() => {
-    let cancelled = false;
-    fetchMemos()
-      .then((data) => {
-        if (cancelled) return;
-        setMemos(data);
-        const target = initialMemoId
-          ? (data.find((m) => m.id === initialMemoId) ?? data[0])
-          : data[0];
-        if (target) {
-          setSelectedId(target.id);
-          setEditTitle(target.title);
-          setEditContent(target.content);
-          savedRef.current = { title: target.title, content: target.content };
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "取得に失敗しました");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // initialMemoId はマウント時の初期選択にのみ使用するため依存配列に含めない
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  useEffect(() => {
+    draftRef.current = { title: editTitle, content: editContent };
+  }, [editTitle, editContent]);
+
+  useEffect(() => {
+    if (selectedId === null || savedRef.current !== null) return;
+    savedRef.current = { title: editTitle, content: editContent };
+  }, [selectedId, editTitle, editContent]);
+
+  const applyDraft = useCallback((draft: MemoDraft) => {
+    setUserDraft(draft);
+    savedRef.current = { title: draft.title, content: draft.content };
   }, []);
 
-  // メモ選択時にエディターを初期化する
   const handleSelect = useCallback(
     (memo: Memo) => {
-      // 未保存変更を即時保存してから切り替える
       if (autosaveTimer.current) {
         clearTimeout(autosaveTimer.current);
         autosaveTimer.current = null;
@@ -106,104 +126,126 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
         (editTitle !== savedRef.current.title ||
           editContent !== savedRef.current.content)
       ) {
-        // 切替の体感速度優先で await しない。失敗は握りつぶし（自動保存で再試行される想定）
-        updateMemo(selectedId, {
-          title: editTitle,
-          content: editContent,
-        })
-          .then((updated) => {
-            setMemos((prev) =>
-              prev.map((m) => (m.id === updated.id ? updated : m)),
-            );
+        void updateMutationRef.current
+          .mutateAsync({
+            id: selectedId,
+            patch: { title: editTitle, content: editContent },
           })
           .catch(() => {});
       }
-      setSelectedId(memo.id);
-      setEditTitle(memo.title);
-      setEditContent(memo.content);
+      setUserDraft({
+        id: memo.id,
+        title: memo.title,
+        content: memo.content,
+      });
       savedRef.current = { title: memo.title, content: memo.content };
     },
     [selectedId, editTitle, editContent],
   );
 
-  // 自動保存をスケジュールする
-  const scheduleAutosave = useCallback(
-    (title: string, content: string) => {
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-      autosaveTimer.current = setTimeout(async () => {
-        if (selectedId === null) return;
-        if (
-          savedRef.current?.title === title &&
-          savedRef.current?.content === content
-        )
-          return;
-        setSaving(true);
-        try {
-          const updated = await updateMemo(selectedId, { title, content });
-          setMemos((prev) =>
-            prev.map((m) => (m.id === updated.id ? updated : m)),
-          );
-          savedRef.current = { title, content };
-        } catch {
-          // 自動保存失敗は静かに無視する
-        } finally {
-          setSaving(false);
-        }
-      }, AUTOSAVE_DELAY_MS);
-    },
-    [selectedId],
-  );
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(async () => {
+      const memoId = selectedIdRef.current;
+      const { title, content } = draftRef.current;
+      if (memoId === null) return;
+      if (
+        savedRef.current?.title === title &&
+        savedRef.current?.content === content
+      ) {
+        return;
+      }
+      setSaving(true);
+      try {
+        await updateMutationRef.current.mutateAsync({
+          id: memoId,
+          patch: { title, content },
+        });
+        savedRef.current = { title, content };
+      } catch {
+        // 自動保存失敗は静かに無視する
+      } finally {
+        setSaving(false);
+      }
+    }, AUTOSAVE_DELAY_MS);
+  }, []);
+
+  const flushPendingSave = useCallback(() => {
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+    const memoId = selectedIdRef.current;
+    const { title, content } = draftRef.current;
+    if (memoId === null || !savedRef.current) return;
+    if (
+      savedRef.current.title === title &&
+      savedRef.current.content === content
+    )
+      return;
+    void updateMutationRef.current
+      .mutateAsync({ id: memoId, patch: { title, content } })
+      .catch(() => {});
+  }, []);
 
   const handleTitleChange = useCallback(
     (value: string) => {
-      setEditTitle(value);
-      scheduleAutosave(value, editContent);
+      if (selectedId === null) return;
+      setUserDraft((prev) => ({
+        id: selectedId,
+        title: value,
+        content: prev?.content ?? editContent,
+      }));
+      draftRef.current = { title: value, content: draftRef.current.content };
+      scheduleAutosave();
     },
-    [editContent, scheduleAutosave],
+    [selectedId, editContent, scheduleAutosave],
   );
 
   const handleContentChange = useCallback(
     (value: string) => {
-      setEditContent(value);
-      scheduleAutosave(editTitle, value);
+      if (selectedId === null) return;
+      setUserDraft((prev) => ({
+        id: selectedId,
+        title: prev?.title ?? editTitle,
+        content: value,
+      }));
+      draftRef.current = { title: draftRef.current.title, content: value };
+      scheduleAutosave();
     },
-    [editTitle, scheduleAutosave],
+    [selectedId, editTitle, scheduleAutosave],
   );
 
-  // 新しいメモを作成する
   const handleCreate = useCallback(async () => {
     try {
-      const memo = await createMemo("新しいメモ", "");
-      setMemos((prev) => [memo, ...prev]);
-      setSelectedId(memo.id);
-      setEditTitle(memo.title);
-      setEditContent(memo.content);
-      savedRef.current = { title: memo.title, content: memo.content };
+      const memo = await createMutationRef.current.mutateAsync({
+        title: "新しいメモ",
+        content: "",
+      });
+      applyDraft({
+        id: memo.id,
+        title: memo.title,
+        content: memo.content,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "作成に失敗しました");
     }
-  }, []);
+  }, [applyDraft]);
 
-  // メモを削除する
   const handleDelete = useCallback(
     async (id: number) => {
       try {
-        await deleteMemo(id);
+        await removeMutationRef.current.mutateAsync(id);
         const next = memos.filter((m) => m.id !== id);
-        setMemos(next);
         if (selectedId === id) {
           if (next.length > 0) {
-            setSelectedId(next[0].id);
-            setEditTitle(next[0].title);
-            setEditContent(next[0].content);
-            savedRef.current = {
+            applyDraft({
+              id: next[0].id,
               title: next[0].title,
               content: next[0].content,
-            };
+            });
           } else {
-            setSelectedId(null);
-            setEditTitle("");
-            setEditContent("");
+            setUserDraft(null);
             savedRef.current = null;
           }
         }
@@ -211,28 +253,25 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
         setError(err instanceof Error ? err.message : "削除に失敗しました");
       }
     },
-    [memos, selectedId],
+    [memos, selectedId, applyDraft],
   );
 
-  // アンマウント時に未保存変更を保存する
   useEffect(() => {
     return () => {
-      if (autosaveTimer.current) {
-        clearTimeout(autosaveTimer.current);
-      }
+      flushPendingSave();
     };
-  }, []);
+  }, [flushPendingSave]);
 
-  // パネルが開いている状態で kando:open-memo イベントを受け取ったらメモを切り替える
   useEffect(() => {
-    const handler = (e: Event) => {
-      const memoId = (e as CustomEvent<{ memoId: number }>).detail.memoId;
-      const target = memos.find((m) => m.id === memoId);
+    memosRef.current = memos;
+  }, [memos]);
+
+  useEffect(() => {
+    return registerSelectMemoHandler((memoId) => {
+      const target = memosRef.current.find((m) => m.id === memoId);
       if (target) handleSelect(target);
-    };
-    window.addEventListener("kando:open-memo", handler);
-    return () => window.removeEventListener("kando:open-memo", handler);
-  }, [memos, handleSelect]);
+    });
+  }, [registerSelectMemoHandler, handleSelect]);
 
   const { containerRef, onHandleMouseDown, posStyle, isDragging } =
     useDraggable();
@@ -245,7 +284,6 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
       style={posStyle}
       ref={containerRef}
     >
-      {/* ヘッダー */}
       <div
         className="memo-panel-header drag-handle"
         onMouseDown={onHandleMouseDown}
@@ -264,7 +302,7 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
           <button
             type="button"
             className="btn memo-add-btn"
-            onClick={handleCreate}
+            onClick={() => void handleCreate()}
             aria-label="新しいメモを作成"
             title="新しいメモ"
           >
@@ -282,9 +320,9 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
         </div>
       </div>
 
-      {error && (
+      {displayError && (
         <div className="memo-error" role="alert">
-          {error}
+          {displayError}
           <button
             type="button"
             className="memo-error-dismiss"
@@ -297,7 +335,6 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
       )}
 
       <div className="memo-panel-body">
-        {/* サイドバー: メモ一覧 */}
         <div className="memo-list" role="list" aria-label="メモ一覧">
           {loading && <div className="memo-list-empty">読み込み中…</div>}
           {!loading && memos.length === 0 && (
@@ -345,7 +382,6 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
           ))}
         </div>
 
-        {/* エディター */}
         <div className="memo-editor">
           {selectedMemo === null && !loading ? (
             <div className="memo-editor-empty">
@@ -378,13 +414,7 @@ export function MemoPanel({ onClose, initialMemoId }: MemoPanelProps) {
                         key={t.id}
                         type="button"
                         className="memo-linked-task-chip"
-                        onClick={() => {
-                          window.dispatchEvent(
-                            new CustomEvent("kando:open-task", {
-                              detail: { taskId: t.id },
-                            }),
-                          );
-                        }}
+                        onClick={() => openTask(t.id)}
                         aria-label={`「${t.content}」を開く`}
                       >
                         {t.content}

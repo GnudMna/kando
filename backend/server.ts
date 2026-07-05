@@ -18,6 +18,7 @@ import subtasksRouter from "./routes/subtasks.js";
 import checklistItemsRouter from "./routes/checklistItems.js";
 import taskCommentsRouter from "./routes/taskComments.js";
 import memosRouter from "./routes/memos.js";
+import openapiRouter from "./routes/openapi.js";
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -54,11 +55,24 @@ if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
 
 app.disable("x-powered-by");
 
-// リバースプロキシ（nginx等）からの X-Forwarded-For を信頼する
+// リバースプロキシ。nginx等からの X-Forwarded-For を信頼する
 app.set("trust proxy", 1);
 
-// セキュリティヘッダーを付与する
-app.use(helmet());
+// セキュリティヘッダーを付与する。Swagger UI 用に unpkg を許可
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "https://unpkg.com"],
+      },
+    },
+  }),
+);
 
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",")
@@ -96,9 +110,9 @@ app.use(
   }),
 );
 
-// リクエストボディをJSONとして解析する（100kB上限でDoSを防ぐ）
+// リクエストボディをJSONとして解析する。100kB上限でDoSを防ぐ
 app.use(express.json({ limit: "100kb" }));
-// Cookie を解析する（HttpOnly JWT Cookie の読み取りに使用）
+// Cookie を解析する。HttpOnly JWT Cookie の読み取りに使用
 app.use(cookieParser());
 // リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
 app.use(requestLogger);
@@ -127,17 +141,20 @@ if (process.env.E2E_TEST !== "true") {
   app.use("/api/auth/status", authLimiter);
 }
 
-// ライブネスチェックエンドポイント（コンテナが応答可能かを確認）
+// OpenAPI 仕様。認証不要
+app.use("/api", openapiRouter);
+
+// ライブネスチェックエンドポイント。コンテナが応答可能かを確認
 app.get("/api/liveness", (_req, res) => {
   res.json({ status: "alive" });
 });
 
-// ヘルスチェックエンドポイント（ロードバランサー・コンテナオーケストレーター向け）
+// ヘルスチェックエンドポイント。ロードバランサー・コンテナオーケストレーター向け
 app.get(
   "/api/health",
   /**
    * API の稼働状態と DB 疎通を確認する。
-   * @param _req - Express リクエスト（使用しない）
+   * @param _req - Express リクエスト。使用しない
    * @param res - ヘルスチェック結果を返すレスポンス
    * @returns 応答完了時に解決される Promise
    */
@@ -153,10 +170,10 @@ app.get(
   },
 );
 
-// 認証ルート（認証ミドルウェアの適用外）
+// 認証ルート。認証ミドルウェアの適用外
 app.use("/api/auth", authRouter);
 
-// 認証ミドルウェアを適用する（全 API ルートで JWT 検証が必要）
+// 認証ミドルウェアを適用する。全 API ルートで JWT 検証が必要
 app.use("/api", authenticate);
 
 // 各リソースのAPIルートを登録する
@@ -169,12 +186,12 @@ app.use("/api/checklist-items", checklistItemsRouter);
 app.use("/api/task-comments", taskCommentsRouter);
 app.use("/api/memos", memosRouter);
 
-// グローバルエラーハンドラーを登録する（最後に配置する必要がある）
+// グローバルエラーハンドラーを登録する。最後に配置する必要がある
 app.use(errorHandler);
 
 const PORT = parsedPort;
 
-// Graceful shutdown 設定（ms）
+// Graceful shutdown 設定。ms
 const SHUTDOWN_TIMEOUT_MS = parseInt(
   (process.env.SHUTDOWN_TIMEOUT_MS as string) ?? "30000",
   10,
@@ -277,7 +294,7 @@ async function startServer(): Promise<void> {
       console.error("Uncaught exception:", err);
       handleSignal("SIGTERM");
     });
-    // uncaughtException と異なり rejection はログのみ（進行中リクエストを優先してプロセスを継続する）
+    // uncaughtException と異なり rejection はログのみ。進行中リクエストを優先してプロセスを継続する
     process.on("unhandledRejection", (reason) => {
       console.error("Unhandled rejection:", reason);
     });

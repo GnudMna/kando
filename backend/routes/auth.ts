@@ -1,9 +1,9 @@
-// 認証ルート: ユーザー登録・ログイン・ステータス確認を提供する
 import { Router } from "express";
 import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import { pool } from "../db.js";
 import { validateBody } from "../middleware/validate.js";
+import { loginBodySchema, registerBodySchema } from "@kando/types/validation";
 import { authenticate } from "../middleware/authenticate.js";
 
 const router = Router();
@@ -12,7 +12,7 @@ const router = Router();
 const AUTH_SECRET = process.env.AUTH_SECRET;
 /** JWT の有効期限 */
 const TOKEN_EXPIRY = "7d";
-/** Cookie の有効期限（ms）*/
+/** Cookie の有効期限(ms)*/
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** bcrypt コスト係数 */
 const BCRYPT_ROUNDS = 12;
@@ -52,7 +52,7 @@ async function signAndSetCookie(
 
 /**
  * GET /api/auth/status
- * ユーザーが1人以上登録されているかを返す（認証不要）。
+ * ユーザーが1人以上登録されているかを返す(認証不要)。
  * フロントエンドが初期セットアップ画面かログイン画面かを判定するために使用する。
  */
 router.get("/status", async (_req, res, next) => {
@@ -70,24 +70,11 @@ router.get("/status", async (_req, res, next) => {
 /**
  * POST /api/auth/register
  * 新規ユーザーを登録し JWT を返す。
- * 既存の未割り当てデータ（user_id IS NULL の行）は登録ユーザーへ移行される。
+ * 既存の未割り当てデータ(user_id IS NULL の行)は登録ユーザーへ移行される。
  */
 router.post(
   "/register",
-  validateBody({
-    username: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 100,
-    },
-    password: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 72, // bcrypt は先頭 72 バイトのみ使用するため上限を合わせる
-    },
-  }),
+  validateBody(registerBodySchema),
   async (req, res, next) => {
     if (!AUTH_SECRET) {
       res.status(503).json({ error: "Authentication not configured" });
@@ -120,7 +107,7 @@ router.post(
           );
           userId = userResult.rows[0].id;
         } catch (err: unknown) {
-          // ユニーク制約違反（重複ユーザー名）
+          // ユニーク制約違反(重複ユーザー名)
           if (
             err != null &&
             typeof err === "object" &&
@@ -136,7 +123,7 @@ router.post(
           throw err;
         }
 
-        // 既存の孤立データを最初の登録ユーザーへ移行する（後方互換性）
+        // 既存の孤立データを最初の登録ユーザーへ移行する(後方互換性)
         await client.query(
           "UPDATE rows SET user_id = $1 WHERE user_id IS NULL",
           [userId],
@@ -166,58 +153,41 @@ router.post(
  * POST /api/auth/login
  * ユーザー名とパスワードを検証し、有効な場合は JWT を返す。
  */
-router.post(
-  "/login",
-  validateBody({
-    username: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 100,
-    },
-    password: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 72, // bcrypt は先頭 72 バイトのみ使用するため上限を合わせる
-    },
-  }),
-  async (req, res, next) => {
-    if (!AUTH_SECRET) {
-      res.status(503).json({ error: "Authentication not configured" });
+router.post("/login", validateBody(loginBodySchema), async (req, res, next) => {
+  if (!AUTH_SECRET) {
+    res.status(503).json({ error: "Authentication not configured" });
+    return;
+  }
+
+  const { username, password } = req.body as {
+    username: string;
+    password: string;
+  };
+
+  try {
+    const result = await pool.query<{
+      id: number;
+      password_hash: string;
+    }>("SELECT id, password_hash FROM users WHERE username = $1", [username]);
+
+    const user = result.rows[0];
+    // ユーザーが存在しない場合もダミーハッシュで比較し、タイミング攻撃を防ぐ
+    const hashToCheck = user?.password_hash ?? DUMMY_HASH;
+    const valid = await bcrypt.compare(password, hashToCheck);
+
+    if (!user || !valid) {
+      res
+        .status(401)
+        .json({ error: "ユーザー名またはパスワードが正しくありません" });
       return;
     }
 
-    const { username, password } = req.body as {
-      username: string;
-      password: string;
-    };
-
-    try {
-      const result = await pool.query<{
-        id: number;
-        password_hash: string;
-      }>("SELECT id, password_hash FROM users WHERE username = $1", [username]);
-
-      const user = result.rows[0];
-      // ユーザーが存在しない場合もダミーハッシュで比較し、タイミング攻撃を防ぐ
-      const hashToCheck = user?.password_hash ?? DUMMY_HASH;
-      const valid = await bcrypt.compare(password, hashToCheck);
-
-      if (!user || !valid) {
-        res
-          .status(401)
-          .json({ error: "ユーザー名またはパスワードが正しくありません" });
-        return;
-      }
-
-      await signAndSetCookie(res, user.id);
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
+    await signAndSetCookie(res, user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * POST /api/auth/logout
@@ -242,5 +212,5 @@ router.get("/verify", authenticate, (_req, res) => {
   res.json({ ok: true });
 });
 
-/** 認証 API（登録・ログイン・ステータス確認）の Express ルーター。 */
+/** 認証 API(登録・ログイン・ステータス確認)の Express ルーター。 */
 export default router;

@@ -8,7 +8,7 @@ import {
   taskMatchesQuery,
 } from "../utils/taskSearch";
 
-// ネスト構造（サブタスク/チェックリスト/コメント）を含む検索対象タスク
+// ネスト構造。サブタスク/チェックリスト/コメントを含む検索対象タスク
 const baseTask: Task = {
   id: 1,
   column_id: 10,

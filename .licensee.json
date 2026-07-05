@@ -1,0 +1,11 @@
+{
+  "licenses": {
+    "blueOak": "bronze"
+  },
+  "corrections": true,
+  "ignore": [
+    {
+      "scope": "kando"
+    }
+  ]
+}

@@ -1,25 +1,20 @@
-// サブタスクに対する CRUD エンドポイントを定義するルーター
 import { Router, Request, Response, NextFunction } from "express";
 import { pool } from "../db.js";
 import type { DbSubtask } from "../types.js";
 import { parseId, validateBody } from "../middleware/validate.js";
+import {
+  createSubtaskBodySchema,
+  updateSubtaskBodySchema,
+} from "@kando/types/validation";
 import { NotFoundError } from "../errors.js";
 
 const router = Router();
 
-// 新しいサブタスクを作成する: POST /api/subtasks
 router.post(
   "/",
-  validateBody({
-    task_id: { type: "number", required: true, integer: true, positive: true },
-    content: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 2000,
-    },
-  }),
+  validateBody(createSubtaskBodySchema),
   /**
+   * POST /api/subtasks
    * サブタスクを作成する。
    * @param req - `task_id` と `content` を含むリクエスト
    * @param res - 作成したサブタスクを返すレスポンス
@@ -55,18 +50,11 @@ router.post(
   },
 );
 
-// サブタスクの内容を更新する: PUT /api/subtasks/:id
 router.put(
   "/:id",
-  validateBody({
-    content: {
-      type: "string",
-      required: true,
-      notEmpty: true,
-      maxLength: 2000,
-    },
-  }),
+  validateBody(updateSubtaskBodySchema),
   /**
+   * PUT /api/subtasks/:id
    * サブタスク内容を更新する。
    * @param req - パスパラメータ `id` と本文 `content` を含むリクエスト
    * @param res - 更新後サブタスクを返すレスポンス
@@ -101,11 +89,11 @@ router.put(
   },
 );
 
-// サブタスクを削除する（配下のチェックリストも CASCADE で削除される）: DELETE /api/subtasks/:id
 router.delete(
   "/:id",
   /**
-   * サブタスクを削除する。
+   * DELETE /api/subtasks/:id
+   * サブタスクを削除する(配下のチェックリストも CASCADE で削除される)。
    * @param req - パスパラメータ `id` を含むリクエスト
    * @param res - 削除結果を返すレスポンス
    * @param next - エラーハンドラへ委譲する関数

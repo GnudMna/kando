@@ -1,6 +1,6 @@
 import type { TempId } from "../types";
 
-// 一時的な新規レコード用 ID のカウンター
+/** 一時的な新規レコード用 ID の連番カウンター。 */
 let _counter = 0;
 
 /**
@@ -13,9 +13,9 @@ export function tempId(): TempId {
 }
 
 /**
- * 値が一時 ID（まだ DB 保存前）かどうかを判定する型ガード。
+ * 値が一時 ID(まだ DB 保存前)かどうかを判定する型ガード。
  * @param id - 検査する ID
- * @returns 一時 ID の場合 true（id は TempId に絞り込まれる）
+ * @returns 一時 ID の場合 true(id は TempId に絞り込まれる)
  */
 export function isTemp(id: number | TempId): id is TempId {
   return typeof id === "string";

@@ -1,5 +1,3 @@
-// アプリケーションのルートコンポーネント
-// ヘッダーとメインコンテンツ（かんばんボード）を配置する
 import { useEffect, useState } from "react";
 import { Moon, Sun, NotebookPen } from "lucide-react";
 import { KanbanBoard } from "./components/KanbanBoard";
@@ -7,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen } from "./components/LoginScreen";
 import { MemoPanel } from "./components/MemoPanel";
 import { useAuth } from "./hooks/useAuth";
+import { useAppNavigation } from "./providers/useAppNavigation";
 
 type ThemeMode = "dark" | "light";
 
@@ -25,18 +24,7 @@ function App() {
     return stored === "light" || stored === "dark" ? stored : "dark";
   });
 
-  const [memoOpen, setMemoOpen] = useState(false);
-  const [selectedMemoId, setSelectedMemoId] = useState<number | null>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const memoId = (e as CustomEvent<{ memoId: number }>).detail.memoId;
-      setSelectedMemoId(memoId);
-      setMemoOpen(true);
-    };
-    window.addEventListener("kando:open-memo", handler);
-    return () => window.removeEventListener("kando:open-memo", handler);
-  }, []);
+  const { memoOpen, setMemoOpen, closeMemo } = useAppNavigation();
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -45,12 +33,12 @@ function App() {
 
   const isDarkMode = themeMode === "dark";
 
-  // 認証確認中はスピナーなしで待機（チラつき防止）
+  // 認証確認中はスピナーなしで待機(チラつき防止)
   if (status === "checking") {
     return null;
   }
 
-  // ユーザー未登録の場合は登録画面を表示（初回セットアップ）
+  // ユーザー未登録の場合は登録画面を表示(初回セットアップ)
   if (status === "unregistered") {
     return (
       <LoginScreen
@@ -133,13 +121,7 @@ function App() {
         </ErrorBoundary>
       </main>
       {memoOpen && status === "authenticated" && (
-        <MemoPanel
-          onClose={() => {
-            setMemoOpen(false);
-            setSelectedMemoId(null);
-          }}
-          initialMemoId={selectedMemoId ?? undefined}
-        />
+        <MemoPanel onClose={closeMemo} />
       )}
     </div>
   );

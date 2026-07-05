@@ -5,6 +5,7 @@ import { TaskCard } from "../components/TaskCard";
 import * as api from "../api/boardApi";
 import {
   baseTask,
+  createQueryWrapper,
   createTaskCardProps,
   taskWithChecklists,
   taskWithSubtasks,
@@ -17,7 +18,7 @@ describe("TaskCard", () => {
     overrides?: Partial<ReturnType<typeof createTaskCardProps>>,
   ) => {
     const props = createTaskCardProps(overrides);
-    render(<TaskCard {...props} />);
+    render(<TaskCard {...props} />, { wrapper: createQueryWrapper() });
     return props;
   };
 
