@@ -9,14 +9,21 @@ import {
   optionalNonEmptyString,
   optionalPositiveNumberField,
   optionalString,
+  passwordField,
   positiveNumberField,
   requiredString,
 } from "./fields.js";
+import {
+  detailQueryField,
+  optionalNonNegativeIntQueryField,
+  optionalPositiveIntQueryField,
+  searchQueryField,
+} from "./queryFields.js";
 
 /** 認証: ユーザー登録リクエストボディ */
 export const registerBodySchema = z.object({
   username: requiredString("username", 100),
-  password: requiredString("password", 72),
+  password: passwordField("password"),
 });
 
 /** 認証: ログインリクエストボディ */
@@ -262,6 +269,21 @@ export const taskSnapshotBodySchema = z
     }
   });
 
+/** ボード取得 API のクエリパラメータ上限 */
+export const MAX_BOARD_LIMIT = 100;
+
+/** ボード検索クエリの最大文字数 */
+export const MAX_SEARCH_QUERY_LENGTH = 200;
+
+/** ボード取得 API のクエリパラメータ */
+export const boardQuerySchema = z.object({
+  row_id: optionalPositiveIntQueryField("row_id"),
+  limit: optionalPositiveIntQueryField("limit", { max: MAX_BOARD_LIMIT }),
+  offset: optionalNonNegativeIntQueryField("offset"),
+  detail: detailQueryField(),
+  q: searchQueryField("q", MAX_SEARCH_QUERY_LENGTH),
+});
+
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 export type LoginBody = z.infer<typeof loginBodySchema>;
 export type CreateRowBody = z.infer<typeof createRowBodySchema>;
@@ -286,6 +308,7 @@ export type CreateMemoBody = z.infer<typeof createMemoBodySchema>;
 export type UpdateMemoBody = z.infer<typeof updateMemoBodySchema>;
 export type LinkMemoTaskBody = z.infer<typeof linkMemoTaskBodySchema>;
 export type TaskSnapshotBody = z.infer<typeof taskSnapshotBodySchema>;
+export type BoardQuery = z.infer<typeof boardQuerySchema>;
 
 /** validate.test.ts 用の汎用スキーマ */
 export const validateTestBodySchema = z.object({

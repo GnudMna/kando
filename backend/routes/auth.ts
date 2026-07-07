@@ -86,13 +86,6 @@ router.post(
       password: string;
     };
 
-    if (password.length < 12) {
-      res
-        .status(400)
-        .json({ error: "パスワードは12文字以上で入力してください" });
-      return;
-    }
-
     try {
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
       const client = await pool.connect();
