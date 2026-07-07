@@ -13,8 +13,8 @@ COPY frontend/package.json ./frontend/
 COPY packages/types ./packages/types
 RUN npm ci --workspace frontend
 COPY frontend ./frontend
-# Vite で本番用静的ファイルを /app/dist に出力する
-RUN npm --workspace frontend run build
+# @kando/types の dist は .dockerignore で除外されるため、Vite ビルド前に生成する
+RUN npm --workspace @kando/types run build && npm --workspace frontend run build
 
 # ---- ステージ2: 配信 ----
 # ビルド成果物のみを軽量な nginx イメージにコピーして静的ファイルを配信する
