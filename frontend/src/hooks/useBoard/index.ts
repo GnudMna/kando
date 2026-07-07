@@ -17,7 +17,6 @@ export function useBoard() {
     rowsRef: fetch.rowsRef,
     boardIndexesRef: fetch.boardIndexesRef,
     setRows: fetch.setRows,
-    setOperationError: fetch.setOperationError,
   };
 
   const rowActions = useRowActions(ctx);

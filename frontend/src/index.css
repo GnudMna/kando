@@ -344,6 +344,14 @@ body::after {
   padding: 1.4rem clamp(1rem, 4vw, 3.75rem) 0;
 }
 
+.app-error-banner-wrap {
+  padding: 0.75rem clamp(1rem, 4vw, 3.75rem) 0;
+}
+
+.app-error-banner-wrap .board-error {
+  margin-bottom: 0;
+}
+
 .btn {
   border: 1px solid var(--border-color);
   border-radius: 999px;

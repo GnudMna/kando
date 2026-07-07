@@ -26,6 +26,7 @@ import {
   normalizeDueSoonDays,
 } from "../components/kanban/constants";
 import { useAppNavigation } from "../providers/useAppNavigation";
+import { useOperationError } from "../providers/useOperationError";
 
 type BoardApi = ReturnType<typeof useBoard>;
 
@@ -71,6 +72,7 @@ export function useKanbanBoardState(board: BoardApi) {
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const rowsRef = useRef(rows);
   const { registerOpenTaskHandler } = useAppNavigation();
+  const { reportError } = useOperationError();
 
   useEffect(() => {
     rowsRef.current = rows;
@@ -230,13 +232,13 @@ export function useKanbanBoardState(board: BoardApi) {
           setEditingTask({ task: full, colId, isNew: false });
           return;
         } catch (err) {
-          console.error("Failed to load task details:", err);
+          reportError("タスク詳細の読み込みに失敗しました", err);
           return;
         }
       }
       setEditingTask({ task, colId, isNew: false });
     },
-    [updateTask],
+    [updateTask, reportError],
   );
 
   useEffect(() => {

@@ -1,5 +1,6 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   createTaskCommentBodySchema,
   updateTaskCommentBodySchema,
@@ -19,18 +20,14 @@ router.post(
    * POST /api/task-comments
    * タスクコメントを作成する。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const { task_id, content } = req.body as {
       task_id: number;
       content: string;
     };
-    try {
-      const comment = await createTaskComment(task_id, content, req.userId!);
-      res.json(comment);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const comment = await createTaskComment(task_id, content, req.userId!);
+    res.json(comment);
+  }),
 );
 
 router.put(
@@ -40,7 +37,7 @@ router.put(
    * PUT /api/task-comments/:id
    * タスクコメントを更新する。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
@@ -69,13 +66,9 @@ router.put(
       return;
     }
 
-    try {
-      const comment = await updateTaskComment(id, patch, req.userId!);
-      res.json(comment);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const comment = await updateTaskComment(id, patch, req.userId!);
+    res.json(comment);
+  }),
 );
 
 router.delete(
@@ -84,19 +77,15 @@ router.delete(
    * DELETE /api/task-comments/:id
    * タスクコメントを削除する。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
-    try {
-      await deleteTaskComment(id, req.userId!);
-      res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
-  },
+    await deleteTaskComment(id, req.userId!);
+    res.json({ success: true });
+  }),
 );
 
 /** タスクコメント CRUD API の Express ルーター。 */

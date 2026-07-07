@@ -4,6 +4,8 @@ import type { SetStateAction } from "react";
 import type { Row } from "../../types";
 import { fetchBoard } from "../../api/board";
 import { queryKeys } from "../../api/queryKeys";
+import { useOperationError } from "../../providers/useOperationError";
+import { createMutationErrorHandler } from "../../utils/operationError";
 import {
   appendBoardRows,
   updateBoardRows,
@@ -27,7 +29,11 @@ async function fetchInitialBoard(): Promise<BoardCache> {
  */
 export function useBoardFetch() {
   const queryClient = useQueryClient();
-  const [operationError, setOperationError] = useState<string | null>(null);
+  const {
+    error,
+    reportError,
+    clearError: clearContextError,
+  } = useOperationError();
   const [dismissedFailureCount, setDismissedFailureCount] = useState(0);
   const rowsRef = useRef<Row[]>([]);
   const boardIndexesRef = useRef<BoardIndexes>({
@@ -54,11 +60,11 @@ export function useBoardFetch() {
   }, [data?.rows]);
 
   const clearError = useCallback(() => {
-    setOperationError(null);
+    clearContextError();
     if (isError) {
       setDismissedFailureCount(failureCount);
     }
-  }, [isError, failureCount]);
+  }, [clearContextError, isError, failureCount]);
 
   const setRows = useCallback(
     (action: SetStateAction<Row[]>) => {
@@ -92,10 +98,10 @@ export function useBoardFetch() {
         );
       }
     },
-    onError: (err) => {
-      console.error("Failed to load more rows:", err);
-      setOperationError("追加データの読み込みに失敗しました");
-    },
+    onError: createMutationErrorHandler(
+      reportError,
+      "追加データの読み込みに失敗しました",
+    ),
   });
 
   const loadMoreRows = useCallback(async () => {
@@ -113,9 +119,9 @@ export function useBoardFetch() {
     isLoading,
     isLoadingMore: loadMoreMutation.isPending,
     hasMore,
-    operationError: operationError ?? fetchErrorMessage,
+    operationError: error ?? fetchErrorMessage,
     clearError,
-    setOperationError,
+    reportError,
     loadMoreRows,
     rowsRef,
     boardIndexesRef,

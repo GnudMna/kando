@@ -13,6 +13,7 @@ import {
 import type { Task } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";
 import * as api from "../api/boardApi";
+import { useOperationError } from "../providers/useOperationError";
 import {
   formatDueDate,
   getDueStatusLabel,
@@ -59,6 +60,7 @@ export const TaskCard = memo(function TaskCard({
   onTaskUpdated,
   onEditTask,
 }: Props) {
+  const { reportError } = useOperationError();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const handleTaskLoaded = useCallback(
     (loaded: Task) => {
@@ -89,7 +91,7 @@ export const TaskCard = memo(function TaskCard({
       await api.updateTask(task.id, { completed: !task.completed });
       onTaskUpdated({ ...task, completed: !task.completed });
     } catch (err) {
-      console.error(err);
+      reportError("タスクの完了状態の更新に失敗しました", err);
     }
   };
 
@@ -137,7 +139,7 @@ export const TaskCard = memo(function TaskCard({
         });
       }
     } catch (err) {
-      console.error(err);
+      reportError("チェックリストの更新に失敗しました", err);
     }
   };
 

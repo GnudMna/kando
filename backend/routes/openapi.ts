@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Router } from "express";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
 
@@ -32,13 +33,12 @@ function loadOpenApiSpec(): Record<string, unknown> {
  * GET /api/openapi.json
  * OpenAPI 3.1 仕様を JSON で返す。
  */
-router.get("/openapi.json", (_req, res, next) => {
-  try {
+router.get(
+  "/openapi.json",
+  asyncHandler((_req, res) => {
     res.json(loadOpenApiSpec());
-  } catch (err) {
-    next(err);
-  }
-});
+  }),
+);
 
 /**
  * GET /api/docs
