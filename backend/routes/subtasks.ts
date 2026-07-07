@@ -1,12 +1,15 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { pool } from "../db.js";
-import type { DbSubtask } from "../types.js";
+import { Router } from "express";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   createSubtaskBodySchema,
   updateSubtaskBodySchema,
 } from "@kando/types/validation";
-import { NotFoundError } from "../errors.js";
+import {
+  createSubtask,
+  updateSubtask,
+  deleteSubtask,
+} from "../services/subtasksService.js";
 
 const router = Router();
 
@@ -16,38 +19,15 @@ router.post(
   /**
    * POST /api/subtasks
    * サブタスクを作成する。
-   * @param req - `task_id` と `content` を含むリクエスト
-   * @param res - 作成したサブタスクを返すレスポンス
-   * @param next - エラーハンドラへ委譲する関数
-   * @returns 作成処理完了時に解決される Promise
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const { task_id, content } = req.body as {
       task_id: number;
       content: string;
     };
-    try {
-      // 親タスクの所有権を確認する
-      const taskCheck = await pool.query<{ id: number }>(
-        `SELECT t.id FROM tasks t
-         JOIN columns c ON c.id = t.column_id
-         JOIN rows r ON r.id = c.row_id
-         WHERE t.id = $1 AND r.user_id = $2`,
-        [task_id, req.userId!],
-      );
-      if (!taskCheck.rows[0]) {
-        throw new NotFoundError("Task not found");
-      }
-      const result = await pool.query<DbSubtask>(
-        "INSERT INTO subtasks (task_id, content) VALUES ($1, $2) RETURNING *",
-        [task_id, content],
-      );
-      // 新規作成時はチェックリストが空の状態で返す
-      res.json({ ...result.rows[0], checklists: [] });
-    } catch (err) {
-      next(err);
-    }
-  },
+    const subtask = await createSubtask(task_id, content, req.userId!);
+    res.json(subtask);
+  }),
 );
 
 router.put(
@@ -56,37 +36,17 @@ router.put(
   /**
    * PUT /api/subtasks/:id
    * サブタスク内容を更新する。
-   * @param req - パスパラメータ `id` と本文 `content` を含むリクエスト
-   * @param res - 更新後サブタスクを返すレスポンス
-   * @param next - エラーハンドラへ委譲する関数
-   * @returns 更新処理完了時に解決される Promise
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
     const { content } = req.body as { content: string };
-    try {
-      const result = await pool.query<DbSubtask>(
-        `UPDATE subtasks SET content = $1
-         WHERE id = $2 AND task_id IN (
-           SELECT t.id FROM tasks t
-           JOIN columns c ON c.id = t.column_id
-           JOIN rows r ON r.id = c.row_id
-           WHERE r.user_id = $3
-         ) RETURNING *`,
-        [content, id, req.userId!],
-      );
-      if (!result.rows[0]) {
-        throw new NotFoundError("Subtask not found");
-      }
-      res.json(result.rows[0]);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const subtask = await updateSubtask(id, content, req.userId!);
+    res.json(subtask);
+  }),
 );
 
 router.delete(
@@ -94,35 +54,16 @@ router.delete(
   /**
    * DELETE /api/subtasks/:id
    * サブタスクを削除する(配下のチェックリストも CASCADE で削除される)。
-   * @param req - パスパラメータ `id` を含むリクエスト
-   * @param res - 削除結果を返すレスポンス
-   * @param next - エラーハンドラへ委譲する関数
-   * @returns 削除処理完了時に解決される Promise
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
-    try {
-      const result = await pool.query(
-        `DELETE FROM subtasks WHERE id = $1 AND task_id IN (
-           SELECT t.id FROM tasks t
-           JOIN columns c ON c.id = t.column_id
-           JOIN rows r ON r.id = c.row_id
-           WHERE r.user_id = $2
-         )`,
-        [id, req.userId!],
-      );
-      if ((result.rowCount ?? 0) === 0) {
-        throw new NotFoundError("Subtask not found");
-      }
-      res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
-  },
+    await deleteSubtask(id, req.userId!);
+    res.json({ success: true });
+  }),
 );
 
 /** サブタスク CRUD API の Express ルーター。 */

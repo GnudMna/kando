@@ -3,6 +3,7 @@ import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import { pool } from "../db.js";
 import { validateBody } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginBodySchema, registerBodySchema } from "@kando/types/validation";
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -55,17 +56,16 @@ async function signAndSetCookie(
  * ユーザーが1人以上登録されているかを返す(認証不要)。
  * フロントエンドが初期セットアップ画面かログイン画面かを判定するために使用する。
  */
-router.get("/status", async (_req, res, next) => {
-  try {
+router.get(
+  "/status",
+  asyncHandler(async (_req, res) => {
     const result = await pool.query<{ count: string }>(
       "SELECT COUNT(*) FROM users",
     );
     const hasUsers = parseInt(result.rows[0].count, 10) > 0;
     res.json({ hasUsers });
-  } catch (err) {
-    next(err);
-  }
-});
+  }),
+);
 
 /**
  * POST /api/auth/register
@@ -75,7 +75,7 @@ router.get("/status", async (_req, res, next) => {
 router.post(
   "/register",
   validateBody(registerBodySchema),
-  async (req, res, next) => {
+  asyncHandler(async (req, res) => {
     if (!AUTH_SECRET) {
       res.status(503).json({ error: "Authentication not configured" });
       return;
@@ -86,85 +86,75 @@ router.post(
       password: string;
     };
 
-    if (password.length < 12) {
-      res
-        .status(400)
-        .json({ error: "パスワードは12文字以上で入力してください" });
-      return;
-    }
-
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const client = await pool.connect();
     try {
-      const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-      const client = await pool.connect();
+      await client.query("BEGIN");
+
+      let userId: number;
       try {
-        await client.query("BEGIN");
-
-        let userId: number;
-        try {
-          const userResult = await client.query<{ id: number }>(
-            "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id",
-            [username, passwordHash],
-          );
-          userId = userResult.rows[0].id;
-        } catch (err: unknown) {
-          // ユニーク制約違反(重複ユーザー名)
-          if (
-            err != null &&
-            typeof err === "object" &&
-            "code" in err &&
-            (err as { code: unknown }).code === "23505"
-          ) {
-            await client.query("ROLLBACK");
-            res
-              .status(409)
-              .json({ error: "このユーザー名は既に使用されています" });
-            return;
-          }
-          throw err;
-        }
-
-        // 既存の孤立データを最初の登録ユーザーへ移行する(後方互換性)
-        await client.query(
-          "UPDATE rows SET user_id = $1 WHERE user_id IS NULL",
-          [userId],
+        const userResult = await client.query<{ id: number }>(
+          "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id",
+          [username, passwordHash],
         );
-
-        await client.query("COMMIT");
-
-        await signAndSetCookie(res, userId);
-        res.status(201).json({ ok: true });
-      } catch (err) {
-        try {
+        userId = userResult.rows[0].id;
+      } catch (err: unknown) {
+        // ユニーク制約違反(重複ユーザー名)
+        if (
+          err != null &&
+          typeof err === "object" &&
+          "code" in err &&
+          (err as { code: unknown }).code === "23505"
+        ) {
           await client.query("ROLLBACK");
-        } catch (rollbackErr) {
-          console.error("Rollback failed:", rollbackErr);
+          res
+            .status(409)
+            .json({ error: "このユーザー名は既に使用されています" });
+          return;
         }
         throw err;
-      } finally {
-        client.release();
       }
+
+      // 既存の孤立データを最初の登録ユーザーへ移行する(後方互換性)
+      await client.query("UPDATE rows SET user_id = $1 WHERE user_id IS NULL", [
+        userId,
+      ]);
+
+      await client.query("COMMIT");
+
+      await signAndSetCookie(res, userId);
+      res.status(201).json({ ok: true });
     } catch (err) {
-      next(err);
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("Rollback failed:", rollbackErr);
+      }
+      throw err;
+    } finally {
+      client.release();
     }
-  },
+  }),
 );
 
 /**
  * POST /api/auth/login
  * ユーザー名とパスワードを検証し、有効な場合は JWT を返す。
  */
-router.post("/login", validateBody(loginBodySchema), async (req, res, next) => {
-  if (!AUTH_SECRET) {
-    res.status(503).json({ error: "Authentication not configured" });
-    return;
-  }
+router.post(
+  "/login",
+  validateBody(loginBodySchema),
+  asyncHandler(async (req, res) => {
+    if (!AUTH_SECRET) {
+      res.status(503).json({ error: "Authentication not configured" });
+      return;
+    }
 
-  const { username, password } = req.body as {
-    username: string;
-    password: string;
-  };
+    const { username, password } = req.body as {
+      username: string;
+      password: string;
+    };
 
-  try {
     const result = await pool.query<{
       id: number;
       password_hash: string;
@@ -184,10 +174,8 @@ router.post("/login", validateBody(loginBodySchema), async (req, res, next) => {
 
     await signAndSetCookie(res, user.id);
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
+  }),
+);
 
 /**
  * POST /api/auth/logout

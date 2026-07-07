@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterBoardToNonEmptyTasks } from "../routes/board.js";
+import { filterBoardToNonEmptyTasks } from "../services/boardService.js";
 import type { Row } from "../types.js";
 
 describe("filterBoardToNonEmptyTasks", () => {

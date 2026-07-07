@@ -6,6 +6,37 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-07
+
+### Added
+
+- バックエンドの `asyncHandler` ミドルウェア（非同期ルートハンドラのエラー委譲を共通化）
+- `validateQuery` ミドルウェア（クエリパラメータの Zod 検証）
+- 全ドメイン向け `services/` / `repositories/` 層（board, memos, subtasks, checklistItems, taskComments 等）
+- `@kando/types/validation` のクエリ用フィールド（`queryFields.ts`）と `boardQuerySchema`
+- パスワード最小長（12 文字）用の `passwordField` Zod ヘルパー
+- フロントの `OperationErrorProvider` と共通 `ErrorBanner`（操作エラー表示の統一）
+
+### Changed
+
+- バックエンドのレイヤー分離を全ルートで `routes → services → repositories` に統一
+- バリデーションルール（パスワード最小長、ボード取得クエリ等）を `@kando/types` の Zod スキーマへ集約
+- 全 API ルートを `asyncHandler` 化し、手動 `try/catch` を削減
+- ログイン/登録画面で送信前に Zod によるクライアント側バリデーションを実行
+- ボード・タスク編集・遅延読み込み等の操作エラーをアプリ共通バナーで表示
+- OpenAPI 仕様にボード取得クエリとパスワード制約を反映
+
+### Fixed
+
+- v0.4.0 へのアップグレード後、サマリー状態のタスクをスナップショット保存するとチェックリストが消える問題を修正
+- レガシー DB 向け `repairLegacyData()` を fake ベースライン時にも実行するよう変更
+- ボード取得時の `checklist_count` 集計を見直し
+
+### Test
+
+- `asyncHandler` / `validateQuery` のユニットテストを追加
+- `OperationErrorProvider` とタスク編集フォーム（詳細読み込み待ち）のテストを追加
+
 ## [0.4.0] - 2026-07-05
 
 ### Added
@@ -277,7 +308,8 @@
 
 - テストパターンを追加
 
-[Unreleased]: https://github.com/GnudMna/kando/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/GnudMna/kando/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/GnudMna/kando/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/GnudMna/kando/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/GnudMna/kando/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/GnudMna/kando/compare/v0.2.0...v0.3.0

@@ -12,8 +12,24 @@ API のリクエスト/レスポンス型とバリデーションスキーマは
 - タスクのコピー（`POST /api/tasks/:id/copy`）
 - メモの CRUD とタスクとのリンク（`/api/memos`）
 - タスク編集内容の一括保存（`PUT /api/tasks/:id/snapshot`）
-- Zod によるリクエストバリデーション（`@kando/types/validation`）
+- Zod によるリクエストバリデーション（`@kando/types/validation`、ボディ + クエリ）
 - マイグレーションによるスキーマ更新と初期データ投入
+
+## アーキテクチャ
+
+HTTP ルートは **routes → services → repositories** の 3 層構成です。ルートハンドラは薄く保ち、ビジネスロジックは `services/`、SQL は `repositories/` に集約します。
+
+| 層              | 役割                                           | 例                                         |
+| --------------- | ---------------------------------------------- | ------------------------------------------ |
+| `routes/`       | HTTP 入出力、ミドルウェア適用                  | `board.ts`, `tasks.ts`                     |
+| `services/`     | 所有権チェック、階層組み立て、トランザクション | `boardService.ts`, `tasksService.ts`       |
+| `repositories/` | SQL 実行、行の取得・更新                       | `boardRepository.ts`, `tasksRepository.ts` |
+
+横断的な処理:
+
+- **`asyncHandler`**: 非同期ルートの例外を `errorHandler` へ委譲
+- **`validateBody` / `validateQuery`**: Zod スキーマによる入力検証（スキーマは `@kando/types/validation`）
+- **`authenticate`**: JWT 検証と `req.userId` の設定
 
 ## 必要環境
 
@@ -29,13 +45,13 @@ npm install
 
 ## 環境変数
 
-| 変数名         | 必須     | 説明                                                                          | 既定値                 |
-| -------------- | -------- | ----------------------------------------------------------------------------- | ---------------------- |
-| `DATABASE_URL` | はい     | PostgreSQL 接続文字列                                                         | なし                   |
-| `AUTH_SECRET`  | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須）                        | なし                   |
-| `PORT`         | いいえ   | API 待ち受けポート                                                            | `3001`                 |
-| `NODE_ENV`     | いいえ   | 実行環境 (`production` で挙動変更)                                            | `development`          |
-| `CORS_ORIGIN`  | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可） | `*`（production 以外） |
+| 変数名         | 必須     | 説明                                                                          | 既定値                                     |
+| -------------- | -------- | ----------------------------------------------------------------------------- | ------------------------------------------ |
+| `DATABASE_URL` | はい     | PostgreSQL 接続文字列                                                         | なし                                       |
+| `AUTH_SECRET`  | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須）                        | なし                                       |
+| `PORT`         | いいえ   | API 待ち受けポート                                                            | `3001`                                     |
+| `NODE_ENV`     | いいえ   | 実行環境 (`production` で挙動変更)                                            | `development`                              |
+| `CORS_ORIGIN`  | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可） | `http://localhost:5173`（production 以外） |
 
 `.env` 例（ルートの `.env.example` を参照）:
 
@@ -94,6 +110,7 @@ npm run migrate:down
 
 旧 `migrate.ts`（単一スクリプト方式）で構築済みの DB は、起動時に自動検出されます。
 `users` テーブルが存在し `pgmigrations` に記録がない場合、既存マイグレーションを fake モードで履歴登録のみ行い、スキーマ変更は実行しません。
+その後 `repairLegacyData()` により、コメント・チェックリストの `position` 修復と XOR 制約の検証を行います。
 
 ### 新規マイグレーションの追加手順
 
@@ -113,7 +130,7 @@ Zod バリデーションスキーマ（`@kando/types/validation`）からビル
 | HTML | `GET /api/docs`         | Swagger UI による対話的ドキュメント |
 
 - 仕様のソース: [`packages/types/src/openapi/`](../packages/types/src/openapi/)（生成手順は [packages/types/README.md](../packages/types/README.md) 参照）
-- リクエストボディは既存の Zod スキーマと同期（単一の真実の源）
+- リクエストボディ・クエリパラメータは Zod スキーマと同期（単一の真実の源）
 - 認証方式: HttpOnly Cookie（`token`）を優先、`Authorization: Bearer <JWT>` にフォールバック
 
 Docker Compose 起動時:
@@ -150,7 +167,7 @@ Docker Compose 起動時:
 | -------- | ------------ | ---------------------- |
 | `GET`    | `/api/board` | 行単位で階層構造を返却 |
 
-クエリパラメータ（任意）:
+クエリパラメータ（任意、`boardQuerySchema` で検証）:
 
 - `row_id`: 正の整数
 - `limit`: `1` 〜 `100`（フロントエンドは 20 行ずつページング）
@@ -158,6 +175,7 @@ Docker Compose 起動時:
 - `detail`: `summary`（既定）または `full`
   - `summary`: 子要素は件数のみ返し、表示時に `GET /api/tasks/:id` で遅延読み込み
   - `full`: サブタスク・チェックリスト・コメントをすべて含めて返却
+- `q`: 検索文字列（最大 200 文字）。タスク本文・サブタスク・チェックリスト・コメントを横断検索し、一致タスクのみを返却
 
 ### rows
 
@@ -179,15 +197,15 @@ Docker Compose 起動時:
 
 ### tasks
 
-| メソッド | パス                      | 説明                         |
-| -------- | ------------------------- | ---------------------------- |
-| `GET`    | `/api/tasks/:id`          | タスク詳細を取得             |
-| `POST`   | `/api/tasks`              | タスク作成                   |
+| メソッド | パス                      | 説明                                 |
+| -------- | ------------------------- | ------------------------------------ |
+| `GET`    | `/api/tasks/:id`          | タスク詳細を取得                     |
+| `POST`   | `/api/tasks`              | タスク作成                           |
 | `PUT`    | `/api/tasks/:id`          | タスク本文・期限・完了状態を部分更新 |
-| `PUT`    | `/api/tasks/:id/snapshot` | タスク詳細を一括保存         |
-| `PUT`    | `/api/tasks/:id/move`     | 所属カラム・並び順更新       |
-| `POST`   | `/api/tasks/:id/copy`     | タスクを複製（配下データ含む） |
-| `DELETE` | `/api/tasks/:id`          | タスク削除（配下は CASCADE） |
+| `PUT`    | `/api/tasks/:id/snapshot` | タスク詳細を一括保存                 |
+| `PUT`    | `/api/tasks/:id/move`     | 所属カラム・並び順更新               |
+| `POST`   | `/api/tasks/:id/copy`     | タスクを複製（配下データ含む）       |
+| `DELETE` | `/api/tasks/:id`          | タスク削除（配下は CASCADE）         |
 
 補足:
 
@@ -224,19 +242,21 @@ Docker Compose 起動時:
 
 ### memos
 
-| メソッド | パス                              | 説明                           |
-| -------- | --------------------------------- | ------------------------------ |
-| `GET`    | `/api/memos`                      | メモ一覧（紐付くタスクを含む） |
-| `POST`   | `/api/memos`                      | メモ作成                       |
-| `PUT`    | `/api/memos/:id`                  | メモタイトル・本文更新         |
-| `DELETE` | `/api/memos/:id`                  | メモ削除                       |
-| `POST`   | `/api/memos/:id/tasks`            | タスクをメモにリンク           |
-| `DELETE` | `/api/memos/:id/tasks/:taskId`    | タスクとメモのリンク解除       |
+| メソッド | パス                           | 説明                           |
+| -------- | ------------------------------ | ------------------------------ |
+| `GET`    | `/api/memos`                   | メモ一覧（紐付くタスクを含む） |
+| `POST`   | `/api/memos`                   | メモ作成                       |
+| `PUT`    | `/api/memos/:id`               | メモタイトル・本文更新         |
+| `DELETE` | `/api/memos/:id`               | メモ削除                       |
+| `POST`   | `/api/memos/:id/tasks`         | タスクをメモにリンク           |
+| `DELETE` | `/api/memos/:id/tasks/:taskId` | タスクとメモのリンク解除       |
 
 ## タスクスナップショット保存 API
 
 `PUT /api/tasks/:id/snapshot` は、編集モーダル全体を 1 回で保存するための API です。
 タスク本体、サブタスク、チェックリスト、コメントを単一トランザクションで同期します。
+
+フロントエンドは `detail=summary` で取得したタスクを編集する際、保存前に `GET /api/tasks/:id` で詳細を読み込みます。詳細未取得のまま保存すると、チェックリスト等が意図せず削除されるため、クライアント側でも読み込み完了を待ってからリクエストします。
 
 リクエスト例:
 
@@ -258,24 +278,24 @@ Docker Compose 起動時:
 
 ## npm scripts
 
-| コマンド                 | 説明                                      |
-| ------------------------ | ----------------------------------------- |
-| `npm run migrate:dev`    | マイグレーションを TypeScript で実行      |
-| `npm run migrate`        | ビルド済みマイグレーションを実行          |
-| `npm run migrate:create` | 新しい SQL マイグレーションファイルを作成 |
-| `npm run migrate:down`   | 直前のマイグレーションをロールバック      |
-| `npm run dev`            | 開発サーバー起動（`tsx watch server.ts`） |
-| `npm run build`          | TypeScript ビルド + OpenAPI JSON 生成 (`dist/` 生成) |
+| コマンド                   | 説明                                                 |
+| -------------------------- | ---------------------------------------------------- |
+| `npm run migrate:dev`      | マイグレーションを TypeScript で実行                 |
+| `npm run migrate`          | ビルド済みマイグレーションを実行                     |
+| `npm run migrate:create`   | 新しい SQL マイグレーションファイルを作成            |
+| `npm run migrate:down`     | 直前のマイグレーションをロールバック                 |
+| `npm run dev`              | 開発サーバー起動（`tsx watch server.ts`）            |
+| `npm run build`            | TypeScript ビルド + OpenAPI JSON 生成 (`dist/` 生成) |
 | `npm run openapi:generate` | `backend/openapi/openapi.json` を再生成              |
-| `npm run start`          | 本番サーバー起動 (`dist/server.js`)       |
-| `npm run lint`           | ESLint 実行                               |
-| `npm run lint:fix`       | ESLint 自動修正                           |
-| `npm run format`         | Prettier 整形                             |
-| `npm run typecheck`      | TypeScript 型チェック                     |
-| `npm run test`           | テスト実行                                |
-| `npm run test:router`    | ルーターテスト実行（DB モック）           |
-| `npm run test:coverage`  | カバレッジ付きテスト実行                  |
-| `npm run test:watch`     | Vitest watch                              |
+| `npm run start`            | 本番サーバー起動 (`dist/server.js`)                  |
+| `npm run lint`             | ESLint 実行                                          |
+| `npm run lint:fix`         | ESLint 自動修正                                      |
+| `npm run format`           | Prettier 整形                                        |
+| `npm run typecheck`        | TypeScript 型チェック                                |
+| `npm run test`             | テスト実行                                           |
+| `npm run test:router`      | ルーターテスト実行（DB モック）                      |
+| `npm run test:coverage`    | カバレッジ付きテスト実行                             |
+| `npm run test:watch`       | Vitest watch                                         |
 
 ## テスト
 
@@ -299,18 +319,27 @@ npm run test:coverage
 
 ```text
 backend/
-├── middleware/   # エラーハンドリング / 認証 / ロギング / バリデーション
+├── middleware/   # asyncHandler, authenticate, validateBody/validateQuery, errorHandler
 ├── migrations/   # バージョン管理された SQL マイグレーション
 ├── openapi/      # ビルド時生成の OpenAPI JSON（`openapi:generate`）
 ├── repositories/ # DB アクセス層
-├── routes/       # API ルーティング
+│   ├── boardRepository.ts
+│   ├── rowsRepository.ts, columnsRepository.ts, tasksRepository.ts
+│   ├── memosRepository.ts, subtasksRepository.ts
+│   ├── checklistItemsRepository.ts, taskCommentsRepository.ts
+│   └── ownershipRepository.ts
+├── routes/       # HTTP ルーティング（薄いハンドラ）
 ├── scripts/      # OpenAPI 生成スクリプト等
 ├── services/     # ビジネスロジック
-├── tests/        # Vitest テスト
+│   ├── boardService.ts
+│   ├── rowsService.ts, columnsService.ts, tasksService.ts
+│   ├── memosService.ts, subtasksService.ts
+│   └── checklistItemsService.ts, taskCommentsService.ts
+├── tests/        # Vitest テスト（services / middleware / router）
 ├── db.ts         # DB 接続と接続待機
 ├── migrate.ts    # マイグレーション実行エントリーポイント
 ├── server.ts     # Express エントリーポイント
-└── types.ts      # 型定義
+└── types.ts      # @kando/types の再エクスポート
 ```
 
 ## 関連ドキュメント

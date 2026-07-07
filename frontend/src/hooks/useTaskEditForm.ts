@@ -8,9 +8,11 @@ import type {
 } from "../types";
 import type { Memo } from "../api/boardApi";
 import * as api from "../api/boardApi";
+import { fetchTask } from "../api/tasks";
 import { normalizeDueDateValue } from "../utils/dueDate";
 import { POSITION_GAP } from "../utils/constants";
 import { tempId, isTemp } from "../utils/localId";
+import { taskNeedsDetailLoad } from "../utils/taskSummary";
 import {
   getCachedMemos,
   setCachedMemos,
@@ -57,6 +59,12 @@ export function useTaskEditForm({
   const [newChecklistContent, setNewChecklistContent] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [loadedTaskId, setLoadedTaskId] = useState<number | null>(() =>
+    taskNeedsDetailLoad(task) ? null : task.id,
+  );
+  const isLoadingDetails =
+    taskNeedsDetailLoad(task) && loadedTaskId !== task.id;
+  const detailsReady = !isLoadingDetails;
   const [allMemos, setAllMemos] = useState<Memo[] | null>(() =>
     getCachedMemos(),
   );
@@ -90,14 +98,48 @@ export function useTaskEditForm({
         setLinkedMemoIds(linked);
       })
       .catch(() => {
-        if (!cancelled) setAllMemos([]);
+        if (!cancelled) {
+          setMemoLinkError("メモ一覧の読み込みに失敗しました");
+          setAllMemos([]);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [task.id]);
 
+  useEffect(() => {
+    if (!taskNeedsDetailLoad(task)) return;
+
+    let cancelled = false;
+    fetchTask(task.id)
+      .then((fullTask) => {
+        if (cancelled) return;
+        const cloned = structuredClone(fullTask) as LocalTask;
+        cloned.due_date = normalizeDueDateValue(cloned.due_date);
+        setLocalTask(cloned);
+        setLoadedTaskId(task.id);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSaveError(
+            "タスク詳細の読み込みに失敗しました。再試行してください。",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [task]);
+
   const saveAndClose = async () => {
+    if (!detailsReady || isLoadingDetails) {
+      setSaveError(
+        "タスク詳細の読み込み中です。完了してから保存してください。",
+      );
+      return;
+    }
     setSaveError(null);
     setIsSaving(true);
     try {
@@ -314,6 +356,7 @@ export function useTaskEditForm({
     setNewChecklistContent,
     saveError,
     isSaving,
+    isLoadingDetails,
     allMemos,
     linkedMemoIds,
     setLinkedMemoIds,

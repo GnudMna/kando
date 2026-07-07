@@ -80,6 +80,20 @@ describe("LoginScreen", () => {
     });
   });
 
+  it("登録時に短いパスワードは送信せずエラーを表示する", async () => {
+    const user = userEvent.setup();
+    renderScreen({ initialMode: "register" });
+
+    await user.type(screen.getByLabelText("ユーザー名"), "newuser");
+    await user.type(screen.getByLabelText(/パスワード/), "short");
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
+
+    expect(onRegister).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "パスワードは12文字以上で入力してください",
+    );
+  });
+
   it("入力が空のとき送信ボタンが無効になる", () => {
     renderScreen();
     expect(screen.getByRole("button", { name: "ログイン" })).toBeDisabled();

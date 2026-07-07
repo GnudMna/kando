@@ -1,29 +1,105 @@
 import { describe, expect, it } from "vitest";
 import {
+  boardQuerySchema,
   createChecklistItemBodySchema,
   createTaskBodySchema,
   formatZodError,
   loginBodySchema,
+  PASSWORD_MIN_LENGTH_MESSAGE,
   registerBodySchema,
   taskSnapshotBodySchema,
   updateTaskBodySchema,
 } from "./index.js";
 
 describe("registerBodySchema / loginBodySchema", () => {
+  const validPassword = "validpassword12";
+
   it("有効な認証ボディを受け入れる", () => {
-    const body = { username: "alice", password: "secret123" };
+    const body = { username: "alice", password: validPassword };
     expect(registerBodySchema.safeParse(body).success).toBe(true);
     expect(loginBodySchema.safeParse(body).success).toBe(true);
+  });
+
+  it("短いパスワードを登録で拒否する", () => {
+    const result = registerBodySchema.safeParse({
+      username: "alice",
+      password: "short",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(formatZodError(result.error)).toBe(PASSWORD_MIN_LENGTH_MESSAGE);
+    }
+  });
+
+  it("短いパスワードでもログインは受け入れる", () => {
+    expect(
+      loginBodySchema.safeParse({ username: "alice", password: "short" })
+        .success,
+    ).toBe(true);
   });
 
   it("空のユーザー名を拒否する", () => {
     const result = registerBodySchema.safeParse({
       username: "  ",
-      password: "secret123",
+      password: validPassword,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(formatZodError(result.error)).toBe("'username' must not be empty");
+    }
+  });
+});
+
+describe("boardQuerySchema", () => {
+  it("未指定クエリを既定値で受け入れる", () => {
+    const result = boardQuerySchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        row_id: null,
+        limit: null,
+        offset: null,
+        detail: "summary",
+        q: null,
+      });
+    }
+  });
+
+  it("有効なクエリをパースする", () => {
+    const result = boardQuerySchema.safeParse({
+      row_id: "2",
+      limit: "20",
+      offset: "0",
+      detail: "full",
+      q: "  search  ",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        row_id: 2,
+        limit: 20,
+        offset: 0,
+        detail: "full",
+        q: "search",
+      });
+    }
+  });
+
+  it("不正な limit を拒否する", () => {
+    const result = boardQuerySchema.safeParse({ limit: "101" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(formatZodError(result.error)).toBe(
+        "'limit' must be an integer between 1 and 100",
+      );
+    }
+  });
+
+  it("不正な row_id を拒否する", () => {
+    const result = boardQuerySchema.safeParse({ row_id: "abc" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(formatZodError(result.error)).toBe("'row_id' must be an integer");
     }
   });
 });

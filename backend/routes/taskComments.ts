@@ -1,12 +1,15 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { pool } from "../db.js";
-import type { DbTaskComment } from "../types.js";
+import { Router } from "express";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   createTaskCommentBodySchema,
   updateTaskCommentBodySchema,
 } from "@kando/types/validation";
-import { NotFoundError } from "../errors.js";
+import {
+  createTaskComment,
+  updateTaskComment,
+  deleteTaskComment,
+} from "../services/taskCommentsService.js";
 
 const router = Router();
 
@@ -16,56 +19,15 @@ router.post(
   /**
    * POST /api/task-comments
    * タスクコメントを作成する。
-   * @param req - `task_id` と `content` を含むリクエスト
-   * @param res - 作成したコメントを返すレスポンス
-   * @param next - エラーハンドラへ委譲する関数
-   * @returns 作成処理完了時に解決される Promise
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const { task_id, content } = req.body as {
       task_id: number;
       content: string;
     };
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      // 同一 task への同時追加を直列化して position の重複採番を防ぐ。
-      // 親タスクの所有権を確認しつつロックを取得する
-      const taskCheck = await client.query(
-        `SELECT t.id FROM tasks t
-         JOIN columns c ON c.id = t.column_id
-         JOIN rows r ON r.id = c.row_id
-         WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
-        [task_id, req.userId!],
-      );
-      if ((taskCheck.rowCount ?? 0) === 0) {
-        await client.query("ROLLBACK");
-        throw new NotFoundError("Task not found");
-      }
-      const nextPositionResult = await client.query<{ next_position: number }>(
-        "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM task_comments WHERE task_id = $1",
-        [task_id],
-      );
-      const nextPosition = nextPositionResult.rows[0]?.next_position ?? 1000;
-
-      const result = await client.query<DbTaskComment>(
-        "INSERT INTO task_comments (task_id, content, position) VALUES ($1, $2, $3) RETURNING *",
-        [task_id, content, nextPosition],
-      );
-
-      await client.query("COMMIT");
-      res.json(result.rows[0]);
-    } catch (err) {
-      try {
-        await client.query("ROLLBACK");
-      } catch (rollbackErr) {
-        console.error("Rollback failed:", rollbackErr);
-      }
-      next(err);
-    } finally {
-      client.release();
-    }
-  },
+    const comment = await createTaskComment(task_id, content, req.userId!);
+    res.json(comment);
+  }),
 );
 
 router.put(
@@ -74,12 +36,8 @@ router.put(
   /**
    * PUT /api/task-comments/:id
    * タスクコメントを更新する。
-   * @param req - パスパラメータ `id` と本文更新項目を含むリクエスト
-   * @param res - 更新後コメントを返すレスポンス
-   * @param next - エラーハンドラへ委譲する関数
-   * @returns 更新処理完了時に解決される Promise
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
@@ -99,45 +57,18 @@ router.put(
       return;
     }
 
-    const fields: string[] = [];
-    const vals: unknown[] = [];
-    let idx = 1;
+    const patch: { content?: string; position?: number } = {};
+    if (content !== undefined) patch.content = content;
+    if (position !== undefined) patch.position = position;
 
-    if (content !== undefined) {
-      fields.push(`content = $${idx++}`);
-      vals.push(content);
-    }
-    if (position !== undefined) {
-      fields.push(`position = $${idx++}`);
-      vals.push(position);
-    }
-
-    if (fields.length === 0) {
+    if (Object.keys(patch).length === 0) {
       res.status(400).json({ error: "No fields to update" });
       return;
     }
-    vals.push(id);
-    vals.push(req.userId!);
 
-    try {
-      const result = await pool.query<DbTaskComment>(
-        `UPDATE task_comments SET ${fields.join(", ")} WHERE id = $${idx}
-         AND task_id IN (
-           SELECT t.id FROM tasks t
-           JOIN columns c ON c.id = t.column_id
-           JOIN rows r ON r.id = c.row_id
-           WHERE r.user_id = $${idx + 1}
-         ) RETURNING *`,
-        vals,
-      );
-      if (!result.rows[0]) {
-        throw new NotFoundError("Comment not found");
-      }
-      res.json(result.rows[0]);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const comment = await updateTaskComment(id, patch, req.userId!);
+    res.json(comment);
+  }),
 );
 
 router.delete(
@@ -145,36 +76,16 @@ router.delete(
   /**
    * DELETE /api/task-comments/:id
    * タスクコメントを削除する。
-   * @param req - パスパラメータ `id` を含むリクエスト
-   * @param res - 削除結果を返すレスポンス
-   * @param next - エラーハンドラへ委譲する関数
-   * @returns 削除処理完了時に解決される Promise
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
-    try {
-      const result = await pool.query(
-        `DELETE FROM task_comments WHERE id = $1
-         AND task_id IN (
-           SELECT t.id FROM tasks t
-           JOIN columns c ON c.id = t.column_id
-           JOIN rows r ON r.id = c.row_id
-           WHERE r.user_id = $2
-         )`,
-        [id, req.userId!],
-      );
-      if ((result.rowCount ?? 0) === 0) {
-        throw new NotFoundError("Comment not found");
-      }
-      res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
-  },
+    await deleteTaskComment(id, req.userId!);
+    res.json({ success: true });
+  }),
 );
 
 /** タスクコメント CRUD API の Express ルーター。 */

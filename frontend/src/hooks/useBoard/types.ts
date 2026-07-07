@@ -7,5 +7,4 @@ export type BoardActionContext = {
   rowsRef: MutableRefObject<Row[]>;
   boardIndexesRef: MutableRefObject<BoardIndexes>;
   setRows: Dispatch<SetStateAction<Row[]>>;
-  setOperationError: Dispatch<SetStateAction<string | null>>;
 };
