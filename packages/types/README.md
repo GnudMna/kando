@@ -12,11 +12,11 @@ Kando のバックエンド・フロントエンド共有型パッケージで�
 
 ## エクスポート
 
-| サブパス | 内容 | 主な利用者 |
-| -------- | ---- | ---------- |
-| `@kando/types` | ドメイン型 + validation の再エクスポート | frontend, backend |
-| `@kando/types/validation` | Zod スキーマ（`createTaskBodySchema` 等） | backend（`middleware/validate`） |
-| `@kando/types/openapi` | OpenAPI ドキュメント生成関数 | backend（`scripts/generate-openapi.ts`） |
+| サブパス                  | 内容                                      | 主な利用者                               |
+| ------------------------- | ----------------------------------------- | ---------------------------------------- |
+| `@kando/types`            | ドメイン型 + validation の再エクスポート  | frontend, backend                        |
+| `@kando/types/validation` | Zod スキーマ（`createTaskBodySchema` 等） | backend（`middleware/validate`）         |
+| `@kando/types/openapi`    | OpenAPI ドキュメント生成関数              | backend（`scripts/generate-openapi.ts`） |
 
 ## ディレクトリ構成
 

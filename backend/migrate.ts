@@ -68,6 +68,64 @@ async function isLegacyDatabase(): Promise<boolean> {
 }
 
 /**
+ * 旧 migrate.ts が起動時に実行していたデータ修復を行う。
+ * fake ベースラインでは SQL マイグレーションがスキップされるため、レガシー DB 向けに別途実行する。
+ * @returns 修復完了時に解決される Promise
+ */
+async function repairLegacyData(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(`
+      UPDATE task_comments tc
+      SET position = ordered.rn * 1000
+      FROM (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at ASC, id ASC) AS rn
+        FROM task_comments
+      ) AS ordered
+      WHERE tc.id = ordered.id
+        AND tc.position = 0
+    `);
+
+    await client.query(`
+      UPDATE checklist_items SET position = id * 1000 WHERE position = 0
+    `);
+
+    const { rowCount: invalidChecklistRefs } = await client.query(`
+      SELECT 1
+      FROM checklist_items
+      WHERE (task_id IS NULL AND subtask_id IS NULL)
+         OR (task_id IS NOT NULL AND subtask_id IS NOT NULL)
+      LIMIT 1
+    `);
+    if ((invalidChecklistRefs ?? 0) === 0) {
+      await client.query(
+        "ALTER TABLE checklist_items VALIDATE CONSTRAINT checklist_items_parent_xor_chk",
+      );
+    } else {
+      console.warn(
+        "Found invalid checklist_items rows; skipped constraint validation.",
+      );
+    }
+
+    await client.query("COMMIT");
+    console.log("Legacy data repair completed.");
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("Rollback failed:", rollbackErr);
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * 保留中のマイグレーションを適用する。
  * レガシー DB の場合は fake モードで履歴のみ登録する。
  * @returns マイグレーション完了時に解決される Promise
@@ -96,6 +154,7 @@ async function runMigrations(): Promise<void> {
     console.log("No pending migrations.");
   } else if (legacy) {
     console.log(`Baselined ${applied.length} migration(s).`);
+    await repairLegacyData();
   } else {
     console.log(`Applied ${applied.length} migration(s).`);
   }
