@@ -17,7 +17,7 @@
 
 ## ✨ 現在の機能
 
-- 🔐 **ユーザー認証**: 登録・ログイン・ログアウトに対応（JWT ベース、HttpOnly Cookie、有効期限 7 日）
+- 🔐 **ユーザー認証**: 登録・ログイン・ログアウトに対応（JWT ベース、HttpOnly Cookie、有効期限 7 日、パスワード 12 文字以上）
 - 🗂️ **行ベースのかんばん管理**: 行（プロジェクト）ごとに複数カラムを管理
 - 🧱 **行作成時のデフォルト列生成**: 「未着手 / 進行中 / 完了」を自動作成
 - 🔀 **ドラッグ&ドロップ並び替え**: カラム・タスクの順序変更と列間移動に対応
@@ -26,11 +26,12 @@
 - 📅 **期限管理と強調表示**: 期限切れ・期限間近を自動判定（しきい値は 0〜30 日で調整可能）
 - 🧰 **タスク編集モーダル**: タスク本文、期限、完了状態、サブタスク、チェックリスト、コメントを一括編集
 - ✅ **完了ステータス**: タスクの完了/未完了を切り替え（完了時は期限強調を抑制）
-- 💾 **スナップショット保存**: 編集モーダルの内容を単一 API でトランザクション保存
+- 💾 **スナップショット保存**: 編集モーダルの内容を単一 API でトランザクション保存（詳細データ読み込み完了後）
 - 📋 **タスクのコピー**: サブタスク・チェックリスト・コメントを含めて複製
 - 📝 **メモ帳**: メモの作成・編集・自動保存、タスクとの相互リンク
 - ⚡ **段階的データ読み込み**: ボードは 20 行ずつ取得し、タスク詳細は表示時に遅延読み込み
 - 🌓 **テーマ切り替え**: ダーク/ライトモードをローカル保存
+- ⚠️ **操作エラー通知**: API 失敗時に共通バナーでユーザーへ通知
 
 ---
 
@@ -39,7 +40,7 @@
 | レイヤー | 実装 |
 |---|---|
 | フロントエンド | React 19 + TypeScript + Vite + TanStack Query |
-| バックエンド | Express + TypeScript |
+| バックエンド | Express + TypeScript（`routes → services → repositories` の 3 層構成） |
 | 共有型 | `@kando/types`（型定義・Zod バリデーション・OpenAPI 生成） |
 | DB | PostgreSQL 18 |
 | 配信 | Nginx（SPA フォールバック対応） |
@@ -47,6 +48,8 @@
 
 `compose.yaml` では `db`（PostgreSQL）、`backend`（Node.js API）、`frontend`（Nginx で静的Reactアプリ配信）を起動します。
 `backend` コンテナ内では起動時に `npm run migrate`（`node-pg-migrate` によるバージョン管理マイグレーション）を実行したあと、API サーバーを開始します。
+
+バックエンドの `validateBody` / `validateQuery`、フロントのログインフォーム、OpenAPI 仕様はいずれも `@kando/types/validation` の Zod スキーマを参照します。
 
 ---
 
@@ -330,7 +333,8 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 **横断的な仕様:**
 
 - `/api/auth/*` 以外は JWT 認証必須（HttpOnly Cookie または `Authorization: Bearer <token>`）
-- リクエストバリデーションは [`@kando/types`](packages/types/README.md) の Zod スキーマで統一
+- リクエストバリデーションは [`@kando/types`](packages/types/README.md) の Zod スキーマで統一（リクエストボディ + クエリパラメータ）
+- ログイン/登録フォームも同一 Zod スキーマで送信前検証
 
 ---
 
@@ -360,12 +364,12 @@ npm workspace で 3 パッケージを管理しています。
 ```text
 .
 ├── backend/              # Express API
-│   ├── middleware/       # 認証・バリデーション・エラーハンドリング
+│   ├── middleware/       # 認証・asyncHandler・validateBody/validateQuery・エラー処理
 │   ├── migrations/       # node-pg-migrate 用 SQL
-│   ├── repositories/     # DB アクセス層
-│   ├── routes/           # HTTP ルーター
+│   ├── repositories/     # DB アクセス層（board, rows, columns, tasks, memos 等）
+│   ├── routes/           # HTTP ルーター（薄いハンドラ）
 │   ├── scripts/          # OpenAPI JSON 生成など
-│   ├── services/         # ビジネスロジック
+│   ├── services/         # ビジネスロジック（board, rows, columns, tasks, memos 等）
 │   ├── tests/
 │   ├── migrate.ts
 │   └── server.ts
@@ -373,9 +377,9 @@ npm workspace で 3 パッケージを管理しています。
 │   ├── public/
 │   └── src/
 │       ├── api/          # ドメイン別 API クライアント
-│       ├── components/
-│       ├── hooks/        # useBoard/ 等
-│       ├── providers/    # TanStack Query・ナビゲーション Context
+│       ├── components/   # ErrorBanner, LoginScreen, KanbanBoard 等
+│       ├── hooks/        # useBoard/, useTaskEditForm 等
+│       ├── providers/    # TanStack Query・OperationErrorProvider・ナビゲーション
 │       ├── test/
 │       ├── types/
 │       └── utils/
@@ -383,7 +387,7 @@ npm workspace で 3 パッケージを管理しています。
 │   └── types/            # @kando/types（共有型・Zod・OpenAPI）
 │       └── src/
 │           ├── openapi/
-│           └── validation/
+│           └── validation/   # schemas, fields, queryFields
 ├── .devcontainer/        # Dev Container（VS Code / Cursor）
 ├── e2e/                  # Playwright E2E テスト
 ├── scripts/              # dev / test / format / db-backup（linux・windows）

@@ -9,10 +9,11 @@ Kando のフロントエンド（React + TypeScript + Vite）です。
 - タスク詳細（サブタスク、チェックリスト、コメント、期限、完了状態）の編集 UI
 - メモ帳パネル（メモの CRUD、タスクとのリンク）
 - バックエンド API との通信と UI 状態同期（TanStack Query）
+- ログイン/登録フォームのクライアント側バリデーション（`@kando/types/validation` の Zod スキーマ）
 
 ## 主な画面機能
 
-- ログイン / ユーザー登録画面（JWT 認証、HttpOnly Cookie）。初回起動時は登録画面が表示される
+- ログイン / ユーザー登録画面（JWT 認証、HttpOnly Cookie、パスワード 12 文字以上）。初回起動時は登録画面が表示される
 - かんばん表示とリスト表示の切り替え
 - カラム・タスクのドラッグ&ドロップ並び替え
 - ボードの段階的読み込み（20 行ずつ取得、`detail=summary`）
@@ -24,6 +25,19 @@ Kando のフロントエンド（React + TypeScript + Vite）です。
 - タスクのコピー（サブタスク・チェックリスト・コメントを含む）
 - メモ帳パネル（自動保存、タスクとの相互リンク）
 - ライト / ダークテーマ切り替え
+- 操作エラー通知（`OperationErrorProvider` + 共通 `ErrorBanner`）
+- タスク編集保存時の詳細読み込み待ち（サマリー状態のタスクでチェックリスト消失を防止）
+
+## エラー表示
+
+| 種別             | 実装                                      | 表示箇所                   |
+| ---------------- | ----------------------------------------- | -------------------------- |
+| 認証エラー       | `useAuth` の `error`                      | ログイン/登録画面          |
+| 操作エラー       | `OperationErrorProvider` の `reportError` | ヘッダー下の `ErrorBanner` |
+| タスク編集エラー | `useTaskEditForm` の `saveError`          | 編集モーダル内             |
+| レンダリング例外 | `ErrorBoundary`                           | フォールバック UI          |
+
+ボード操作・タスク編集・遅延読み込み等の API 失敗は `reportError(message, err)` で共通バナーに集約します。`useOperationError` フックから `reportError` / `clearError` を利用します。
 
 ## 必要環境
 
@@ -105,6 +119,7 @@ VITE_API_URL=/api
 - UI テストは可能な限り `getByRole` + アクセシブル名を使用
 - アイコンボタンには `aria-label` を付与して操作対象を明確化
 - 期限表示・検索ロジックは `utils` のユニットテストで検証
+- ログイン画面の Zod バリデーション、`OperationErrorProvider`、タスク編集フォームの詳細読み込み待ちをテストで検証
 
 ## ディレクトリ構成
 
@@ -117,16 +132,24 @@ frontend/
     │   ├── boardApi.ts     # 後方互換用（新規コードは @/api を使用）
     │   ├── auth.ts, board.ts, rows.ts, columns.ts, tasks.ts, ...
     │   └── memos.ts
-    ├── components/   # 画面コンポーネント（LoginScreen, MemoPanel 等）
+    ├── components/   # 画面コンポーネント
+    │   ├── ErrorBanner.tsx     # 共通操作エラーバナー
+    │   ├── LoginScreen.tsx     # ログイン/登録（Zod 検証）
+    │   ├── KanbanBoard.tsx, TaskEditModal.tsx, MemoPanel.tsx, ...
+    │   └── kanban/             # かんばん UI サブコンポーネント
     ├── hooks/        # 状態管理フック
     │   ├── useAuth.ts
-    │   ├── useBoard/       # ボード操作（行・列・タスク・検索を分割）
+    │   ├── useBoard/           # ボード操作（行・列・タスク・検索を分割）
     │   ├── useMemos.ts
-    │   └── useTaskEditForm.ts
+    │   ├── useTaskEditForm.ts  # 編集モーダル（詳細読み込み + スナップショット保存）
+    │   └── useLazyTaskDetails.ts
     ├── providers/    # React Context / TanStack Query プロバイダ
+    │   ├── OperationErrorProvider.tsx  # 操作エラー Context
+    │   ├── queryClient.ts
+    │   └── AppNavigationProvider.tsx
     ├── test/         # ユニットテスト
     ├── types/        # 型定義
-    └── utils/        # 日付/検索などの純粋関数
+    └── utils/        # 日付/検索/operationError 等の純粋関数
 ```
 
 ## 関連ドキュメント
