@@ -179,15 +179,15 @@ Docker Compose 起動時:
 
 ### tasks
 
-| メソッド | パス                      | 説明                         |
-| -------- | ------------------------- | ---------------------------- |
-| `GET`    | `/api/tasks/:id`          | タスク詳細を取得             |
-| `POST`   | `/api/tasks`              | タスク作成                   |
+| メソッド | パス                      | 説明                                 |
+| -------- | ------------------------- | ------------------------------------ |
+| `GET`    | `/api/tasks/:id`          | タスク詳細を取得                     |
+| `POST`   | `/api/tasks`              | タスク作成                           |
 | `PUT`    | `/api/tasks/:id`          | タスク本文・期限・完了状態を部分更新 |
-| `PUT`    | `/api/tasks/:id/snapshot` | タスク詳細を一括保存         |
-| `PUT`    | `/api/tasks/:id/move`     | 所属カラム・並び順更新       |
-| `POST`   | `/api/tasks/:id/copy`     | タスクを複製（配下データ含む） |
-| `DELETE` | `/api/tasks/:id`          | タスク削除（配下は CASCADE） |
+| `PUT`    | `/api/tasks/:id/snapshot` | タスク詳細を一括保存                 |
+| `PUT`    | `/api/tasks/:id/move`     | 所属カラム・並び順更新               |
+| `POST`   | `/api/tasks/:id/copy`     | タスクを複製（配下データ含む）       |
+| `DELETE` | `/api/tasks/:id`          | タスク削除（配下は CASCADE）         |
 
 補足:
 
@@ -224,14 +224,14 @@ Docker Compose 起動時:
 
 ### memos
 
-| メソッド | パス                              | 説明                           |
-| -------- | --------------------------------- | ------------------------------ |
-| `GET`    | `/api/memos`                      | メモ一覧（紐付くタスクを含む） |
-| `POST`   | `/api/memos`                      | メモ作成                       |
-| `PUT`    | `/api/memos/:id`                  | メモタイトル・本文更新         |
-| `DELETE` | `/api/memos/:id`                  | メモ削除                       |
-| `POST`   | `/api/memos/:id/tasks`            | タスクをメモにリンク           |
-| `DELETE` | `/api/memos/:id/tasks/:taskId`    | タスクとメモのリンク解除       |
+| メソッド | パス                           | 説明                           |
+| -------- | ------------------------------ | ------------------------------ |
+| `GET`    | `/api/memos`                   | メモ一覧（紐付くタスクを含む） |
+| `POST`   | `/api/memos`                   | メモ作成                       |
+| `PUT`    | `/api/memos/:id`               | メモタイトル・本文更新         |
+| `DELETE` | `/api/memos/:id`               | メモ削除                       |
+| `POST`   | `/api/memos/:id/tasks`         | タスクをメモにリンク           |
+| `DELETE` | `/api/memos/:id/tasks/:taskId` | タスクとメモのリンク解除       |
 
 ## タスクスナップショット保存 API
 
@@ -258,24 +258,24 @@ Docker Compose 起動時:
 
 ## npm scripts
 
-| コマンド                 | 説明                                      |
-| ------------------------ | ----------------------------------------- |
-| `npm run migrate:dev`    | マイグレーションを TypeScript で実行      |
-| `npm run migrate`        | ビルド済みマイグレーションを実行          |
-| `npm run migrate:create` | 新しい SQL マイグレーションファイルを作成 |
-| `npm run migrate:down`   | 直前のマイグレーションをロールバック      |
-| `npm run dev`            | 開発サーバー起動（`tsx watch server.ts`） |
-| `npm run build`          | TypeScript ビルド + OpenAPI JSON 生成 (`dist/` 生成) |
+| コマンド                   | 説明                                                 |
+| -------------------------- | ---------------------------------------------------- |
+| `npm run migrate:dev`      | マイグレーションを TypeScript で実行                 |
+| `npm run migrate`          | ビルド済みマイグレーションを実行                     |
+| `npm run migrate:create`   | 新しい SQL マイグレーションファイルを作成            |
+| `npm run migrate:down`     | 直前のマイグレーションをロールバック                 |
+| `npm run dev`              | 開発サーバー起動（`tsx watch server.ts`）            |
+| `npm run build`            | TypeScript ビルド + OpenAPI JSON 生成 (`dist/` 生成) |
 | `npm run openapi:generate` | `backend/openapi/openapi.json` を再生成              |
-| `npm run start`          | 本番サーバー起動 (`dist/server.js`)       |
-| `npm run lint`           | ESLint 実行                               |
-| `npm run lint:fix`       | ESLint 自動修正                           |
-| `npm run format`         | Prettier 整形                             |
-| `npm run typecheck`      | TypeScript 型チェック                     |
-| `npm run test`           | テスト実行                                |
-| `npm run test:router`    | ルーターテスト実行（DB モック）           |
-| `npm run test:coverage`  | カバレッジ付きテスト実行                  |
-| `npm run test:watch`     | Vitest watch                              |
+| `npm run start`            | 本番サーバー起動 (`dist/server.js`)                  |
+| `npm run lint`             | ESLint 実行                                          |
+| `npm run lint:fix`         | ESLint 自動修正                                      |
+| `npm run format`           | Prettier 整形                                        |
+| `npm run typecheck`        | TypeScript 型チェック                                |
+| `npm run test`             | テスト実行                                           |
+| `npm run test:router`      | ルーターテスト実行（DB モック）                      |
+| `npm run test:coverage`    | カバレッジ付きテスト実行                             |
+| `npm run test:watch`       | Vitest watch                                         |
 
 ## テスト
 

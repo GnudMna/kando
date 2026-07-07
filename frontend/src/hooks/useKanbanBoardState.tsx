@@ -231,6 +231,7 @@ export function useKanbanBoardState(board: BoardApi) {
           return;
         } catch (err) {
           console.error("Failed to load task details:", err);
+          return;
         }
       }
       setEditingTask({ task, colId, isNew: false });
@@ -244,13 +245,13 @@ export function useKanbanBoardState(board: BoardApi) {
         for (const col of row.columns) {
           const task = col.tasks.find((t) => t.id === taskId);
           if (task) {
-            setEditingTask({ task, colId: col.id, isNew: false });
+            void handleEditTask(task, col.id);
             return;
           }
         }
       }
     });
-  }, [registerOpenTaskHandler]);
+  }, [registerOpenTaskHandler, handleEditTask]);
 
   const boardStats = useMemo(() => {
     let totalColumns = 0;

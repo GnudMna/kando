@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useTaskEditForm } from "../hooks/useTaskEditForm";
 import * as api from "../api/boardApi";
+import * as tasksApi from "../api/tasks";
 import { invalidateMemoCache } from "../components/taskEdit/memoCache";
 import { baseTask, taskWithChecklists, taskWithSubtasks } from "./testUtils";
+import type { Task } from "../types";
 
 vi.mock("../api/boardApi");
 
@@ -16,6 +18,7 @@ describe("useTaskEditForm", () => {
     onClose.mockReset();
     onTaskUpdated.mockReset();
     vi.mocked(api.fetchMemos).mockResolvedValue([]);
+    vi.spyOn(tasksApi, "fetchTask").mockResolvedValue(baseTask);
   });
 
   const renderForm = (task = baseTask) =>
@@ -40,6 +43,61 @@ describe("useTaskEditForm", () => {
     );
     expect(onTaskUpdated).toHaveBeenCalledWith(savedTask);
     expect(onClose).toHaveBeenCalledWith("saved");
+  });
+
+  it("サマリータスクは詳細読み込み完了前に保存しない", async () => {
+    const summaryTask: Task = {
+      ...taskWithChecklists,
+      checklists: [],
+      checklist_count: 2,
+    };
+    vi.spyOn(tasksApi, "fetchTask").mockImplementation(
+      () =>
+        new Promise(() => {
+          /* 意図的に未解決 */
+        }),
+    );
+
+    const { result } = renderForm(summaryTask);
+
+    await act(async () => {
+      await result.current.saveAndClose();
+    });
+
+    expect(api.saveTaskSnapshot).not.toHaveBeenCalled();
+    expect(result.current.saveError).toBe(
+      "タスク詳細の読み込み中です。完了してから保存してください。",
+    );
+  });
+
+  it("サマリータスクは詳細取得後にチェックリスト付きで保存する", async () => {
+    const summaryTask: Task = {
+      ...taskWithChecklists,
+      checklists: [],
+      checklist_count: 2,
+    };
+    vi.spyOn(tasksApi, "fetchTask").mockResolvedValue(taskWithChecklists);
+    vi.mocked(api.saveTaskSnapshot).mockResolvedValue(taskWithChecklists);
+
+    const { result } = renderForm(summaryTask);
+
+    await waitFor(() => {
+      expect(result.current.isLoadingDetails).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.saveAndClose();
+    });
+
+    expect(tasksApi.fetchTask).toHaveBeenCalledWith(summaryTask.id);
+    expect(api.saveTaskSnapshot).toHaveBeenCalledWith(
+      summaryTask.id,
+      expect.objectContaining({
+        checklists: expect.arrayContaining([
+          expect.objectContaining({ id: 101 }),
+        ]),
+      }),
+    );
   });
 
   it("saveAndClose 失敗時に saveError をセットする", async () => {

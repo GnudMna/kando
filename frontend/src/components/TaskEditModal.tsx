@@ -186,9 +186,13 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
             type="button"
             className="btn btn-primary"
             onClick={() => void form.saveAndClose()}
-            disabled={form.isSaving}
+            disabled={form.isSaving || form.isLoadingDetails}
           >
-            {form.isSaving ? "保存中..." : "保存して閉じる"}
+            {form.isSaving
+              ? "保存中..."
+              : form.isLoadingDetails
+                ? "読み込み中..."
+                : "保存して閉じる"}
           </button>
         </div>
       </div>

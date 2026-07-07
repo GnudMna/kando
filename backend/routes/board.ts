@@ -336,7 +336,8 @@ const SUMMARY_HIERARCHY_SQL = `WITH
           'checklist_count', (
             SELECT COUNT(*)::int
             FROM checklist_items ci
-            WHERE ci.task_id = t.id AND ci.subtask_id IS NULL
+            WHERE (ci.task_id = t.id AND ci.subtask_id IS NULL)
+               OR ci.subtask_id IN (SELECT id FROM subtasks WHERE task_id = t.id)
           ),
           'subtasks', '[]'::json,
           'checklists', '[]'::json,

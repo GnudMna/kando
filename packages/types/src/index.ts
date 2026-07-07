@@ -109,7 +109,7 @@ export interface Task extends DbTask {
   comment_count?: number;
   /** `detail=summary` 時のサブタスク件数 */
   subtask_count?: number;
-  /** `detail=summary` 時のタスク直下チェックリスト件数 */
+  /** `detail=summary` 時のチェックリスト件数(タスク直下およびサブタスク配下の合計) */
   checklist_count?: number;
 }
 
