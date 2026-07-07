@@ -2,7 +2,6 @@ import { lazy, Suspense, useRef } from "react";
 import { useBoard } from "../hooks/useBoard";
 import { useKanbanBoardState } from "../hooks/useKanbanBoardState";
 import { BoardToolbar } from "./kanban/BoardToolbar";
-import { BoardErrorBanner } from "./kanban/BoardErrorBanner";
 import { BoardEmptyState } from "./kanban/BoardEmptyState";
 import { KanbanRowsView } from "./kanban/KanbanRowsView";
 import { BoardLoadMore } from "./kanban/BoardLoadMore";
@@ -23,15 +22,7 @@ const ListView = lazy(() =>
  */
 export function KanbanBoard() {
   const board = useBoard();
-  const {
-    isLoading,
-    hasMore,
-    isLoadingMore,
-    loadMoreRows,
-    operationError,
-    clearError,
-    rows,
-  } = board;
+  const { isLoading, hasMore, isLoadingMore, loadMoreRows, rows } = board;
   const boardWrapperRef = useRef<HTMLDivElement>(null);
   const {
     isAddingRow,
@@ -86,10 +77,6 @@ export function KanbanBoard() {
 
   return (
     <div className="kanban-wrapper" ref={boardWrapperRef}>
-      {operationError && (
-        <BoardErrorBanner message={operationError} onDismiss={clearError} />
-      )}
-
       <BoardToolbar
         isAddingRow={isAddingRow}
         newRowTitle={newRowTitle}

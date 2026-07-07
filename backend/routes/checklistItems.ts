@@ -1,5 +1,6 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   createChecklistItemBodySchema,
   updateChecklistItemBodySchema,
@@ -19,24 +20,20 @@ router.post(
    * POST /api/checklist-items
    * チェックリスト項目を作成する。`task_id` または `subtask_id` のどちらか一方のみ必須。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const { content, task_id, subtask_id } = req.body as {
       content: string;
       task_id?: number;
       subtask_id?: number;
     };
-    try {
-      const item = await createChecklistItem(
-        content,
-        task_id ?? null,
-        subtask_id ?? null,
-        req.userId!,
-      );
-      res.json(item);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const item = await createChecklistItem(
+      content,
+      task_id ?? null,
+      subtask_id ?? null,
+      req.userId!,
+    );
+    res.json(item);
+  }),
 );
 
 router.put(
@@ -46,7 +43,7 @@ router.put(
    * PUT /api/checklist-items/:id
    * チェックリスト項目を更新する。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
@@ -85,13 +82,9 @@ router.put(
       return;
     }
 
-    try {
-      const item = await updateChecklistItem(id, patch, req.userId!);
-      res.json(item);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const item = await updateChecklistItem(id, patch, req.userId!);
+    res.json(item);
+  }),
 );
 
 router.delete(
@@ -100,19 +93,15 @@ router.delete(
    * DELETE /api/checklist-items/:id
    * チェックリスト項目を削除する。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
-    try {
-      await deleteChecklistItem(id, req.userId!);
-      res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
-  },
+    await deleteChecklistItem(id, req.userId!);
+    res.json({ success: true });
+  }),
 );
 
 /** チェックリスト項目 CRUD API の Express ルーター。 */

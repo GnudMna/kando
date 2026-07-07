@@ -14,12 +14,8 @@ import { useBoardMutationContext } from "./useBoardMutationContext";
  * @param ctx - ボード操作コンテキスト
  * @returns 行操作ハンドラー
  */
-export function useRowActions({
-  rowsRef,
-  setOperationError,
-}: BoardActionContext) {
-  const { setBoardRows, onMutationError } =
-    useBoardMutationContext(setOperationError);
+export function useRowActions({ rowsRef }: BoardActionContext) {
+  const { setBoardRows, onMutationError } = useBoardMutationContext();
 
   const addRowMutation = useMutation({
     mutationFn: ({ title, position }: { title: string; position: number }) =>

@@ -85,21 +85,15 @@ describe("KanbanBoard", () => {
     expect(screen.getByText("まだ行がありません")).toBeInTheDocument();
   });
 
-  it("operationError がある場合はエラーバナーを表示し閉じられること", () => {
-    const clearError = vi.fn();
+  it("operationError は KanbanBoard では表示しない(App ヘッダー下で表示)", () => {
     vi.mocked(useBoard).mockReturnValue(
       createMockUseBoardReturn({
         operationError: "ボードの読み込みに失敗しました",
-        clearError,
       }) as ReturnType<typeof useBoard>,
     );
 
     render(<KanbanBoard />, { wrapper: createQueryWrapper() });
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "ボードの読み込みに失敗しました",
-    );
-    fireEvent.click(screen.getByLabelText("エラーを閉じる"));
-    expect(clearError).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("検索入力でリストビューに切り替わること", async () => {

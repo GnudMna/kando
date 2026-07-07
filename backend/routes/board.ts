@@ -1,7 +1,8 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import type { BoardQuery } from "@kando/types/validation";
 import { boardQuerySchema } from "@kando/types/validation";
 import { validateQuery } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   buildBoardHierarchy,
   filterBoardToNonEmptyTasks,
@@ -20,17 +21,13 @@ export { buildBoardHierarchy, filterBoardToNonEmptyTasks };
 router.get(
   "/",
   validateQuery(boardQuerySchema),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const board = await getBoard(
-        req.userId!,
-        res.locals.validatedQuery as BoardQuery,
-      );
-      res.json(board);
-    } catch (err) {
-      next(err);
-    }
-  },
+  asyncHandler(async (req, res) => {
+    const board = await getBoard(
+      req.userId!,
+      res.locals.validatedQuery as BoardQuery,
+    );
+    res.json(board);
+  }),
 );
 
 /** ボード階層データ取得 API の Express ルーター。 */

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createQueryClient } from "../providers/queryClient";
 import { AppNavigationProvider } from "../providers/AppNavigationProvider";
+import { OperationErrorProvider } from "../providers/OperationErrorProvider";
 import type { Row, Task } from "../types";
 
 /** Vitest でモックする `fetch` レスポンスの最小形状。 */
@@ -219,7 +220,11 @@ export function createQueryWrapper(queryClient?: QueryClient) {
     return createElement(
       QueryClientProvider,
       { client },
-      createElement(AppNavigationProvider, null, children),
+      createElement(
+        OperationErrorProvider,
+        null,
+        createElement(AppNavigationProvider, null, children),
+      ),
     );
   };
 }

@@ -1,5 +1,6 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   createSubtaskBodySchema,
   updateSubtaskBodySchema,
@@ -19,18 +20,14 @@ router.post(
    * POST /api/subtasks
    * サブタスクを作成する。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const { task_id, content } = req.body as {
       task_id: number;
       content: string;
     };
-    try {
-      const subtask = await createSubtask(task_id, content, req.userId!);
-      res.json(subtask);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const subtask = await createSubtask(task_id, content, req.userId!);
+    res.json(subtask);
+  }),
 );
 
 router.put(
@@ -40,20 +37,16 @@ router.put(
    * PUT /api/subtasks/:id
    * サブタスク内容を更新する。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
     const { content } = req.body as { content: string };
-    try {
-      const subtask = await updateSubtask(id, content, req.userId!);
-      res.json(subtask);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const subtask = await updateSubtask(id, content, req.userId!);
+    res.json(subtask);
+  }),
 );
 
 router.delete(
@@ -62,19 +55,15 @@ router.delete(
    * DELETE /api/subtasks/:id
    * サブタスクを削除する(配下のチェックリストも CASCADE で削除される)。
    */
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
-    try {
-      await deleteSubtask(id, req.userId!);
-      res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
-  },
+    await deleteSubtask(id, req.userId!);
+    res.json({ success: true });
+  }),
 );
 
 /** サブタスク CRUD API の Express ルーター。 */

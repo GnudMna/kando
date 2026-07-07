@@ -98,7 +98,10 @@ export function useTaskEditForm({
         setLinkedMemoIds(linked);
       })
       .catch(() => {
-        if (!cancelled) setAllMemos([]);
+        if (!cancelled) {
+          setMemoLinkError("メモ一覧の読み込みに失敗しました");
+          setAllMemos([]);
+        }
       });
     return () => {
       cancelled = true;

@@ -21,10 +21,9 @@ export function useColumnActions({
   rowsRef,
   boardIndexesRef,
   setRows,
-  setOperationError,
 }: BoardActionContext) {
   const { setBoardRows, getBoardRows, onMutationError } =
-    useBoardMutationContext(setOperationError);
+    useBoardMutationContext();
 
   const addColumnMutation = useMutation({
     mutationFn: ({

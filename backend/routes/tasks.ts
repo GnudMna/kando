@@ -1,6 +1,7 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import type { TaskSnapshotPayload } from "@kando/types";
 import { parseId, validateBody } from "../middleware/validate.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   createTaskBodySchema,
   moveTaskBodySchema,
@@ -56,20 +57,19 @@ function normalizeDueDate(
  * GET /api/tasks/:id
  * タスク詳細(サブタスク・チェックリスト・コメント含む)を取得する。
  */
-router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
-  const id = parseId(req.params.id);
-  if (!id) {
-    res.status(400).json({ error: "Invalid ID" });
-    return;
-  }
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
 
-  try {
     const task = await getTask(id, req.userId!);
     res.json(task);
-  } catch (err) {
-    next(err);
-  }
-});
+  }),
+);
 
 /**
  * POST /api/tasks
@@ -78,7 +78,7 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
 router.post(
   "/",
   validateBody(createTaskBodySchema),
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const { column_id, content, due_date, position } = req.body as {
       column_id: number;
       content: string;
@@ -96,19 +96,15 @@ router.post(
       return;
     }
 
-    try {
-      const task = await createTask(
-        column_id,
-        content,
-        normalizedDueDate,
-        position,
-        req.userId!,
-      );
-      res.json(task);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const task = await createTask(
+      column_id,
+      content,
+      normalizedDueDate,
+      position,
+      req.userId!,
+    );
+    res.json(task);
+  }),
 );
 
 /**
@@ -118,7 +114,7 @@ router.post(
 router.put(
   "/:id",
   validateBody(updateTaskBodySchema),
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
@@ -175,13 +171,9 @@ router.put(
     if (dueDateProvided) patch.due_date = normalizedDueDate ?? null;
     if (completedProvided) patch.completed = body.completed as boolean;
 
-    try {
-      const task = await updateTask(id, patch, req.userId!);
-      res.json(task);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const task = await updateTask(id, patch, req.userId!);
+    res.json(task);
+  }),
 );
 
 /**
@@ -191,7 +183,7 @@ router.put(
 router.put(
   "/:id/snapshot",
   validateBody(taskSnapshotBodySchema),
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
@@ -210,22 +202,14 @@ router.put(
       return;
     }
 
-    try {
-      const task = await saveTaskSnapshot(
-        id,
-        payload,
-        normalizedDueDate,
-        req.userId!,
-      );
-      res.json(task);
-    } catch (err) {
-      if (err instanceof HttpError) {
-        res.status(err.status).json({ error: err.message });
-        return;
-      }
-      next(err);
-    }
-  },
+    const task = await saveTaskSnapshot(
+      id,
+      payload,
+      normalizedDueDate,
+      req.userId!,
+    );
+    res.json(task);
+  }),
 );
 
 /**
@@ -235,7 +219,7 @@ router.put(
 router.put(
   "/:id/move",
   validateBody(moveTaskBodySchema),
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
@@ -245,13 +229,9 @@ router.put(
       column_id: number;
       position: number;
     };
-    try {
-      const task = await moveTask(id, column_id, position, req.userId!);
-      res.json(task);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const task = await moveTask(id, column_id, position, req.userId!);
+    res.json(task);
+  }),
 );
 
 /**
@@ -260,20 +240,16 @@ router.put(
  */
 router.post(
   "/:id/copy",
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
 
-    try {
-      const copied = await copyTask(id, req.userId!);
-      res.status(201).json(copied);
-    } catch (err) {
-      next(err);
-    }
-  },
+    const copied = await copyTask(id, req.userId!);
+    res.status(201).json(copied);
+  }),
 );
 
 /**
@@ -282,22 +258,18 @@ router.post(
  */
 router.delete(
   "/:id",
-  async (req: Request, res: Response, next: NextFunction) => {
+  asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) {
       res.status(400).json({ error: "Invalid ID" });
       return;
     }
-    try {
-      const deleted = await deleteTask(id, req.userId!);
-      if (!deleted) {
-        throw new NotFoundError("Task not found");
-      }
-      res.json({ success: true });
-    } catch (err) {
-      next(err);
+    const deleted = await deleteTask(id, req.userId!);
+    if (!deleted) {
+      throw new NotFoundError("Task not found");
     }
-  },
+    res.json({ success: true });
+  }),
 );
 
 /** タスク CRUD・移動・スナップショット保存 API の Express ルーター。 */

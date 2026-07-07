@@ -21,10 +21,9 @@ export function useTaskActions({
   rowsRef,
   boardIndexesRef,
   setRows,
-  setOperationError,
 }: BoardActionContext) {
   const { setBoardRows, getBoardRows, onMutationError } =
-    useBoardMutationContext(setOperationError);
+    useBoardMutationContext();
 
   const addTaskMutation = useMutation({
     mutationFn: ({

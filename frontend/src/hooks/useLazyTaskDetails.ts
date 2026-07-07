@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { fetchTask } from "../api/tasks";
 import { queryKeys } from "../api/queryKeys";
+import { useOperationError } from "../providers/useOperationError";
 import type { Task } from "../types";
 import { taskNeedsDetailLoad } from "../utils/taskSummary";
 
@@ -15,6 +16,8 @@ export function useLazyTaskDetails(task: Task, onLoaded: (task: Task) => void) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const needsLoad = taskNeedsDetailLoad(task);
+  const { reportError } = useOperationError();
+  const reportedErrorRef = useRef(false);
 
   useEffect(() => {
     if (!needsLoad) return;
@@ -33,7 +36,7 @@ export function useLazyTaskDetails(task: Task, onLoaded: (task: Task) => void) {
     return () => observer.disconnect();
   }, [needsLoad, task.id]);
 
-  const { data } = useQuery({
+  const { data, isError, error } = useQuery({
     queryKey: queryKeys.tasks.detail(task.id),
     queryFn: () => fetchTask(task.id),
     enabled: needsLoad && isVisible,
@@ -41,10 +44,20 @@ export function useLazyTaskDetails(task: Task, onLoaded: (task: Task) => void) {
   });
 
   useEffect(() => {
+    reportedErrorRef.current = false;
+  }, [task.id]);
+
+  useEffect(() => {
     if (data) {
       onLoaded(data);
     }
   }, [data, onLoaded]);
+
+  useEffect(() => {
+    if (!isError || reportedErrorRef.current) return;
+    reportedErrorRef.current = true;
+    reportError("タスク詳細の読み込みに失敗しました", error);
+  }, [isError, error, reportError]);
 
   return { rootRef, isLoadingDetails: needsLoad && isVisible && !data };
 }

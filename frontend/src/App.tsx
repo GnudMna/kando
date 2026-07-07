@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Moon, Sun, NotebookPen } from "lucide-react";
 import { KanbanBoard } from "./components/KanbanBoard";
+import { ErrorBanner } from "./components/ErrorBanner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen } from "./components/LoginScreen";
 import { MemoPanel } from "./components/MemoPanel";
 import { useAuth } from "./hooks/useAuth";
 import { useAppNavigation } from "./providers/useAppNavigation";
+import { OperationErrorProvider } from "./providers/OperationErrorProvider";
+import { useOperationError } from "./providers/useOperationError";
 
 type ThemeMode = "dark" | "light";
 
@@ -64,6 +67,44 @@ function App() {
   }
 
   return (
+    <OperationErrorProvider>
+      <AuthenticatedApp
+        status={status}
+        logout={logout}
+        themeMode={themeMode}
+        setThemeMode={setThemeMode}
+        isDarkMode={isDarkMode}
+        memoOpen={memoOpen}
+        setMemoOpen={setMemoOpen}
+        closeMemo={closeMemo}
+      />
+    </OperationErrorProvider>
+  );
+}
+
+type AuthenticatedAppProps = {
+  status: ReturnType<typeof useAuth>["status"];
+  logout: () => void;
+  themeMode: ThemeMode;
+  setThemeMode: Dispatch<SetStateAction<ThemeMode>>;
+  isDarkMode: boolean;
+  memoOpen: boolean;
+  setMemoOpen: Dispatch<SetStateAction<boolean>>;
+  closeMemo: () => void;
+};
+
+function AuthenticatedApp({
+  status,
+  logout,
+  setThemeMode,
+  isDarkMode,
+  memoOpen,
+  setMemoOpen,
+  closeMemo,
+}: AuthenticatedAppProps) {
+  const { error: operationError, clearError } = useOperationError();
+
+  return (
     <div className="App app-shell">
       <header className="app-header">
         <div className="app-header-inner">
@@ -115,6 +156,11 @@ function App() {
           </div>
         </div>
       </header>
+      {operationError && (
+        <div className="app-error-banner-wrap">
+          <ErrorBanner message={operationError} onDismiss={clearError} />
+        </div>
+      )}
       <main className="app-main">
         <ErrorBoundary>
           <KanbanBoard />
