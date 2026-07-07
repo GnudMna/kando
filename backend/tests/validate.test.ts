@@ -1,7 +1,8 @@
-// validate ミドルウェア。parseId / validateBodyのユニットテスト
+// validate ミドルウェア。parseId / validateBody / validateQuery のユニットテスト
 import { describe, it, expect } from "vitest";
-import { parseId, validateBody } from "../middleware/validate";
+import { parseId, validateBody, validateQuery } from "../middleware/validate";
 import {
+  boardQuerySchema,
   validateTestBodySchema,
   validateTestPositivePositionSchema,
   validateTestPositionSchema,
@@ -208,5 +209,42 @@ describe("validateBody", () => {
     };
     combinedMiddleware(req, res, next);
     expect(called).toBe(true);
+  });
+});
+
+describe("validateQuery", () => {
+  const middleware = validateQuery(boardQuerySchema);
+
+  it("有効なクエリの場合は next() を呼び出す", () => {
+    const req = {
+      query: { row_id: "2", limit: "20", offset: "0" },
+    } as Request;
+    const res = mockRes() as Response & {
+      locals: { validatedQuery?: unknown };
+    };
+    res.locals = {};
+    let called = false;
+    const next: NextFunction = () => {
+      called = true;
+    };
+    middleware(req, res, next);
+    expect(called).toBe(true);
+    expect(res.locals.validatedQuery).toEqual({
+      row_id: 2,
+      limit: 20,
+      offset: 0,
+      detail: "summary",
+      q: null,
+    });
+  });
+
+  it("不正なクエリの場合は 400 を返す", () => {
+    const req = { query: { limit: "101" } } as Request;
+    const res = mockRes();
+    middleware(req, res, (() => {}) as NextFunction);
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { error: string }).error).toBe(
+      "'limit' must be an integer between 1 and 100",
+    );
   });
 });

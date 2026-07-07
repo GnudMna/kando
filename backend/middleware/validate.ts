@@ -32,3 +32,21 @@ export function validateBody<T extends ZodType>(schema: T) {
     next();
   };
 }
+
+/**
+ * Zod スキーマに基づいて req.query を検証する Express ミドルウェアを返す。
+ * バリデーション失敗時は 400 を返し、成功時はパース結果で req.query を上書きして next() を呼び出す。
+ * @param schema - Zod スキーマ
+ * @returns Express ミドルウェア関数
+ */
+export function validateQuery<T extends ZodType>(schema: T) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) {
+      res.status(400).json({ error: formatZodError(result.error) });
+      return;
+    }
+    res.locals.validatedQuery = result.data;
+    next();
+  };
+}

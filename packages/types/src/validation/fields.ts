@@ -4,6 +4,13 @@
  */
 import { z } from "zod";
 
+/** パスワードの最小文字数。 */
+export const PASSWORD_MIN_LENGTH = 12;
+
+/** パスワード最小長違反時のユーザー向けメッセージ。 */
+export const PASSWORD_MIN_LENGTH_MESSAGE =
+  "パスワードは12文字以上で入力してください";
+
 /**
  * Zod のフィールドパスを API エラーメッセージ形式へ変換する。
  * @param path - Zod issue の path 配列
@@ -51,6 +58,35 @@ export function requiredString(field: string, maxLength: number) {
         });
       }
     });
+}
+
+/**
+ * 認証用パスワードフィールドを定義する。
+ * @param field - エラーメッセージに使用するフィールド名
+ * @param options - 最小長・最大長・最小長エラーメッセージ
+ * @returns 検証済みパスワード文字列を返す Zod スキーマ
+ */
+export function passwordField(
+  field: string,
+  options: {
+    minLength?: number;
+    maxLength?: number;
+    minLengthMessage?: string;
+  } = {},
+) {
+  const {
+    minLength = PASSWORD_MIN_LENGTH,
+    maxLength = 72,
+    minLengthMessage = PASSWORD_MIN_LENGTH_MESSAGE,
+  } = options;
+  return requiredString(field, maxLength).superRefine((value, ctx) => {
+    if (value.length < minLength) {
+      ctx.addIssue({
+        code: "custom",
+        message: minLengthMessage,
+      });
+    }
+  });
 }
 
 /**

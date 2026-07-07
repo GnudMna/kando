@@ -46,6 +46,7 @@ import {
   updateTaskBodySchema,
   updateTaskCommentBodySchema,
 } from "../validation/schemas.js";
+import { boardQueryOpenApiSchema } from "../validation/boardQueryOpenApi.js";
 
 /**
  * 全 API エンドポイントの OpenAPI パス定義を登録する。
@@ -169,47 +170,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     tags: ["Board"],
     security: authenticatedSecurity,
     request: {
-      query: z.object({
-        row_id: z
-          .string()
-          .regex(/^\d+$/)
-          .optional()
-          .openapi({ param: { name: "row_id", in: "query" }, example: "1" }),
-        limit: z
-          .string()
-          .regex(/^\d+$/)
-          .optional()
-          .openapi({
-            param: { name: "limit", in: "query" },
-            example: "20",
-            description: "取得件数の上限(最大 100)",
-          }),
-        offset: z
-          .string()
-          .regex(/^\d+$/)
-          .optional()
-          .openapi({
-            param: { name: "offset", in: "query" },
-            example: "0",
-            description: "スキップする件数",
-          }),
-        detail: z
-          .enum(["summary", "full"])
-          .optional()
-          .openapi({
-            param: { name: "detail", in: "query" },
-            description: "取得詳細度。既定は summary(子要素は件数のみ、軽量)",
-          }),
-        q: z
-          .string()
-          .max(200)
-          .optional()
-          .openapi({
-            param: { name: "q", in: "query" },
-            description:
-              "横断検索キーワード(指定時は一致タスクのみフル詳細で返す)",
-          }),
-      }),
+      query: boardQueryOpenApiSchema,
     },
     responses: {
       200: jsonResponse(z.array(Row), "ボード階層データ"),

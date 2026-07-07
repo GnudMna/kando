@@ -1,5 +1,10 @@
 import { useState, useId, useRef, useEffect } from "react";
 import { LogIn, UserPlus } from "lucide-react";
+import {
+  formatZodError,
+  loginBodySchema,
+  registerBodySchema,
+} from "@kando/types/validation";
 
 type ScreenMode = "login" | "register";
 
@@ -34,6 +39,7 @@ export function LoginScreen({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const usernameInputId = useId();
   const passwordInputId = useId();
   const usernameRef = useRef<HTMLInputElement>(null);
@@ -51,6 +57,15 @@ export function LoginScreen({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password || isSubmitting) return;
+
+    const schema = mode === "login" ? loginBodySchema : registerBodySchema;
+    const parsed = schema.safeParse({ username, password });
+    if (!parsed.success) {
+      setValidationError(formatZodError(parsed.error));
+      return;
+    }
+
+    setValidationError(null);
     setIsSubmitting(true);
     try {
       if (mode === "login") {
@@ -69,6 +84,7 @@ export function LoginScreen({
    */
   const switchMode = (newMode: ScreenMode) => {
     onClearError();
+    setValidationError(null);
     setUsername("");
     setPassword("");
     setMode(newMode);
@@ -101,6 +117,7 @@ export function LoginScreen({
               value={username}
               onChange={(e) => {
                 onClearError();
+                setValidationError(null);
                 setUsername(e.target.value);
               }}
               className="task-content-input login-input"
@@ -121,6 +138,7 @@ export function LoginScreen({
               value={password}
               onChange={(e) => {
                 onClearError();
+                setValidationError(null);
                 setPassword(e.target.value);
               }}
               className="task-content-input login-input"
@@ -130,9 +148,9 @@ export function LoginScreen({
             />
           </div>
 
-          {error && (
+          {(error || validationError) && (
             <p className="login-error" role="alert">
-              {error}
+              {error ?? validationError}
             </p>
           )}
 
