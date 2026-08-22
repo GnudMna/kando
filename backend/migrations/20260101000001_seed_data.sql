@@ -65,9 +65,11 @@ BEGIN
   LIMIT 1;
 
   INSERT INTO tasks (column_id, content, position) VALUES
-    (todo_col_id, 'Kandoへようこそ!', 1000),
-    (todo_col_id, '下のボタンから新しいタスクを追加できます', 2000)
+    (todo_col_id, 'Kandoへようこそ!', 1000)
   RETURNING id INTO first_task_id;
+
+  INSERT INTO tasks (column_id, content, position) VALUES
+    (todo_col_id, '下のボタンから新しいタスクを追加できます', 2000);
 
   INSERT INTO subtasks (task_id, content) VALUES (first_task_id, 'サブタスクのサンプル') RETURNING id INTO sub_id;
 

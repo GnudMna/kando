@@ -42,6 +42,15 @@ if [ $? -ne 0 ]; then
 fi
 echo
 
+# Vite 8 は起動時に依存関係を走査するため、@kando/types の dist が先に必要
+echo "共有型パッケージをビルドしています..."
+npm --workspace @kando/types run build
+if [ $? -ne 0 ]; then
+    echo "共有型パッケージのビルドに失敗しました"
+    exit 1
+fi
+echo
+
 # 終了時に子プロセスを終了する
 trap 'kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit' INT TERM
 

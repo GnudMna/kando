@@ -38,6 +38,16 @@ if errorlevel 1 (
 )
 echo.
 
+REM Vite 8 は起動時に依存関係を走査するため、@kando/types の dist が先に必要
+echo 共有型パッケージをビルドしています...
+call npm --workspace @kando/types run build
+if errorlevel 1 (
+    echo 共有型パッケージのビルドに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
 REM バックエンドを開発モードで起動
 echo バックエンドAPIを起動しています (Port 3001)...
 start "Kando Backend" cmd /k "cd /d %PROJECT_ROOT%\backend && npm run dev"
