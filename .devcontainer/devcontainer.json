@@ -38,7 +38,7 @@
       "onAutoForward": "silent"
     }
   },
-  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend",
+  "postCreateCommand": "npm install && npm --workspace @kando/types run build",
   "shutdownAction": "stopCompose",
   "remoteUser": "node"
 }

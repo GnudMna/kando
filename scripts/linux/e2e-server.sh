@@ -15,6 +15,9 @@ export VITE_E2E_TEST="true"
 echo "E2E: DB マイグレーションを実行しています..."
 npm --prefix backend run migrate:dev
 
+echo "E2E: 共有型パッケージをビルドしています..."
+npm --workspace @kando/types run build
+
 trap 'kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true' EXIT INT TERM
 
 echo "E2E: バックエンドを起動しています (port ${PORT})..."

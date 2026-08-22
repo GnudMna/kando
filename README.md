@@ -106,7 +106,7 @@ POSTGRES_USER=my_user POSTGRES_PASSWORD=my_pass POSTGRES_DB=my_db AUTH_SECRET=$(
 `.devcontainer/` を使うと、`app`（Node.js 24）と `db`（PostgreSQL 18）が起動する開発用コンテナ内で作業できます。
 
 1. エディタで「**Dev Containers: Reopen in Container**」を実行
-2. `postCreateCommand` により frontend / backend の依存関係がインストールされる
+2. `postCreateCommand` により依存関係のインストールと共有型パッケージのビルドが行われる
 3. ターミナルで `./scripts/linux/dev.sh` または[手動起動](#手動起動)を実行
 
 転送される主なポート:
