@@ -9,6 +9,8 @@ vi.mock("../repositories/tasksRepository.js", () => ({
   idsToDelete: vi.fn(),
   syncChecklists: vi.fn(),
   syncTaskComments: vi.fn(),
+  lockTasksInColumns: vi.fn(async () => []),
+  updateTaskPositions: vi.fn(),
 }));
 
 vi.mock("../db.js", () => ({
@@ -37,6 +39,7 @@ const baseTask: Task = {
   due_date: null,
   position: 1000,
   completed: false,
+  revision: 1,
   subtasks: [],
   checklists: [],
   comments: [],
@@ -59,7 +62,12 @@ describe("tasksService", () => {
     it("カラムの所有権確認後にタスクを作成して返す", async () => {
       const client = createMockClient();
       mockedPool.connect.mockResolvedValueOnce(client);
-      client.query.mockResolvedValueOnce({ rows: [{ id: 10 }] });
+      client.query.mockImplementation(async (sql: unknown) => {
+        const statement = String(sql);
+        if (statement === "BEGIN" || statement === "COMMIT") return { rows: [] };
+        if (statement.includes("SELECT c.id")) return { rows: [{ id: 10 }] };
+        return { rows: [] };
+      });
       vi.mocked(repository.insertTask).mockResolvedValueOnce(baseTask);
 
       const result = await service.createTask(10, "新タスク", null, 1000, 99);
@@ -78,7 +86,11 @@ describe("tasksService", () => {
     it("カラムがユーザーのものでない場合 NotFoundError を投げる", async () => {
       const client = createMockClient();
       mockedPool.connect.mockResolvedValueOnce(client);
-      client.query.mockResolvedValueOnce({ rows: [] });
+      client.query.mockImplementation(async (sql: unknown) => {
+        const statement = String(sql);
+        if (statement === "BEGIN" || statement === "ROLLBACK") return { rows: [] };
+        return { rows: [] };
+      });
 
       await expect(
         service.createTask(10, "新タスク", null, 1000, 99),
@@ -131,10 +143,24 @@ describe("tasksService", () => {
 
   describe("moveTask", () => {
     it("タスクを別カラムへ移動する", async () => {
+      const client = createMockClient();
+      mockedPool.connect.mockResolvedValueOnce(client);
       const moved = { ...baseTask, column_id: 11, position: 2000 };
-      mockedPool.query
-        .mockResolvedValueOnce({ rows: [{ id: 11 }] })
-        .mockResolvedValueOnce({ rows: [moved] });
+      client.query.mockImplementation(async (sql: unknown) => {
+        const statement = String(sql);
+        if (statement === "BEGIN" || statement === "COMMIT") return { rows: [] };
+        if (statement.includes("SELECT c.id")) return { rows: [{ id: 11 }] };
+        if (statement.includes("SELECT t.column_id")) {
+          return { rows: [{ column_id: 10 }] };
+        }
+        if (statement.startsWith("UPDATE tasks SET column_id")) {
+          return { rows: [moved] };
+        }
+        return { rows: [] };
+      });
+      vi.mocked(repository.lockTasksInColumns).mockResolvedValueOnce([
+        { id: 1, column_id: 10, position: 1000 },
+      ]);
 
       const result = await service.moveTask(1, 11, 2000, 99);
 
@@ -142,7 +168,13 @@ describe("tasksService", () => {
     });
 
     it("移動先カラムが無い場合 NotFoundError を投げる", async () => {
-      mockedPool.query.mockResolvedValueOnce({ rows: [] });
+      const client = createMockClient();
+      mockedPool.connect.mockResolvedValueOnce(client);
+      client.query.mockImplementation(async (sql: unknown) => {
+        const statement = String(sql);
+        if (statement === "BEGIN" || statement === "ROLLBACK") return { rows: [] };
+        return { rows: [] };
+      });
 
       await expect(service.moveTask(1, 11, 2000, 99)).rejects.toThrow(
         NotFoundError,
@@ -150,9 +182,14 @@ describe("tasksService", () => {
     });
 
     it("タスクが無い場合 NotFoundError を投げる", async () => {
-      mockedPool.query
-        .mockResolvedValueOnce({ rows: [{ id: 11 }] })
-        .mockResolvedValueOnce({ rows: [] });
+      const client = createMockClient();
+      mockedPool.connect.mockResolvedValueOnce(client);
+      client.query.mockImplementation(async (sql: unknown) => {
+        const statement = String(sql);
+        if (statement === "BEGIN" || statement === "ROLLBACK") return { rows: [] };
+        if (statement.includes("SELECT c.id")) return { rows: [{ id: 11 }] };
+        return { rows: [] };
+      });
 
       await expect(service.moveTask(1, 11, 2000, 99)).rejects.toThrow(
         NotFoundError,
@@ -182,6 +219,7 @@ describe("tasksService", () => {
       checklists: [],
       subtasks: [{ content: "新サブタスク", checklists: [] }],
       comments: [],
+      revision: 1,
     };
 
     it("新規サブタスクを含むスナップショットを保存する", async () => {
@@ -206,13 +244,9 @@ describe("tasksService", () => {
           return { rows: [] };
         }
         if (statement.includes("FOR UPDATE") && statement.includes("tasks t")) {
-          return { rows: [{ id: 1 }] };
+          return { rows: [{ id: 1, revision: 1 }] };
         }
-        if (
-          statement.startsWith(
-            "UPDATE tasks SET content = $1, due_date = $2, completed = $3 WHERE id = $4",
-          )
-        ) {
+        if (statement.includes("revision = revision + 1")) {
           return { rows: [] };
         }
         if (statement.includes("SELECT id FROM subtasks WHERE task_id")) {
@@ -255,13 +289,9 @@ describe("tasksService", () => {
           return { rows: [] };
         }
         if (statement.includes("FOR UPDATE") && statement.includes("tasks t")) {
-          return { rows: [{ id: 1 }] };
+          return { rows: [{ id: 1, revision: 1 }] };
         }
-        if (
-          statement.startsWith(
-            "UPDATE tasks SET content = $1, due_date = $2, completed = $3 WHERE id = $4",
-          )
-        ) {
+        if (statement.includes("revision = revision + 1")) {
           return { rows: [] };
         }
         if (statement.includes("SELECT id FROM subtasks WHERE task_id")) {
@@ -359,16 +389,16 @@ describe("tasksService", () => {
         completed: false,
       };
 
+      vi.mocked(repository.lockTasksInColumns).mockResolvedValueOnce([
+        { id: 1, column_id: 10, position: 1000 },
+      ]);
       client.query.mockImplementation(async (sql: unknown) => {
         const statement = String(sql);
         if (statement === "BEGIN" || statement === "COMMIT") {
           return { rows: [] };
         }
-        if (statement.includes("FOR UPDATE") && statement.includes("tasks t")) {
-          return { rows: [{ id: 1 }] };
-        }
-        if (statement.includes("SELECT MAX(position)")) {
-          return { rows: [{ max: "1000" }] };
+        if (statement.includes("SELECT t.column_id")) {
+          return { rows: [{ column_id: 10 }] };
         }
         if (statement.startsWith("INSERT INTO tasks")) {
           return {
@@ -416,7 +446,7 @@ describe("tasksService", () => {
         if (statement === "BEGIN" || statement === "ROLLBACK") {
           return { rows: [] };
         }
-        if (statement.includes("FOR UPDATE") && statement.includes("tasks t")) {
+        if (statement.includes("SELECT t.column_id")) {
           return { rows: [] };
         }
         throw new Error(`Unexpected SQL: ${statement}`);

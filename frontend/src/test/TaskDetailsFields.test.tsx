@@ -11,6 +11,7 @@ describe("TaskDetailsFields", () => {
     due_date: null,
     position: 1000,
     completed: false,
+    revision: 1,
     subtasks: [],
     checklists: [],
     comments: [],

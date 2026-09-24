@@ -23,6 +23,7 @@ const baseTask: Task = {
   due_date: null,
   position: 1000,
   completed: false,
+  revision: 1,
   subtasks: [],
   checklists: [],
   comments: [],
@@ -236,6 +237,7 @@ describe("tasks router", () => {
           ],
           subtasks: [],
           comments: [],
+          revision: 1,
         });
 
       expect(res.status).toBe(400);
@@ -251,6 +253,7 @@ describe("tasks router", () => {
         checklists: [],
         subtasks: [],
         comments: [],
+        revision: 1,
       });
 
       expect(res.status).toBe(400);

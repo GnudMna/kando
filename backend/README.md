@@ -45,14 +45,14 @@ npm install
 
 ## 環境変数
 
-| 変数名         | 必須     | 説明                                                                          | 既定値                                     |
-| -------------- | -------- | ----------------------------------------------------------------------------- | ------------------------------------------ |
-| `DATABASE_URL` | はい     | PostgreSQL 接続文字列                                                         | なし                                       |
-| `AUTH_SECRET`  | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須。開発用プレースホルダは拒否） | なし                                       |
-| `COOKIE_SECURE`| いいえ   | 認証 Cookie の Secure 属性。`true` / `false`。未指定時は production だけ true | production で true                         |
-| `PORT`         | いいえ   | API 待ち受けポート                                                            | `3001`                                     |
-| `NODE_ENV`     | いいえ   | 実行環境 (`production` で挙動変更)                                            | `development`                              |
-| `CORS_ORIGIN`  | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可） | `http://localhost:5173`（production 以外） |
+| 変数名          | 必須     | 説明                                                                               | 既定値                                     |
+| --------------- | -------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
+| `DATABASE_URL`  | はい     | PostgreSQL 接続文字列                                                              | なし                                       |
+| `AUTH_SECRET`   | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須。開発用プレースホルダは拒否） | なし                                       |
+| `COOKIE_SECURE` | いいえ   | 認証 Cookie の Secure 属性。`true` / `false`。未指定時は production だけ true      | production で true                         |
+| `PORT`          | いいえ   | API 待ち受けポート                                                                 | `3001`                                     |
+| `NODE_ENV`      | いいえ   | 実行環境 (`production` で挙動変更)                                                 | `development`                              |
+| `CORS_ORIGIN`   | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可）      | `http://localhost:5173`（production 以外） |
 
 `.env` 例（ルートの `.env.example` を参照）:
 
@@ -148,12 +148,12 @@ Docker Compose 起動時:
 
 ### 認証
 
-| メソッド | パス                 | 説明                                                 |
-| -------- | -------------------- | ---------------------------------------------------- |
-| `GET`    | `/api/auth/status`   | ユーザー登録済みかどうかを返す（認証不要）           |
+| メソッド | パス                 | 説明                                                                   |
+| -------- | -------------------- | ---------------------------------------------------------------------- |
+| `GET`    | `/api/auth/status`   | ユーザー登録済みかどうかを返す（認証不要）                             |
 | `POST`   | `/api/auth/register` | 初回ユーザー登録・JWT 発行（パスワード 12 文字以上。登録済みなら 403） |
-| `POST`   | `/api/auth/login`    | ログイン・JWT 発行                                   |
-| `POST`   | `/api/auth/logout`   | ログアウト（トークン世代を進め、Cookie を削除）       |
+| `POST`   | `/api/auth/login`    | ログイン・JWT 発行                                                     |
+| `POST`   | `/api/auth/logout`   | ログアウト（トークン世代を進め、Cookie を削除）                        |
 
 補足:
 

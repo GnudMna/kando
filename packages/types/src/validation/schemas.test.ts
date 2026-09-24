@@ -191,6 +191,7 @@ describe("taskSnapshotBodySchema", () => {
       },
     ],
     comments: [{ content: "コメント" }],
+    revision: 1,
   };
 
   it("有効なスナップショットを受け入れる", () => {

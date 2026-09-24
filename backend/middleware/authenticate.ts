@@ -63,7 +63,10 @@ export async function authenticate(
     [userId],
   );
   const currentVersion = result.rows[0]?.token_version;
-  if (currentVersion === undefined || currentVersion !== readTokenVersion(payload)) {
+  if (
+    currentVersion === undefined ||
+    currentVersion !== readTokenVersion(payload)
+  ) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }

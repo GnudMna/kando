@@ -176,6 +176,7 @@ describe("boardApi", () => {
       position: 1500,
       due_date: "2026-06-01",
       completed: false,
+      revision: 1,
       subtasks: [],
       checklists: [],
       comments: [],
@@ -206,6 +207,7 @@ describe("boardApi", () => {
       position: 2000,
       due_date: null,
       completed: true,
+      revision: 1,
       subtasks: [],
       checklists: [],
       comments: [],
@@ -351,6 +353,7 @@ describe("boardApi", () => {
       due_date: null,
       position: 1000,
       completed: false,
+      revision: 1,
       subtasks: [],
       checklists: [],
       comments: [],
@@ -364,6 +367,7 @@ describe("boardApi", () => {
       checklists: [],
       subtasks: [],
       comments: [],
+      revision: 1,
     };
     const result = await api.saveTaskSnapshot(1, payload);
 
@@ -384,6 +388,7 @@ describe("boardApi", () => {
       due_date: null,
       position: 1500,
       completed: false,
+      revision: 1,
       subtasks: [],
       checklists: [],
       comments: [],
@@ -420,6 +425,7 @@ describe("boardApi", () => {
       due_date: null,
       position: 2000,
       completed: false,
+      revision: 1,
       subtasks: [],
       checklists: [],
       comments: [],

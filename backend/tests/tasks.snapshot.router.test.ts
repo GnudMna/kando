@@ -65,14 +65,10 @@ describe("tasks snapshot router", () => {
           statement.includes("JOIN rows r ON r.id = c.row_id") &&
           statement.includes("FOR UPDATE")
         ) {
-          return { rows: [{ id: 1 }] };
+          return { rows: [{ id: 1, revision: 1 }] };
         }
 
-        if (
-          statement.startsWith(
-            "UPDATE tasks SET content = $1, due_date = $2, completed = $3 WHERE id = $4",
-          )
-        ) {
+        if (statement.includes("revision = revision + 1")) {
           return { rows: [] };
         }
 
@@ -212,6 +208,7 @@ describe("tasks snapshot router", () => {
             content: "更新コメント",
           },
         ],
+        revision: 1,
       });
 
     expect(res.status).toBe(200);
@@ -272,6 +269,7 @@ describe("tasks snapshot router", () => {
       checklists: [],
       subtasks: [],
       comments: [],
+      revision: 1,
     });
 
     expect(res.status).toBe(400);
@@ -307,6 +305,7 @@ describe("tasks snapshot router", () => {
       checklists: [],
       subtasks: [],
       comments: [],
+      revision: 1,
     });
 
     expect(res.status).toBe(404);
