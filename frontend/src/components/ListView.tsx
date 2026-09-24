@@ -287,7 +287,7 @@ function VirtualizedListView({
               top: 0,
               left: 0,
               width: "100%",
-              transform: `translateY(${virtualRow.start}px)`,
+              transform: `translateY(${virtualRow.start - scrollMargin}px)`,
             }}
           >
             <ListRowBlock

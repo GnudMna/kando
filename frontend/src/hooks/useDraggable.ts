@@ -28,6 +28,8 @@ export function useDraggable() {
   const onHandleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return;
+      // 狭い画面ではパネルを全画面固定し、ドラッグで画面外に出さない
+      if (window.matchMedia("(max-width: 768px)").matches) return;
       e.preventDefault();
 
       const el = containerRef.current;
