@@ -9,6 +9,7 @@ vi.mock("../repositories/columnsRepository.js", () => ({
 vi.mock("../db.js", () => ({
   pool: {
     query: vi.fn(),
+    connect: vi.fn(),
   },
 }));
 
@@ -88,19 +89,27 @@ describe("columnsService", () => {
     );
   });
 
-  it("moveColumn は repository を呼び出して position を更新する", async () => {
+  it("moveColumn はトランザクション内で repository を呼び出して position を更新する", async () => {
     const column: Column = {
       id: 10,
       title: "カラム",
       position: 2000,
       row_id: 1,
     };
+    const client = { query: vi.fn(), release: vi.fn() };
+    client.query.mockImplementation(async (sql: unknown) => {
+      const statement = String(sql);
+      if (statement === "BEGIN" || statement === "COMMIT") return { rows: [] };
+      return { rows: [] };
+    });
+    vi.mocked(pool.connect).mockResolvedValue(client as never);
     vi.mocked(repository.moveColumn).mockResolvedValue(column);
 
     const result = await service.moveColumn(10, 2000, 99);
 
     expect(result).toBe(column);
-    expect(repository.moveColumn).toHaveBeenCalledWith(pool, 10, 2000, 99);
+    expect(repository.moveColumn).toHaveBeenCalledWith(client, 10, 2000, 99);
+    expect(client.release).toHaveBeenCalled();
   });
 
   it("deleteColumn は repository を呼び出して削除結果を返す", async () => {

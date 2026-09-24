@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { jwtVerify } from "jose";
+import { jwtVerify, type JWTPayload } from "jose";
 import bcrypt from "bcryptjs";
 import { pool } from "../db.js";
 import { validateBody } from "../middleware/validate.js";
@@ -212,12 +212,13 @@ router.post(
       (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined);
 
     if (token && AUTH_SECRET) {
-      let payload: Awaited<ReturnType<typeof jwtVerify>>["payload"] | undefined;
+      let payload: JWTPayload | undefined;
       try {
-        ({ payload } = await jwtVerify(
+        const verified = await jwtVerify(
           token,
           new TextEncoder().encode(AUTH_SECRET),
-        ));
+        );
+        payload = verified.payload;
       } catch {
         payload = undefined;
       }

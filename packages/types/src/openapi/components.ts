@@ -112,6 +112,7 @@ export const Task = z
     due_date: z.string().nullable(),
     position: z.number(),
     completed: z.boolean(),
+    revision: z.number().int(),
     subtasks: z.array(Subtask),
     checklists: z.array(ChecklistItem),
     comments: z.array(TaskComment),

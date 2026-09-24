@@ -96,6 +96,7 @@ const FULL_HIERARCHY_SQL = `WITH
           'due_date', t.due_date::text,
           'position', t.position,
           'completed', t.completed,
+          'revision', t.revision,
           'subtasks', COALESCE(asts.subtasks, '[]'::json),
           'checklists', COALESCE(tc.checklists, '[]'::json),
           'comments', COALESCE(tca.comments, '[]'::json)
@@ -150,6 +151,7 @@ const SUMMARY_HIERARCHY_SQL = `WITH
           'due_date', t.due_date::text,
           'position', t.position,
           'completed', t.completed,
+          'revision', t.revision,
           'comment_count', (
             SELECT COUNT(*)::int FROM task_comments tc WHERE tc.task_id = t.id
           ),

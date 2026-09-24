@@ -402,7 +402,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     path: "/api/tasks/{id}/snapshot",
     summary: "タスク編集内容の一括保存",
     description:
-      "タスク本文・期限・サブタスク・チェックリスト・コメントを単一トランザクションで保存する。",
+      "タスク本文・期限・サブタスク・チェックリスト・コメントを単一トランザクションで保存する。リクエストの revision が現在値と違う場合は 409 を返す。",
     tags: ["Tasks"],
     security: authenticatedSecurity,
     request: {
@@ -416,6 +416,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
       400: standardErrors[400],
       401: standardErrors[401],
       404: standardErrors[404],
+      409: standardErrors[409],
     },
   });
 

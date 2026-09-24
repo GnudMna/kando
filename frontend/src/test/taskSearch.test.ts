@@ -16,6 +16,7 @@ const baseTask: Task = {
   due_date: null,
   position: 1000,
   completed: false,
+  revision: 1,
   subtasks: [
     {
       id: 101,
@@ -62,6 +63,7 @@ const secondTask: Task = {
   due_date: "2026-04-30",
   position: 1000,
   completed: false,
+  revision: 1,
   subtasks: [],
   checklists: [],
   comments: [],
@@ -108,6 +110,7 @@ const rows: Row[] = [
             due_date: null,
             position: 1000,
             completed: false,
+            revision: 1,
             subtasks: [],
             checklists: [],
             comments: [],
