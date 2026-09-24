@@ -1,18 +1,21 @@
 import { Router } from "express";
-import { SignJWT } from "jose";
+import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { pool } from "../db.js";
 import { validateBody } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { loginBodySchema, registerBodySchema } from "@kando/types/validation";
 import { authenticate } from "../middleware/authenticate.js";
+import {
+  authCookieOptions,
+  readTokenVersion,
+  signAuthToken,
+} from "../authToken.js";
 
 const router = Router();
 
 /** JWT 署名に使用するシークレット */
 const AUTH_SECRET = process.env.AUTH_SECRET;
-/** JWT の有効期限 */
-const TOKEN_EXPIRY = "7d";
 /** Cookie の有効期限(ms)*/
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** bcrypt コスト係数 */
@@ -33,22 +36,18 @@ const DUMMY_HASH =
 async function signAndSetCookie(
   res: import("express").Response,
   userId: number,
+  tokenVersion: number,
 ): Promise<void> {
-  const secretKey = new TextEncoder().encode(AUTH_SECRET!);
-  const token = await new SignJWT({})
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(String(userId))
-    .setIssuedAt()
-    .setExpirationTime(TOKEN_EXPIRY)
-    .sign(secretKey);
+  const token = await signAuthToken(userId, tokenVersion);
+  res.cookie("token", token, authCookieOptions(COOKIE_MAX_AGE_MS));
+}
 
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: COOKIE_MAX_AGE_MS,
-    path: "/",
-  });
+/**
+ * 認証 Cookie を削除する。
+ * @param res - Cookie を消す Express レスポンス
+ */
+function clearAuthCookie(res: import("express").Response): void {
+  res.clearCookie("token", authCookieOptions());
 }
 
 /**
@@ -69,8 +68,8 @@ router.get(
 
 /**
  * POST /api/auth/register
- * 新規ユーザーを登録し JWT を返す。
- * 既存の未割り当てデータ(user_id IS NULL の行)は登録ユーザーへ移行される。
+ * ユーザーが未登録のときだけアカウントを作り、JWT を返す。
+ * セットアップ前から残っている所有者なしの行は、この初回登録だけに割り当てる。
  */
 router.post(
   "/register",
@@ -90,6 +89,19 @@ router.post(
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      // 同時の初回登録を直列化し、二人目が孤立行を受け取らないようにする
+      await client.query("LOCK TABLE users IN EXCLUSIVE MODE");
+
+      const countResult = await client.query<{ count: string }>(
+        "SELECT COUNT(*) FROM users",
+      );
+      if (parseInt(countResult.rows[0].count, 10) > 0) {
+        await client.query("ROLLBACK");
+        res
+          .status(403)
+          .json({ error: "ユーザー登録は初回セットアップ時のみ可能です" });
+        return;
+      }
 
       let userId: number;
       try {
@@ -115,14 +127,14 @@ router.post(
         throw err;
       }
 
-      // 既存の孤立データを最初の登録ユーザーへ移行する(後方互換性)
+      // 初回ユーザーにだけ、セットアップ前の所有者なし行を渡す
       await client.query("UPDATE rows SET user_id = $1 WHERE user_id IS NULL", [
         userId,
       ]);
 
       await client.query("COMMIT");
 
-      await signAndSetCookie(res, userId);
+      await signAndSetCookie(res, userId, 0);
       res.status(201).json({ ok: true });
     } catch (err) {
       try {
@@ -158,7 +170,11 @@ router.post(
     const result = await pool.query<{
       id: number;
       password_hash: string;
-    }>("SELECT id, password_hash FROM users WHERE username = $1", [username]);
+      token_version: number;
+    }>(
+      "SELECT id, password_hash, token_version FROM users WHERE username = $1",
+      [username],
+    );
 
     const user = result.rows[0];
     // ユーザーが存在しない場合もダミーハッシュで比較し、タイミング攻撃を防ぐ
@@ -172,24 +188,53 @@ router.post(
       return;
     }
 
-    await signAndSetCookie(res, user.id);
+    const tokenVersion =
+      Number.isInteger(user.token_version) && user.token_version >= 0
+        ? user.token_version
+        : 0;
+    await signAndSetCookie(res, user.id, tokenVersion);
     res.json({ ok: true });
   }),
 );
 
 /**
  * POST /api/auth/logout
- * HttpOnly Cookie を削除してログアウトする。
+ * 提示された JWT の世代を進め、Cookie を削除する。
+ * 世代を進めたトークンは、期限前でも以降の API で拒否される。
  */
-router.post("/logout", (_req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-  });
-  res.json({ ok: true });
-});
+router.post(
+  "/logout",
+  asyncHandler(async (req, res) => {
+    const cookieToken = req.cookies?.token as string | undefined;
+    const authHeader = req.headers.authorization;
+    const token =
+      cookieToken ??
+      (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined);
+
+    if (token && AUTH_SECRET) {
+      let payload: Awaited<ReturnType<typeof jwtVerify>>["payload"] | undefined;
+      try {
+        ({ payload } = await jwtVerify(
+          token,
+          new TextEncoder().encode(AUTH_SECRET),
+        ));
+      } catch {
+        payload = undefined;
+      }
+      const userId = Number(payload?.sub);
+      if (payload && Number.isFinite(userId) && userId > 0) {
+        await pool.query(
+          `UPDATE users SET token_version = token_version + 1
+           WHERE id = $1 AND token_version = $2`,
+          [userId, readTokenVersion(payload)],
+        );
+      }
+    }
+
+    clearAuthCookie(res);
+    res.json({ ok: true });
+  }),
+);
 
 /**
  * GET /api/auth/verify

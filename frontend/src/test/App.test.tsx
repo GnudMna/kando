@@ -77,6 +77,9 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: "ログイン" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "新規登録" }),
+    ).not.toBeInTheDocument();
   });
 
   it("認証済み時はボードとヘッダーを表示する", () => {

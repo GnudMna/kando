@@ -32,6 +32,9 @@ describe("LoginScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("ユーザー名")).toBeInTheDocument();
     expect(screen.getByLabelText("パスワード")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "新規登録" }),
+    ).not.toBeInTheDocument();
   });
 
   it("initialMode=register で登録フォームを表示する", () => {
@@ -44,7 +47,7 @@ describe("LoginScreen", () => {
 
   it("モード切替で登録フォームに遷移する", async () => {
     const user = userEvent.setup();
-    renderScreen();
+    renderScreen({ allowRegister: true });
 
     await user.click(screen.getByRole("button", { name: "新規登録" }));
 

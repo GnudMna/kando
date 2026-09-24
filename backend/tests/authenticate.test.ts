@@ -4,10 +4,19 @@ import request from "supertest";
 import { SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authenticate } from "../middleware/authenticate.js";
+import { pool } from "../db.js";
 
 vi.hoisted(() => {
   process.env.AUTH_SECRET = "test-auth-secret-for-middleware-tests";
 });
+
+vi.mock("../db.js", () => ({
+  pool: {
+    query: vi.fn(),
+  },
+}));
+
+const mockedPool = pool as unknown as { query: ReturnType<typeof vi.fn> };
 
 /**
  * 認証ミドルウェア検証用の最小 Express アプリを生成する。
@@ -43,7 +52,9 @@ describe("authenticate middleware", () => {
   const originalAuthSecret = process.env.AUTH_SECRET;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     process.env.AUTH_SECRET = "test-auth-secret-for-middleware-tests";
+    mockedPool.query.mockResolvedValue({ rows: [{ token_version: 0 }] });
   });
 
   afterEach(() => {
@@ -124,6 +135,28 @@ describe("authenticate middleware", () => {
       .setExpirationTime("1h")
       .sign(secretKey);
 
+    const res = await request(createApp())
+      .get("/protected")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Unauthorized" });
+  });
+
+  it("トークン世代が一致しない場合は 401 を返す", async () => {
+    mockedPool.query.mockResolvedValueOnce({ rows: [{ token_version: 3 }] });
+    const token = await signToken(42);
+    const res = await request(createApp())
+      .get("/protected")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Unauthorized" });
+  });
+
+  it("ユーザーが存在しない場合は 401 を返す", async () => {
+    mockedPool.query.mockResolvedValueOnce({ rows: [] });
+    const token = await signToken(42);
     const res = await request(createApp())
       .get("/protected")
       .set("Authorization", `Bearer ${token}`);
