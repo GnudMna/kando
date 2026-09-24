@@ -24,21 +24,22 @@ const authFile = path.join(
 setup("認証状態を保存する", async ({ page }) => {
   mkdirSync(path.dirname(authFile), { recursive: true });
 
-  // 実行ごとに一意なユーザー名を使い、既存データとの衝突を避ける
-  const username = `e2e_user_${Date.now().toString(36)}`;
+  // 登録は初回ユーザーだけ。2回目以降は同じ資格情報でログインする
+  const username = "e2e_user";
   const password = "e2e_password_12";
 
   await page.goto("/");
 
-  // 初回起動時は登録フォームが非表示のため、必要なら「新規登録」へ切り替える
   const registerSubmit = page.getByRole("button", { name: "アカウントを作成" });
-  if (!(await registerSubmit.isVisible().catch(() => false))) {
-    await page.getByRole("button", { name: "新規登録" }).click();
+  if (await registerSubmit.isVisible().catch(() => false)) {
+    await page.getByPlaceholder("ユーザー名を入力").fill(username);
+    await page.getByPlaceholder("パスワードを入力").fill(password);
+    await registerSubmit.click();
+  } else {
+    await page.getByPlaceholder("ユーザー名を入力").fill(username);
+    await page.getByPlaceholder("パスワードを入力").fill(password);
+    await page.getByRole("button", { name: "ログイン" }).click();
   }
-
-  await page.getByPlaceholder("ユーザー名を入力").fill(username);
-  await page.getByPlaceholder("パスワードを入力").fill(password);
-  await registerSubmit.click();
 
   // ログイン完了後、ボードが表示されるまで待ってからセッションを保存する
   await page.getByLabel("ボード統計").waitFor({ state: "visible", timeout: 30_000 });

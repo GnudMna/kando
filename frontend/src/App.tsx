@@ -46,6 +46,7 @@ function App() {
     return (
       <LoginScreen
         initialMode="register"
+        allowRegister
         onLogin={login}
         onRegister={register}
         error={error}

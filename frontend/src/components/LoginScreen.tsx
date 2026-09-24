@@ -12,6 +12,8 @@ type ScreenMode = "login" | "register";
 interface LoginScreenProps {
   /** 初期モード: `"register"` を指定するとユーザー登録フォームで開始 */
   initialMode?: ScreenMode;
+  /** 初回セットアップ中だけ新規登録への切り替えを出す */
+  allowRegister?: boolean;
   onLogin: (username: string, password: string) => Promise<void>;
   onRegister: (username: string, password: string) => Promise<void>;
   error: string | null;
@@ -20,8 +22,10 @@ interface LoginScreenProps {
 
 /**
  * ログイン／ユーザー登録画面を描画する。
- * initialMode="register" のときは登録フォームが表示され、モード切替も可能。
+ * initialMode="register" のときは登録フォームが表示される。
+ * 新規登録への切り替えは allowRegister が true のときだけ出す。
  * @param initialMode - 初期モード(デフォルト: `"login"`)
+ * @param allowRegister - 新規登録への切り替えを許可するか
  * @param onLogin - ログインコールバック
  * @param onRegister - ユーザー登録コールバック
  * @param error - 表示するエラーメッセージ。なければ `null`
@@ -30,6 +34,7 @@ interface LoginScreenProps {
  */
 export function LoginScreen({
   initialMode = "login",
+  allowRegister = false,
   onLogin,
   onRegister,
   error,
@@ -174,33 +179,35 @@ export function LoginScreen({
           </button>
         </form>
 
-        <div className="login-switch">
-          {isRegister ? (
-            <span>
-              既にアカウントをお持ちですか？{" "}
-              <button
-                type="button"
-                className="login-switch-btn"
-                onClick={() => switchMode("login")}
-                disabled={isSubmitting}
-              >
-                ログイン
-              </button>
-            </span>
-          ) : (
-            <span>
-              アカウントをお持ちでない方は{" "}
-              <button
-                type="button"
-                className="login-switch-btn"
-                onClick={() => switchMode("register")}
-                disabled={isSubmitting}
-              >
-                新規登録
-              </button>
-            </span>
-          )}
-        </div>
+        {(isRegister || allowRegister) && (
+          <div className="login-switch">
+            {isRegister ? (
+              <span>
+                既にアカウントをお持ちですか？{" "}
+                <button
+                  type="button"
+                  className="login-switch-btn"
+                  onClick={() => switchMode("login")}
+                  disabled={isSubmitting}
+                >
+                  ログイン
+                </button>
+              </span>
+            ) : (
+              <span>
+                アカウントをお持ちでない方は{" "}
+                <button
+                  type="button"
+                  className="login-switch-btn"
+                  onClick={() => switchMode("register")}
+                  disabled={isSubmitting}
+                >
+                  新規登録
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

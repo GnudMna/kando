@@ -262,6 +262,7 @@ export function jsonResponse(
 export const standardErrors = {
   400: jsonResponse(ErrorResponse, "リクエストが不正"),
   401: jsonResponse(ErrorResponse, "未認証"),
+  403: jsonResponse(ErrorResponse, "禁止"),
   404: jsonResponse(ErrorResponse, "リソースが見つからない"),
   409: jsonResponse(ErrorResponse, "競合"),
   503: jsonResponse(ErrorResponse, "サービス利用不可"),

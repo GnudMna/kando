@@ -150,15 +150,16 @@ Docker Compose 起動時:
 | メソッド | パス                 | 説明                                                 |
 | -------- | -------------------- | ---------------------------------------------------- |
 | `GET`    | `/api/auth/status`   | ユーザー登録済みかどうかを返す（認証不要）           |
-| `POST`   | `/api/auth/register` | 新規ユーザー登録・JWT 発行（パスワード 12 文字以上） |
+| `POST`   | `/api/auth/register` | 初回ユーザー登録・JWT 発行（パスワード 12 文字以上。登録済みなら 403） |
 | `POST`   | `/api/auth/login`    | ログイン・JWT 発行                                   |
-| `POST`   | `/api/auth/logout`   | ログアウト（Cookie の JWT を削除）                   |
+| `POST`   | `/api/auth/logout`   | ログアウト（トークン世代を進め、Cookie を削除）       |
 
 補足:
 
 - `/api/auth/*` には認証レートリミットが適用される（15 分間に 10 リクエスト）
 - 発行された JWT は HttpOnly Cookie（`token`）に保存される。API クライアント向けには `Authorization: Bearer <token>` ヘッダーも利用可能（有効期限 7 日）
-- 初回起動時は `GET /api/auth/status` が `{ "hasUsers": false }` を返し、フロントエンドは登録画面を表示する
+- 初回起動時は `GET /api/auth/status` が `{ "hasUsers": false }` を返し、フロントエンドは登録画面を表示する。ユーザーが既にいる場合、登録は 403 になる
+- JWT にはトークン世代が入り、ログアウトで世代を進める。世代が合わないトークンは 401 になる
 - 認証不要エンドポイント: `/api/health`、`/api/liveness`、`/api/auth/*`、`/api/openapi.json`、`/api/docs`
 
 ### ボード取得
