@@ -6,18 +6,38 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-8.0-646CFF?logo=vite)](https://vite.dev/)
-[![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-5-000000?logo=express)](https://expressjs.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?logo=opensourceinitiative)](LICENSE)
+
+<p>現在のバージョンは <strong>0.4.1</strong> です。未リリースの変更は <a href="CHANGELOG.md">CHANGELOG</a> を参照してください。</p>
 
 </div>
 
 ---
 
-## ✨ 現在の機能
+## 目次
 
-- 🔐 **ユーザー認証**: 登録・ログイン・ログアウトに対応（JWT ベース、HttpOnly Cookie、有効期限 7 日、パスワード 12 文字以上）
+- [機能](#features)
+- [アーキテクチャ](#architecture)
+- [クイックスタート](#quickstart)
+- [ローカル開発](#local-dev)
+- [開発スクリプト](#scripts)
+- [テスト](#testing)
+- [DB バックアップ / 復元](#backup)
+- [API 概要](#api)
+- [ドキュメント](#docs)
+- [プロジェクト構成](#layout)
+
+---
+
+<a id="features"></a>
+
+## ✨ 機能
+
+- 🔐 **ユーザー認証**: 初回登録・ログイン・ログアウトに対応（JWT ベース、HttpOnly Cookie、有効期限 7 日、ログアウトで即時失効、パスワード 12 文字以上）
 - 🗂️ **行ベースのかんばん管理**: 行（プロジェクト）ごとに複数カラムを管理
 - 🧱 **行作成時のデフォルト列生成**: 「未着手 / 進行中 / 完了」を自動作成
 - 🔀 **ドラッグ&ドロップ並び替え**: カラム・タスクの順序変更と列間移動に対応
@@ -26,25 +46,27 @@
 - 📅 **期限管理と強調表示**: 期限切れ・期限間近を自動判定（しきい値は 0〜30 日で調整可能）
 - 🧰 **タスク編集モーダル**: タスク本文、期限、完了状態、サブタスク、チェックリスト、コメントを一括編集
 - ✅ **完了ステータス**: タスクの完了/未完了を切り替え（完了時は期限強調を抑制）
-- 💾 **スナップショット保存**: 編集モーダルの内容を単一 API でトランザクション保存（詳細データ読み込み完了後）
+- 💾 **スナップショット保存**: 編集モーダルの内容を単一 API でトランザクション保存する。詳細の読み込み完了後に送り、`revision` が一致しない古い内容は 409 で拒否する
 - 📋 **タスクのコピー**: サブタスク・チェックリスト・コメントを含めて複製
 - 📝 **メモ帳**: メモの作成・編集・自動保存、タスクとの相互リンク
-- ⚡ **段階的データ読み込み**: ボードは 20 行ずつ取得し、タスク詳細は表示時に遅延読み込み
+- ⚡ **段階的データ読み込み**: ボードは 20 行ずつ取得し、画面外の行は描画しない。タスク詳細は表示時に遅延読み込み
 - 🌓 **テーマ切り替え**: ダーク/ライトモードをローカル保存
 - ⚠️ **操作エラー通知**: API 失敗時に共通バナーでユーザーへ通知
 
 ---
 
+<a id="architecture"></a>
+
 ## 🏗️ アーキテクチャ
 
 | レイヤー | 実装 |
 |---|---|
-| フロントエンド | React 19 + TypeScript + Vite + TanStack Query |
-| バックエンド | Express + TypeScript（`routes → services → repositories` の 3 層構成） |
-| 共有型 | `@kando/types`（型定義・Zod バリデーション・OpenAPI 生成） |
+| フロントエンド | React 19 + TypeScript + Vite + TanStack Query / Virtual |
+| バックエンド | Express 5 + TypeScript（`routes → services → repositories` の 3 層構成） |
+| 共有型 | `@kando/types`（型定義・Zod 4・OpenAPI 生成） |
 | DB | PostgreSQL 18 |
 | 配信 | Nginx（SPA フォールバック対応） |
-| プロセス管理 | 各コンテナで単一サービスを実行（frontend / backend / db） |
+| テスト | Vitest（単体・ルーター）と Playwright（E2E） |
 
 `compose.yaml` では `db`（PostgreSQL）、`backend`（Node.js API）、`frontend`（Nginx で静的Reactアプリ配信）を起動します。
 `backend` コンテナ内では起動時に `npm run migrate`（`node-pg-migrate` によるバージョン管理マイグレーション）を実行したあと、API サーバーを開始します。
@@ -53,11 +75,15 @@
 
 ---
 
+<a id="quickstart"></a>
+
 ## 🚀 クイックスタート（Docker Compose 推奨）
 
 ```bash
-docker compose up --build
+AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build
 ```
+
+`AUTH_SECRET` は必須です。未設定、または開発用の `dev-only-secret-change-in-production` のままでは backend は起動しません。Compose は `NODE_ENV=production` で動き、公開ポートが平文 HTTP のため `COOKIE_SECURE` は既定で `false` です。TLS の前段を置いたら `COOKIE_SECURE=true` にしてください。
 
 起動後:
 
@@ -72,16 +98,23 @@ docker compose up --build
 3. ユーザー名とパスワード（12 文字以上）を入力して登録する
 4. 登録完了後、自動的にログインされボード画面へ遷移する
 
-2回目以降はログイン画面から既存アカウントでサインインします。`GET /api/auth/status` が `{ "hasUsers": false }` を返す間は登録画面が表示されます。
+2回目以降はログイン画面から既存アカウントでサインインします。登録は最初の 1 人だけです。
 
-### Compose 環境変数（任意）
+- `GET /api/auth/status` が `{ "hasUsers": false }` の間だけ登録画面が出る
+- ユーザーが既にいると登録 API は成功しない。ログイン画面に新規登録の導線はない
+- セットアップ前から残っている所有者なしの行は、この初回登録だけに割り当てる
+- ログアウトすると、そのユーザーの発行済み JWT は期限前でも無効になる
+
+### Compose 環境変数
 
 | 変数名 | 既定値 | 用途 |
 |---|---|---|
 | `POSTGRES_USER` | `kando_user` | DB ユーザー |
 | `POSTGRES_PASSWORD` | `kando_password` | DB パスワード |
 | `POSTGRES_DB` | `kanban_db` | DB 名 |
-| `AUTH_SECRET` | `dev-only-secret-change-in-production` | JWT 署名シークレット（**本番では必ず変更**） |
+| `AUTH_SECRET` | なし（必須） | JWT 署名シークレット。開発用の既定値では起動しない |
+| `CORS_ORIGIN` | `http://localhost:8080` | 許可するブラウザオリジン |
+| `COOKIE_SECURE` | `false` | 平文 HTTP のため。TLS の前段を置いたら `true` |
 
 例:
 
@@ -90,6 +123,8 @@ POSTGRES_USER=my_user POSTGRES_PASSWORD=my_pass POSTGRES_DB=my_db AUTH_SECRET=$(
 ```
 
 ---
+
+<a id="local-dev"></a>
 
 ## 💻 ローカル開発
 
@@ -106,7 +141,7 @@ POSTGRES_USER=my_user POSTGRES_PASSWORD=my_pass POSTGRES_DB=my_db AUTH_SECRET=$(
 `.devcontainer/` を使うと、`app`（Node.js 24）と `db`（PostgreSQL 18）が起動する開発用コンテナ内で作業できます。
 
 1. エディタで「**Dev Containers: Reopen in Container**」を実行
-2. `postCreateCommand` により frontend / backend の依存関係がインストールされる
+2. `postCreateCommand` により依存関係のインストールと共有型パッケージのビルドが行われる
 3. ターミナルで `./scripts/linux/dev.sh` または[手動起動](#手動起動)を実行
 
 転送される主なポート:
@@ -147,9 +182,11 @@ grep '^VITE_' .env > frontend/.env
 
 ```bash
 export DATABASE_URL=postgres://kando_user:kando_password@localhost:5432/kanban_db
-export AUTH_SECRET=your-secret-key  # 本番環境では必須
+export AUTH_SECRET=dev-only-secret-change-in-production  # development のみ可
 export CORS_ORIGIN=http://localhost:5173
 ```
+
+`NODE_ENV=development` では上の開発用 `AUTH_SECRET` で起動できます。`NODE_ENV=production`（Compose を含む）では未設定、またはこの開発用の値のままだと起動しません。本番では `openssl rand -hex 32` で生成してください。
 
 Docker Compose 利用時はルート `.env` を置くだけで自動読み込みされます（上記「Compose 環境変数」参照）。
 
@@ -204,28 +241,32 @@ npm --workspace frontend run dev -- --host
 
 ---
 
+<a id="scripts"></a>
+
 ## 🧰 開発スクリプト
 
 | スクリプト | 説明 |
 |---|---|
 | `npm run dev` | 開発サーバー起動（Linux / macOS） |
 | `npm run dev:win` | 開発サーバー起動（Windows） |
-| `npm run test` | 品質チェック（Linux / macOS） |
-| `npm run test:win` | 品質チェック（Windows） |
+| `npm run test` | 品質チェック（Linux / macOS）。lint、型チェック、単体・ルーターテスト、カバレッジ。E2E は含まない |
+| `npm run test:win` | 品質チェック（Windows）。内容は `npm run test` と同じ |
 | `npm run test:coverage` | ルートワークスペースのテストカバレッジを生成 |
 | `npm run test:ci` | CI 向けに compliance/lint/typecheck/test/e2e を実行 |
 | `npm run test:e2e` | Playwright による E2E テストを実行 |
 | `npm run test:e2e:install` | Playwright の Chromium をインストール |
 | `npm run check:compliance` | 依存関係のライセンス・監査チェック（Linux / macOS） |
 | `npm run check:compliance:win` | 依存関係のライセンス・監査チェック（Windows） |
-| `npm run lint` | backend/frontend の ESLint を実行 |
+| `npm run lint` | backend / frontend / `@kando/types` の ESLint を実行 |
 | `./scripts/linux/dev.sh` / `scripts\windows\dev.bat` | 開発起動スクリプト（`migrate:dev` 実行後に backend/frontend を起動） |
-| `./scripts/linux/test.sh` / `scripts\windows\test.bat` | 品質チェックスクリプト（lint/typecheck/test） |
+| `./scripts/linux/test.sh` / `scripts\windows\test.bat` | 品質チェック（`@kando/types` / backend / frontend の lint、型チェック、単体・ルーターテスト、カバレッジ） |
 | `./scripts/linux/format.sh` / `scripts\windows\format.bat` | backend/frontend の `lint:fix` と `format` を実行 |
 | `./scripts/linux/db-backup.sh` / `scripts\windows\db-backup.bat` | Compose 上の DB を論理バックアップ（`.sql`） |
 | `./scripts/linux/db-restore.sh` / `scripts\windows\db-restore.bat` | `.sql` から DB 復元（`public` スキーマを再作成） |
 
 ---
+
+<a id="testing"></a>
 
 ## 🧪 テスト
 
@@ -278,6 +319,8 @@ npm run test:ci
 
 ---
 
+<a id="backup"></a>
+
 ## 🗄️ DB バックアップ / 復元
 
 バックアップ:
@@ -311,6 +354,8 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 
 ---
 
+<a id="api"></a>
+
 ## 🔌 API 概要
 
 エンドポイントの一覧・リクエスト/レスポンス形式・認証の詳細は **[backend/README.md](backend/README.md)** を参照してください。
@@ -335,8 +380,12 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 - `/api/auth/*` 以外は JWT 認証必須（HttpOnly Cookie または `Authorization: Bearer <token>`）
 - リクエストバリデーションは [`@kando/types`](packages/types/README.md) の Zod スキーマで統一（リクエストボディ + クエリパラメータ）
 - ログイン/登録フォームも同一 Zod スキーマで送信前検証
+- `PUT /api/tasks/:id/snapshot` はリクエストの `revision` が現在値と一致するときだけ保存し、不一致は 409 を返す
+- タスクとカラムの並び順は対象行をロックしてから採番する。希望位置が衝突するか間隔が潰れているときは、1000 刻みに振り直す
 
 ---
+
+<a id="docs"></a>
 
 ## 📘 ドキュメント
 
@@ -349,6 +398,8 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 | [CHANGELOG.md](CHANGELOG.md) | 変更履歴 |
 
 ---
+
+<a id="layout"></a>
 
 ## 🗂️ プロジェクト構成
 
@@ -365,19 +416,23 @@ npm workspace で 3 パッケージを管理しています。
 .
 ├── backend/              # Express API
 │   ├── middleware/       # 認証・asyncHandler・validateBody/validateQuery・エラー処理
-│   ├── migrations/       # node-pg-migrate 用 SQL
+│   ├── migrations/       # node-pg-migrate（初期スキーマ、token_version、task.revision）
+│   ├── openapi/          # 生成済み OpenAPI JSON
 │   ├── repositories/     # DB アクセス層（board, rows, columns, tasks, memos 等）
 │   ├── routes/           # HTTP ルーター（薄いハンドラ）
 │   ├── scripts/          # OpenAPI JSON 生成など
 │   ├── services/         # ビジネスロジック（board, rows, columns, tasks, memos 等）
 │   ├── tests/
+│   ├── authToken.ts      # JWT 署名（トークン世代を含む）
 │   ├── migrate.ts
+│   ├── positionSlot.ts   # 並び順の採番と振り直し
+│   ├── productionEnv.ts  # 本番の AUTH_SECRET / CORS 検査
 │   └── server.ts
 ├── frontend/             # React + Vite
 │   ├── public/
 │   └── src/
 │       ├── api/          # ドメイン別 API クライアント
-│       ├── components/   # ErrorBanner, LoginScreen, KanbanBoard 等
+│       ├── components/   # kanban/, taskEdit/, LoginScreen, MemoPanel 等
 │       ├── hooks/        # useBoard/, useTaskEditForm 等
 │       ├── providers/    # TanStack Query・OperationErrorProvider・ナビゲーション
 │       ├── test/

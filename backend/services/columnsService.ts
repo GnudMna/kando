@@ -57,7 +57,22 @@ export async function moveColumn(
   position: number,
   userId: number,
 ): Promise<DbColumn | null> {
-  return moveColumnQuery(pool, id, position, userId);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const column = await moveColumnQuery(client, id, position, userId);
+    await client.query("COMMIT");
+    return column;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("Rollback failed:", rollbackErr);
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

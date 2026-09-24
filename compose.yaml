@@ -25,11 +25,15 @@ services:
     expose:
       - "3001"
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-kando_user}:${POSTGRES_PASSWORD:-kando_password}@db:5432/${POSTGRES_DB:-kanban_db}
       POSTGRES_USER: ${POSTGRES_USER:-kando_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kando_password}
       POSTGRES_DB: ${POSTGRES_DB:-kanban_db}
-      AUTH_SECRET: ${AUTH_SECRET:-dev-only-secret-change-in-production}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET to a unique value. The development placeholder is rejected.}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      # 公開ポートは平文 HTTP。TLS の前段を置いたら true にする
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     depends_on:
       db:
         condition: service_healthy
@@ -49,5 +53,6 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped

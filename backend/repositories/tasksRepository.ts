@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import type { PositionSlot } from "../positionSlot.js";
 import type {
   DbTask,
   Task,
@@ -9,7 +10,7 @@ import { HttpError } from "../errors.js";
 
 /** タスク INSERT/UPDATE の `RETURNING` 句で取得するカラム一覧。 */
 export const TASK_RETURNING_COLUMNS =
-  "id, column_id, content, due_date::text AS due_date, position, completed";
+  "id, column_id, content, due_date::text AS due_date, position, completed, revision";
 
 /**
  * 配列インデックスから並び順用の position 値を 1000 刻みで採番する。
@@ -18,6 +19,50 @@ export const TASK_RETURNING_COLUMNS =
  */
 export function calcPosition(index: number): number {
   return (index + 1) * 1000;
+}
+
+/**
+ * カラムを ID 順にロックしてから、配下タスクを ID 順にロックして返す。
+ * 移動とコピーが同じ順でロックすることで、position 採番の競合とデッドロックを避ける。
+ * @param client - トランザクション中のクライアント
+ * @param columnIds - ロックするカラム ID
+ * @returns ロック済みタスクの ID・所属カラム・position
+ */
+export async function lockTasksInColumns(
+  client: PoolClient,
+  columnIds: number[],
+): Promise<Array<PositionSlot & { column_id: number }>> {
+  const ids = [...new Set(columnIds)].sort((a, b) => a - b);
+  await client.query(
+    "SELECT id FROM columns WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE",
+    [ids],
+  );
+  const result = await client.query<PositionSlot & { column_id: number }>(
+    `SELECT id, column_id, position FROM tasks
+     WHERE column_id = ANY($1::int[])
+     ORDER BY id
+     FOR UPDATE`,
+    [ids],
+  );
+  return result.rows;
+}
+
+/**
+ * ロック中のタスク position を振り直す。
+ * @param client - トランザクション中のクライアント
+ * @param updates - 更新するタスク ID と position
+ */
+export async function updateTaskPositions(
+  client: PoolClient,
+  updates: PositionSlot[],
+): Promise<void> {
+  if (updates.length === 0) return;
+  await client.query(
+    `UPDATE tasks SET position = data.position
+     FROM unnest($1::int[], $2::float8[]) AS data(id, position)
+     WHERE tasks.id = data.id`,
+    [updates.map((item) => item.id), updates.map((item) => item.position)],
+  );
 }
 
 /**
@@ -334,6 +379,7 @@ export async function fetchTaskSnapshot(
        t.due_date::text AS due_date,
        t.position,
        t.completed,
+       t.revision,
        COALESCE((SELECT subtasks FROM agg_subtasks), '[]'::json) AS subtasks,
        COALESCE((SELECT checklists FROM task_cl), '[]'::json) AS checklists,
        COALESCE((SELECT comments FROM task_cmt), '[]'::json) AS comments

@@ -99,7 +99,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     path: "/api/auth/register",
     summary: "ユーザー登録",
     description:
-      "新規ユーザーを登録し JWT を HttpOnly Cookie にセットする。パスワードは12文字以上。",
+      "ユーザーが未登録のときだけアカウントを作り、JWT を HttpOnly Cookie にセットする。パスワードは12文字以上。登録済みの場合は 403。セットアップ前の所有者なし行は、この初回登録だけに割り当てる。",
     tags: ["Auth"],
     request: {
       body: {
@@ -109,6 +109,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     responses: {
       201: jsonResponse(OkResponse, "登録成功"),
       400: standardErrors[400],
+      403: standardErrors[403],
       409: standardErrors[409],
       503: standardErrors[503],
     },
@@ -138,7 +139,8 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     method: "post",
     path: "/api/auth/logout",
     summary: "ログアウト",
-    description: "HttpOnly Cookie を削除してログアウトする。",
+    description:
+      "提示された JWT の世代を進め、HttpOnly Cookie を削除する。世代が合わないトークンは期限前でも拒否される。",
     tags: ["Auth"],
     responses: {
       200: jsonResponse(OkResponse, "ログアウト成功"),
@@ -400,7 +402,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
     path: "/api/tasks/{id}/snapshot",
     summary: "タスク編集内容の一括保存",
     description:
-      "タスク本文・期限・サブタスク・チェックリスト・コメントを単一トランザクションで保存する。",
+      "タスク本文・期限・サブタスク・チェックリスト・コメントを単一トランザクションで保存する。リクエストの revision が現在値と違う場合は 409 を返す。",
     tags: ["Tasks"],
     security: authenticatedSecurity,
     request: {
@@ -414,6 +416,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
       400: standardErrors[400],
       401: standardErrors[401],
       404: standardErrors[404],
+      409: standardErrors[409],
     },
   });
 

@@ -255,6 +255,7 @@ export const taskSnapshotBodySchema = z
     checklists: z.array(taskSnapshotChecklistSchema),
     subtasks: z.array(taskSnapshotSubtaskSchema),
     comments: z.array(taskSnapshotCommentSchema),
+    revision: positiveNumberField("revision", { integer: true }),
   })
   .superRefine((body, ctx) => {
     ensureNoDuplicateIds(body.checklists, "checklists", ctx);

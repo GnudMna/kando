@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-24
+### Security
+
+- Compose は `NODE_ENV=production` で起動し、開発用の `AUTH_SECRET`（`dev-only-secret-change-in-production`）では起動しない
+- ユーザー登録は最初の 1 人だけに制限し、ログイン画面から新規登録へ移れない
+- ログアウトでトークン世代を進め、発行済み JWT を期限前に無効化する
+- 所有者のない行は、初回ユーザー登録のトランザクション内だけに割り当てる
+
+### Fixed
+
+- タスクの一括保存は `revision` が現在値と一致するときだけ成功し、古い内容は 409 で拒否する
+- タスクとカラムの並び順は対象行をロックしてから採番し、間隔が潰れたときは 1000 刻みに振り直す
+
+### Changed
+
+- ルートの lint / typecheck と品質チェックスクリプト（`test.sh` / `test.bat`）に `@kando/types` を含めた
+
+### Docs
+
+- README に初回登録、トークン失効、スナップショットの改訂番号、品質チェックの範囲を反映した
+
 ## [0.4.1] - 2026-07-07
 
 ### Added
@@ -308,7 +329,8 @@
 
 - テストパターンを追加
 
-[Unreleased]: https://github.com/GnudMna/kando/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/GnudMna/kando/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/GnudMna/kando/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/GnudMna/kando/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/GnudMna/kando/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/GnudMna/kando/compare/v0.3.0...v0.3.1

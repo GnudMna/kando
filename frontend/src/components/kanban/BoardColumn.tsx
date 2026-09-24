@@ -141,6 +141,7 @@ export const BoardColumn = memo(function BoardColumn({
                 draggableId={`task-${task.id}`}
                 index={index}
                 key={`task-${task.id}`}
+                disableInteractiveElementBlocking
               >
                 {(taskDragProvided, taskDragSnapshot) => {
                   const dueHighlight =

@@ -19,6 +19,7 @@ import checklistItemsRouter from "./routes/checklistItems.js";
 import taskCommentsRouter from "./routes/taskComments.js";
 import memosRouter from "./routes/memos.js";
 import openapiRouter from "./routes/openapi.js";
+import { isCookieSecure, productionEnvError } from "./productionEnv.js";
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -29,19 +30,16 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-if (isProduction && !process.env.CORS_ORIGIN) {
-  console.error(
-    "FATAL: CORS_ORIGIN environment variable must be set in production",
-  );
+const productionError = productionEnvError(process.env);
+if (productionError) {
+  console.error(productionError);
   process.exit(1);
 }
 
-// AUTH_SECRET は本番環境で必須
-if (isProduction && !process.env.AUTH_SECRET) {
-  console.error(
-    "FATAL: AUTH_SECRET environment variable must be set in production",
+if (isProduction && !isCookieSecure(process.env)) {
+  console.warn(
+    "WARN: COOKIE_SECURE=false in production. Auth cookies are sent over plain HTTP.",
   );
-  process.exit(1);
 }
 
 const rawPort = process.env.PORT ?? "3001";

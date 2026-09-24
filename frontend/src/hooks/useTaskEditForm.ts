@@ -167,13 +167,19 @@ export function useTaskEditForm({
           id: isTemp(comment.id) ? undefined : comment.id,
           content: comment.content,
         })),
+        revision: final.revision,
       };
 
       const savedTask = await api.saveTaskSnapshot(task.id, payload);
       onTaskUpdated(savedTask);
       onClose("saved");
-    } catch {
-      setSaveError("保存中にエラーが発生しました。再試行してください。");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setSaveError(
+        message.includes("他の変更が先に保存されています")
+          ? message
+          : "保存中にエラーが発生しました。再試行してください。",
+      );
     } finally {
       setIsSaving(false);
     }

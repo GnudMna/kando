@@ -1,7 +1,7 @@
 {
   "name": "kando",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.5.0",
   "license": "MIT",
   "packageManager": "npm@11.9.0",
   "workspaces": [
@@ -10,7 +10,7 @@
     "packages/types"
   ],
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.1",
     "licensee": "^12.0.1"
   },
   "scripts": {
@@ -18,10 +18,10 @@
     "dev": "./scripts/linux/dev.sh",
     "dev:win": "scripts/windows/dev.bat",
     "build": "npm --workspace frontend run build && npm --workspace backend run build",
-    "lint": "npm --workspace backend run lint && npm --workspace frontend run lint",
-    "lint:fix": "npm --workspace backend run lint:fix && npm --workspace frontend run lint:fix",
-    "format": "npm --workspace backend run format && npm --workspace frontend run format",
-    "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
+    "lint": "npm --workspace backend run lint && npm --workspace frontend run lint && npm --workspace @kando/types run lint",
+    "lint:fix": "npm --workspace backend run lint:fix && npm --workspace frontend run lint:fix && npm --workspace @kando/types run lint:fix",
+    "format": "npm --workspace backend run format && npm --workspace frontend run format && npm --workspace @kando/types run format",
+    "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck && npm --workspace @kando/types run typecheck",
     "test": "./scripts/linux/test.sh",
     "test:coverage": "npm --workspace @kando/types run test:coverage && npm --workspace backend run test:coverage && npm --workspace frontend run test:coverage",
     "check:licenses": "licensee --production --errors-only",
@@ -34,5 +34,8 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium --with-deps",
     "test:win": "scripts/windows/test.bat"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }

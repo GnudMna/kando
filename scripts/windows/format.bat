@@ -12,6 +12,16 @@ call "%SCRIPT_DIR%..\common\cd-project-root.bat"
 echo ESLint の自動修正と Prettier によるコード整形を実行しています...
 echo.
 
+REM 共有型パッケージの ESLint 自動修正
+echo 共有型パッケージの ESLint 自動修正を実行中...
+call npm --workspace @kando/types run lint:fix
+if errorlevel 1 (
+    echo 共有型パッケージの ESLint 自動修正に失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
 REM バックエンドの ESLint 自動修正
 echo バックエンドの ESLint 自動修正を実行中...
 call npm --prefix backend run lint:fix

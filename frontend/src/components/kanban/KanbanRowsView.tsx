@@ -1,8 +1,15 @@
 import type { ReactNode, RefObject } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import type { DropResult } from "@hello-pangea/dnd";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  useMouseSensor,
+  useKeyboardSensor,
+} from "@hello-pangea/dnd";
+import type { DropResult, Sensor } from "@hello-pangea/dnd";
+import { useKanbanTouchSensor } from "../../hooks/useKanbanTouchSensor";
 import type { Row, Task } from "../../types";
 import type { DueHighlightResult } from "../../utils/dueDate";
 import { isE2eTestMode } from "../../utils/e2e";
@@ -35,6 +42,12 @@ interface KanbanRowsViewProps {
   taskDueHighlights: Map<number, DueHighlightResult>;
   dueSoonDays: number;
 }
+
+const kanbanDragSensors: Sensor[] = [
+  useMouseSensor,
+  useKeyboardSensor,
+  useKanbanTouchSensor,
+];
 
 type KanbanRowBlockProps = {
   row: Row;
@@ -201,6 +214,8 @@ export function KanbanRowsView({
 
   const dragContext = (content: ReactNode) => (
     <DragDropContext
+      sensors={kanbanDragSensors}
+      enableDefaultSensors={false}
       onBeforeDragStart={() => {
         dragSurfaceRef.current?.classList.add("is-dragging");
       }}
@@ -271,6 +286,8 @@ function VirtualizedKanbanRows({
 
   return (
     <DragDropContext
+      sensors={kanbanDragSensors}
+      enableDefaultSensors={false}
       onBeforeDragStart={() => {
         dragSurfaceRef.current?.classList.add("is-dragging");
       }}
@@ -296,7 +313,7 @@ function VirtualizedKanbanRows({
                 top: 0,
                 left: 0,
                 width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${virtualRow.start - scrollMargin}px)`,
               }}
             >
               <KanbanRowBlock row={row} {...rowBlockProps} />

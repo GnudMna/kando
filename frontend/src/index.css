@@ -986,6 +986,25 @@ body::after {
   transition: none;
 }
 
+.kanban-wrapper.is-dragging .board-row-columns {
+  scroll-snap-type: none;
+}
+
+@media (hover: none) {
+  .task-card {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    /* ライブラリの touch-action: manipulation だと長押し後も背面がスクロールする。
+       touch-action は継承されないため、本文ボタンを含む子孫にも指定する。 */
+    touch-action: none !important;
+  }
+
+  .task-card * {
+    touch-action: none !important;
+  }
+}
+
 /* ドラッグ中: カラムのホバー浮き上がりを抑制 */
 .kanban-wrapper.is-dragging .column-container:hover {
   transform: none;
@@ -1809,6 +1828,12 @@ body::after {
 
   .board-row-columns {
     padding: 0.75rem;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .column-container {
+    scroll-snap-align: start;
   }
 }
 
@@ -1817,26 +1842,77 @@ body::after {
     opacity: 0.65;
   }
 
+  .app-shell {
+    min-height: 100dvh;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+
   .app-header {
-    padding-top: 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+    padding-left: max(0.9rem, env(safe-area-inset-left));
+    padding-right: max(0.9rem, env(safe-area-inset-right));
+    padding-bottom: 0.65rem;
+    background: color-mix(in srgb, var(--bg-page) 88%, transparent);
+    backdrop-filter: blur(10px);
   }
 
   .app-header-inner {
-    align-items: stretch;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .app-header-right {
+    flex-shrink: 0;
+    align-items: center;
   }
 
   .app-brand {
     border-radius: 12px;
-    padding: 0.4rem 1rem;
+    padding: 0.4rem 0.75rem;
+    min-width: 0;
+  }
+
+  .app-title {
+    font-size: 1.35rem;
+  }
+
+  .header-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .theme-toggle {
-    width: 100%;
+    width: auto;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.45rem;
     justify-content: center;
   }
 
+  .app-main,
+  .app-error-banner-wrap {
+    padding-left: max(0.9rem, env(safe-area-inset-left));
+    padding-right: max(0.9rem, env(safe-area-inset-right));
+  }
+
   .app-main {
-    padding: 0.95rem 0.9rem 0;
+    padding-top: 0.95rem;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
   }
 
   .board-stats {
@@ -1902,15 +1978,6 @@ body::after {
 }
 
 @media (max-width: 560px) {
-  .app-title {
-    font-size: clamp(2rem, 13vw, 2.7rem);
-  }
-
-  .theme-toggle {
-    font-size: 0.78rem;
-    padding: 0.58rem 0.8rem;
-  }
-
   .board-toolbar > .btn {
     width: 100%;
   }
@@ -1923,24 +1990,185 @@ body::after {
     display: none;
   }
 
+  .inline-name-form,
+  .inline-name-form-toolbar {
+    width: 100%;
+  }
+
+  .inline-name-input,
+  .inline-name-form-toolbar .inline-name-input {
+    min-width: 0;
+    width: 100%;
+  }
+
   .board-row-header-actions .btn {
     flex: 1;
-  }
-
-  .list-view-col-status {
-    width: 98px;
-  }
-
-  .list-view-col-due {
-    width: 104px;
+    min-height: 2.75rem;
   }
 
   .list-view-header-row {
-    font-size: 0.63rem;
+    display: none;
+  }
+
+  .list-view-body {
+    padding: 0 0.7rem 0.85rem;
+  }
+
+  .list-view-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.35rem 0.5rem;
+    padding: 0.7rem 0.45rem;
+  }
+
+  .list-view-col-task,
+  .list-view-subtask-row .list-view-col-task {
+    flex: 1 1 100%;
+    padding-left: 0;
   }
 
   .list-view-col-task-deep {
-    padding-left: 2.35rem;
+    padding-left: 1.1rem;
+  }
+
+  .list-view-col-status,
+  .list-view-col-due {
+    width: auto;
+    flex: 0 1 auto;
+  }
+
+  .list-view-col-actions {
+    margin-left: auto;
+  }
+
+  .status-badge {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-screen {
+    min-height: 100dvh;
+    padding: max(1rem, env(safe-area-inset-top))
+      max(1rem, env(safe-area-inset-right))
+      max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
+  }
+
+  .login-card {
+    padding: 1.6rem 1.15rem 1.35rem;
+  }
+
+  .modal-overlay {
+    align-items: stretch;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .modal-content {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    margin: 0 !important;
+    border-radius: 0;
+    transform: none !important;
+  }
+
+  .confirm-dialog {
+    align-self: center;
+    width: calc(100% - 1.5rem) !important;
+    height: auto;
+    max-height: calc(100dvh - 2rem);
+    border-radius: 16px;
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .modal-footer {
+    flex-wrap: wrap;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 auto;
+    min-height: 2.75rem;
+  }
+
+  .modal-header.drag-handle,
+  .memo-panel-header.drag-handle {
+    cursor: default !important;
+  }
+
+  .memo-panel {
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+  }
+
+  .memo-panel-body {
+    flex-direction: column;
+  }
+
+  .memo-list {
+    width: 100%;
+    max-height: 34%;
+    border-right: none;
+    border-bottom: 1px solid var(--modal-divider);
+  }
+
+  .memo-picker-dropdown {
+    left: 0;
+    right: auto;
+    max-width: min(280px, calc(100vw - 2rem));
+  }
+
+  .action-btn,
+  .task-complete-btn,
+  .checklist-toggle,
+  .memo-add-btn,
+  .memo-close-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .task-actions {
+    position: static;
+    opacity: 1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.15rem;
+  }
+
+  .checklist-drag-handle,
+  .checklist-del,
+  .memo-delete-btn {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .btn:hover,
+  .text-btn:hover,
+  .column-container:hover,
+  .task-card:hover,
+  .list-view-row:hover,
+  .list-view-row.task-overdue:hover,
+  .list-view-row.task-soon:hover,
+  .action-btn:hover {
+    transform: none;
   }
 }
 

@@ -1,15 +1,18 @@
 import type { Pool } from "pg";
 import { pool } from "../db.js";
 import type { DbTask, Task, TaskSnapshotPayload } from "@kando/types";
-import { HttpError, NotFoundError } from "../errors.js";
+import { ConflictError, HttpError, NotFoundError } from "../errors.js";
+import { appendPosition, assignPosition } from "../positionSlot.js";
 import {
   TASK_RETURNING_COLUMNS,
   calcPosition,
   fetchTaskSnapshot,
   insertTask,
   idsToDelete,
+  lockTasksInColumns,
   syncChecklists,
   syncTaskComments,
+  updateTaskPositions,
 } from "../repositories/tasksRepository.js";
 
 /**
@@ -31,6 +34,7 @@ export async function createTask(
 ): Promise<Task> {
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     const colCheck = await client.query<{ id: number }>(
       `SELECT c.id FROM columns c
        JOIN rows r ON r.id = c.row_id
@@ -40,7 +44,25 @@ export async function createTask(
     if (!colCheck.rows[0]) {
       throw new NotFoundError("Column not found");
     }
-    return await insertTask(client, column_id, content, due_date, position);
+    const locked = await lockTasksInColumns(client, [column_id]);
+    const placed = assignPosition(locked, null, position);
+    await updateTaskPositions(client, placed.rebalance);
+    const created = await insertTask(
+      client,
+      column_id,
+      content,
+      due_date,
+      placed.position,
+    );
+    await client.query("COMMIT");
+    return created;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("Rollback failed:", rollbackErr);
+    }
+    throw err;
   } finally {
     client.release();
   }
@@ -81,6 +103,9 @@ export async function updateTask(
   if (Object.prototype.hasOwnProperty.call(patch, "completed")) {
     updates.push(`completed = $${values.length + 1}`);
     values.push(patch.completed as boolean);
+  }
+  if (updates.length > 0) {
+    updates.push("revision = revision + 1");
   }
 
   values.push(id);
@@ -127,19 +152,27 @@ export async function saveTaskSnapshot(
   try {
     await client.query("BEGIN");
 
-    const taskLockResult = await client.query<{ id: number }>(
-      `SELECT t.id FROM tasks t
+    const taskLockResult = await client.query<{ id: number; revision: number }>(
+      `SELECT t.id, t.revision FROM tasks t
        JOIN columns c ON c.id = t.column_id
        JOIN rows r ON r.id = c.row_id
        WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
       [id, userId],
     );
-    if (!taskLockResult.rows[0]) {
+    const lockedTask = taskLockResult.rows[0];
+    if (!lockedTask) {
       throw new HttpError(404, "Task not found");
+    }
+    if (lockedTask.revision !== payload.revision) {
+      throw new ConflictError(
+        "他の変更が先に保存されています。開き直してから保存してください。",
+      );
     }
 
     await client.query(
-      "UPDATE tasks SET content = $1, due_date = $2, completed = $3 WHERE id = $4",
+      `UPDATE tasks
+       SET content = $1, due_date = $2, completed = $3, revision = revision + 1
+       WHERE id = $4`,
       [payload.content, due_date, payload.completed, id],
     );
 
@@ -257,30 +290,60 @@ export async function moveTask(
   position: number,
   userId: number,
 ): Promise<Task> {
-  const destCheck = await pool.query<{ id: number }>(
-    `SELECT c.id FROM columns c
-     JOIN rows r ON r.id = c.row_id
-     WHERE c.id = $1 AND r.user_id = $2`,
-    [column_id, userId],
-  );
-  if (!destCheck.rows[0]) {
-    throw new NotFoundError("Column not found");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const destCheck = await client.query<{ id: number }>(
+      `SELECT c.id FROM columns c
+       JOIN rows r ON r.id = c.row_id
+       WHERE c.id = $1 AND r.user_id = $2`,
+      [column_id, userId],
+    );
+    if (!destCheck.rows[0]) {
+      throw new NotFoundError("Column not found");
+    }
+    const source = await client.query<{ column_id: number }>(
+      `SELECT t.column_id FROM tasks t
+       JOIN columns c ON c.id = t.column_id
+       JOIN rows r ON r.id = c.row_id
+       WHERE t.id = $1 AND r.user_id = $2`,
+      [id, userId],
+    );
+    if (!source.rows[0]) {
+      throw new NotFoundError("Task not found");
+    }
+
+    const locked = await lockTasksInColumns(client, [
+      source.rows[0].column_id,
+      column_id,
+    ]);
+    const placed = assignPosition(
+      locked.filter((task) => task.column_id === column_id),
+      id,
+      position,
+    );
+    await updateTaskPositions(client, placed.rebalance);
+    const result = await client.query<DbTask>(
+      `UPDATE tasks SET column_id = $1, position = $2
+       WHERE id = $3
+       RETURNING ${TASK_RETURNING_COLUMNS}`,
+      [column_id, placed.position, id],
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundError("Task not found");
+    }
+    await client.query("COMMIT");
+    return result.rows[0] as Task;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("Rollback failed:", rollbackErr);
+    }
+    throw err;
+  } finally {
+    client.release();
   }
-  const result = await pool.query<DbTask>(
-    `UPDATE tasks SET column_id = $1, position = $2
-     WHERE id = $3
-       AND column_id IN (
-         SELECT c.id FROM columns c
-         JOIN rows r ON r.id = c.row_id
-         WHERE r.user_id = $4
-       )
-     RETURNING ${TASK_RETURNING_COLUMNS}`,
-    [column_id, position, id, userId],
-  );
-  if (!result.rows[0]) {
-    throw new NotFoundError("Task not found");
-  }
-  return result.rows[0] as Task;
 }
 
 /**
@@ -295,14 +358,21 @@ export async function copyTask(id: number, userId: number): Promise<Task> {
   try {
     await client.query("BEGIN");
 
-    const ownerCheck = await client.query<{ id: number }>(
-      `SELECT t.id FROM tasks t
+    const ownerCheck = await client.query<{ column_id: number }>(
+      `SELECT t.column_id FROM tasks t
        JOIN columns c ON c.id = t.column_id
        JOIN rows r ON r.id = c.row_id
-       WHERE t.id = $1 AND r.user_id = $2 FOR UPDATE`,
+       WHERE t.id = $1 AND r.user_id = $2`,
       [id, userId],
     );
     if (!ownerCheck.rows[0]) {
+      throw new NotFoundError("Task not found");
+    }
+
+    const locked = await lockTasksInColumns(client, [
+      ownerCheck.rows[0].column_id,
+    ]);
+    if (!locked.some((task) => task.id === id)) {
       throw new NotFoundError("Task not found");
     }
 
@@ -310,13 +380,9 @@ export async function copyTask(id: number, userId: number): Promise<Task> {
     if (!srcTask) {
       throw new NotFoundError("Task not found");
     }
-
-    const maxPosResult = await client.query<{ max: string | null }>(
-      "SELECT MAX(position) AS max FROM tasks WHERE column_id = $1",
-      [srcTask.column_id],
-    );
-    const maxPos = Number(maxPosResult.rows[0]?.max ?? 0);
-    const newPosition = maxPos + 1000;
+    const placed = appendPosition(locked);
+    await updateTaskPositions(client, placed.rebalance);
+    const newPosition = placed.position;
 
     // コピー先は未完了タスクとして作成し、チェックリストも completed: false で複製する
     const newTaskResult = await client.query<DbTask>(

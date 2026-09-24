@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import { Moon, Sun, NotebookPen } from "lucide-react";
+import { Moon, Sun, NotebookPen, LogOut } from "lucide-react";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -46,6 +46,7 @@ function App() {
     return (
       <LoginScreen
         initialMode="register"
+        allowRegister
         onLogin={login}
         onRegister={register}
         error={error}
@@ -129,7 +130,9 @@ function AuthenticatedApp({
               }
             >
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-              {isDarkMode ? "ライトモード" : "ダークモード"}
+              <span className="header-btn-label">
+                {isDarkMode ? "ライトモード" : "ダークモード"}
+              </span>
             </button>
             {status === "authenticated" && (
               <button
@@ -140,7 +143,7 @@ function AuthenticatedApp({
                 aria-expanded={memoOpen}
               >
                 <NotebookPen size={16} />
-                メモ帳
+                <span className="header-btn-label">メモ帳</span>
               </button>
             )}
             {status === "authenticated" && (
@@ -150,7 +153,8 @@ function AuthenticatedApp({
                 onClick={logout}
                 aria-label="ログアウト"
               >
-                ログアウト
+                <LogOut size={16} />
+                <span className="header-btn-label">ログアウト</span>
               </button>
             )}
           </div>

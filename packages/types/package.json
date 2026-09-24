@@ -1,6 +1,6 @@
 {
   "name": "@kando/types",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -29,7 +29,10 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
@@ -37,9 +40,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@asteasolutions/zod-to-openapi": "^8.5.0",
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
+    "@eslint/js": "^10.0.1",
     "@vitest/coverage-v8": "^4.1.8",
+    "eslint": "^10.9.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
     "typescript": "^6.0.2",
+    "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.8"
   }
 }

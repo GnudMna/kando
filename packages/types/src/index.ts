@@ -41,6 +41,11 @@ export interface DbTask {
   position: number;
   /** 完了済みフラグ */
   completed: boolean;
+  /**
+   * 内容の改訂番号。スナップショット保存のたびに増える。
+   * 古い番号での保存は 409 になる。
+   */
+  revision: number;
 }
 
 /** DB の `task_comments` テーブルに対応するコメントレコード。 */
@@ -167,6 +172,8 @@ export interface TaskSnapshotPayload {
   subtasks: TaskSnapshotSubtaskPayload[];
   /** コメント */
   comments: TaskSnapshotCommentPayload[];
+  /** 読み込んだ時点の改訂番号。一致しない保存は拒否される */
+  revision: number;
 }
 
 /** DB の `memos` テーブルに対応するメモレコード。 */

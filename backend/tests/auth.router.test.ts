@@ -103,8 +103,15 @@ describe("auth router", () => {
     mockedPool.connect.mockResolvedValue(client);
     client.query.mockImplementation(async (sql: unknown) => {
       const statement = String(sql);
-      if (statement === "BEGIN" || statement === "COMMIT") {
+      if (
+        statement === "BEGIN" ||
+        statement === "COMMIT" ||
+        statement.includes("LOCK TABLE users")
+      ) {
         return { rows: [] };
+      }
+      if (statement.includes("SELECT COUNT(*) FROM users")) {
+        return { rows: [{ count: "0" }] };
       }
       if (statement.includes("INSERT INTO users")) {
         return { rows: [{ id: 7 }] };
@@ -143,7 +150,12 @@ describe("auth router", () => {
     mockedPool.connect.mockResolvedValue(client);
     client.query.mockImplementation(async (sql: unknown) => {
       const statement = String(sql);
-      if (statement === "BEGIN") return { rows: [] };
+      if (statement === "BEGIN" || statement.includes("LOCK TABLE users")) {
+        return { rows: [] };
+      }
+      if (statement.includes("SELECT COUNT(*) FROM users")) {
+        return { rows: [{ count: "0" }] };
+      }
       if (statement.includes("INSERT INTO users")) {
         const err = Object.assign(new Error("duplicate"), { code: "23505" });
         throw err;
@@ -161,10 +173,42 @@ describe("auth router", () => {
     expect(client.release).toHaveBeenCalled();
   });
 
+  it("POST /api/auth/register は登録済みなら 403 で孤立行を渡さない", async () => {
+    const client: MockedClient = {
+      query: vi.fn(),
+      release: vi.fn(),
+    };
+    mockedPool.connect.mockResolvedValue(client);
+    client.query.mockImplementation(async (sql: unknown) => {
+      const statement = String(sql);
+      if (statement === "BEGIN" || statement.includes("LOCK TABLE users")) {
+        return { rows: [] };
+      }
+      if (statement.includes("SELECT COUNT(*) FROM users")) {
+        return { rows: [{ count: "1" }] };
+      }
+      if (statement === "ROLLBACK") return { rows: [] };
+      throw new Error(`Unexpected SQL: ${statement}`);
+    });
+
+    const res = await request(createApp())
+      .post("/api/auth/register")
+      .send({ username: "second", password: "validpassword12" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("ユーザー登録は初回セットアップ時のみ可能です");
+    const statements = client.query.mock.calls.map((call) => String(call[0]));
+    expect(statements.some((sql) => sql.includes("UPDATE rows"))).toBe(false);
+    expect(statements.some((sql) => sql.includes("INSERT INTO users"))).toBe(
+      false,
+    );
+    expect(client.release).toHaveBeenCalled();
+  });
+
   it("POST /api/auth/login は正しい認証情報で Cookie を返す", async () => {
     const passwordHash = await bcrypt.hash("validpassword12", 12);
     mockedPool.query.mockResolvedValueOnce({
-      rows: [{ id: 3, password_hash: passwordHash }],
+      rows: [{ id: 3, password_hash: passwordHash, token_version: 2 }],
     });
 
     const res = await request(createApp())
@@ -209,6 +253,21 @@ describe("auth router", () => {
     expect(res.headers["set-cookie"]?.[0]).toMatch(/token=;/);
   });
 
+  it("POST /api/auth/logout は提示されたトークンの世代を進める", async () => {
+    mockedPool.query.mockResolvedValueOnce({ rows: [] });
+    const cookie = await createAuthCookie(5);
+
+    const res = await request(createApp())
+      .post("/api/auth/logout")
+      .set("Cookie", cookie);
+
+    expect(res.status).toBe(200);
+    expect(mockedPool.query).toHaveBeenCalledWith(
+      expect.stringContaining("SET token_version = token_version + 1"),
+      [5, 0],
+    );
+  });
+
   it("GET /api/auth/verify は有効な Cookie で 200 を返す", async () => {
     const verifyApp = express();
     verifyApp.use(cookieParser());
@@ -217,6 +276,9 @@ describe("auth router", () => {
     });
     verifyApp.use(errorHandler);
 
+    mockedPool.query.mockResolvedValueOnce({
+      rows: [{ token_version: 0 }],
+    });
     const cookie = await createAuthCookie(5);
     const res = await request(verifyApp)
       .get("/api/auth/verify")
