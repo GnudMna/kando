@@ -56,8 +56,10 @@
 ## 🚀 クイックスタート（Docker Compose 推奨）
 
 ```bash
-docker compose up --build
+AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build
 ```
+
+`AUTH_SECRET` は必須です。未設定、または開発用の `dev-only-secret-change-in-production` のままでは backend は起動しません。Compose は `NODE_ENV=production` で動き、公開ポートが平文 HTTP のため `COOKIE_SECURE` は既定で `false` です。TLS の前段を置いたら `COOKIE_SECURE=true` にしてください。
 
 起動後:
 
@@ -74,14 +76,16 @@ docker compose up --build
 
 2回目以降はログイン画面から既存アカウントでサインインします。登録 API はユーザーが未登録のときだけ成功し、ログイン画面に新規登録の導線は出しません。`GET /api/auth/status` が `{ "hasUsers": false }` を返す間は登録画面が表示されます。セットアップ前から残っている所有者なしの行は、この初回登録だけに割り当てます。ログアウトすると発行済み JWT は期限前でも無効になります。
 
-### Compose 環境変数（任意）
+### Compose 環境変数
 
 | 変数名 | 既定値 | 用途 |
 |---|---|---|
 | `POSTGRES_USER` | `kando_user` | DB ユーザー |
 | `POSTGRES_PASSWORD` | `kando_password` | DB パスワード |
 | `POSTGRES_DB` | `kanban_db` | DB 名 |
-| `AUTH_SECRET` | `dev-only-secret-change-in-production` | JWT 署名シークレット（**本番では必ず変更**） |
+| `AUTH_SECRET` | なし（必須） | JWT 署名シークレット。開発用の既定値では起動しない |
+| `CORS_ORIGIN` | `http://localhost:8080` | 許可するブラウザオリジン |
+| `COOKIE_SECURE` | `false` | 平文 HTTP のため。TLS の前段を置いたら `true` |
 
 例:
 
@@ -218,7 +222,7 @@ npm --workspace frontend run dev -- --host
 | `npm run test:e2e:install` | Playwright の Chromium をインストール |
 | `npm run check:compliance` | 依存関係のライセンス・監査チェック（Linux / macOS） |
 | `npm run check:compliance:win` | 依存関係のライセンス・監査チェック（Windows） |
-| `npm run lint` | backend/frontend の ESLint を実行 |
+| `npm run lint` | backend / frontend / `@kando/types` の ESLint を実行 |
 | `./scripts/linux/dev.sh` / `scripts\windows\dev.bat` | 開発起動スクリプト（`migrate:dev` 実行後に backend/frontend を起動） |
 | `./scripts/linux/test.sh` / `scripts\windows\test.bat` | 品質チェックスクリプト（lint/typecheck/test） |
 | `./scripts/linux/format.sh` / `scripts\windows\format.bat` | backend/frontend の `lint:fix` と `format` を実行 |

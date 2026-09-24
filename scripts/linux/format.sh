@@ -33,6 +33,15 @@ if [ "$INSTALL" = true ]; then
 fi
 
 echo
+# 共有型パッケージの ESLint 自動修正
+echo "共有型パッケージの ESLint 自動修正を実行中..."
+npm --workspace @kando/types run lint:fix
+if [ $? -ne 0 ]; then
+    echo "共有型パッケージの ESLint 自動修正に失敗しました"
+    exit 1
+fi
+echo
+
 # バックエンドの ESLint 自動修正
 echo "バックエンドの ESLint 自動修正を実行中..."
 npm --prefix backend run lint:fix

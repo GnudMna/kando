@@ -28,6 +28,26 @@ if "%INSTALL%"=="true" (
 )
 
 echo.
+REM 共有型パッケージの Lint
+echo 共有型パッケージの Lint を実行中...
+call npm --workspace @kando/types run lint
+if errorlevel 1 (
+    echo 共有型パッケージの Lint に失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
+REM 共有型パッケージの型チェック
+echo 共有型パッケージの型チェックを実行中...
+call npm --workspace @kando/types run typecheck
+if errorlevel 1 (
+    echo 共有型パッケージの型チェックに失敗しました
+    pause
+    exit /b 1
+)
+echo.
+
 REM 共有型パッケージの単体テスト
 echo 共有型パッケージの単体テストを実行中...
 call npm --workspace @kando/types run test

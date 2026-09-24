@@ -33,6 +33,24 @@ if [ "$INSTALL" = true ]; then
 fi
 
 echo
+# 共有型パッケージの Lint
+echo "共有型パッケージの Lint を実行中..."
+npm --workspace @kando/types run lint
+if [ $? -ne 0 ]; then
+    echo "共有型パッケージの Lint に失敗しました"
+    exit 1
+fi
+echo
+
+# 共有型パッケージの型チェック
+echo "共有型パッケージの型チェックを実行中..."
+npm --workspace @kando/types run typecheck
+if [ $? -ne 0 ]; then
+    echo "共有型パッケージの型チェックに失敗しました"
+    exit 1
+fi
+echo
+
 # 共有型パッケージの単体テスト
 echo "共有型パッケージの単体テストを実行中..."
 npm --workspace @kando/types run test
