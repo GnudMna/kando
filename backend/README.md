@@ -48,7 +48,8 @@ npm install
 | 変数名         | 必須     | 説明                                                                          | 既定値                                     |
 | -------------- | -------- | ----------------------------------------------------------------------------- | ------------------------------------------ |
 | `DATABASE_URL` | はい     | PostgreSQL 接続文字列                                                         | なし                                       |
-| `AUTH_SECRET`  | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須）                        | なし                                       |
+| `AUTH_SECRET`  | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須。開発用プレースホルダは拒否） | なし                                       |
+| `COOKIE_SECURE`| いいえ   | 認証 Cookie の Secure 属性。`true` / `false`。未指定時は production だけ true | production で true                         |
 | `PORT`         | いいえ   | API 待ち受けポート                                                            | `3001`                                     |
 | `NODE_ENV`     | いいえ   | 実行環境 (`production` で挙動変更)                                            | `development`                              |
 | `CORS_ORIGIN`  | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可） | `http://localhost:5173`（production 以外） |

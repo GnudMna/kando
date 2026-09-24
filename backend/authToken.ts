@@ -1,6 +1,7 @@
 import type { JWTPayload } from "jose";
 import { SignJWT } from "jose";
 import type { CookieOptions } from "express";
+import { isCookieSecure } from "./productionEnv.js";
 
 /** JWT に載せるトークン世代のクレーム名。 */
 export const TOKEN_VERSION_CLAIM = "tv";
@@ -30,7 +31,7 @@ export function readTokenVersion(payload: JWTPayload): number {
 export function authCookieOptions(maxAge?: number): CookieOptions {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isCookieSecure(process.env),
     sameSite: "lax",
     path: "/",
     ...(maxAge === undefined ? {} : { maxAge }),
