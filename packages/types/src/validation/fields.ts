@@ -7,6 +7,21 @@ import { z } from "zod";
 /** パスワードの最小文字数。 */
 export const PASSWORD_MIN_LENGTH = 12;
 
+/** Postgres INTEGER(int4) の最大値。SERIAL の ID 列などが取り得る上限。 */
+export const INT4_MAX = 2_147_483_647;
+
+/** パスワードの最大バイト数。bcrypt が使用する入力長の上限に合わせる。 */
+export const PASSWORD_MAX_BYTES = 72;
+
+/**
+ * 文字列の UTF-8 バイト数を返す。ブラウザでも動くよう Buffer ではなく TextEncoder を使う。
+ * @param value - 対象文字列
+ * @returns UTF-8 でのバイト数
+ */
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
 /** パスワード最小長違反時のユーザー向けメッセージ。 */
 export const PASSWORD_MIN_LENGTH_MESSAGE =
   "パスワードは12文字以上で入力してください";
@@ -63,30 +78,39 @@ export function requiredString(field: string, maxLength: number) {
 /**
  * 認証用パスワードフィールドを定義する。
  * @param field - エラーメッセージに使用するフィールド名
- * @param options - 最小長・最大長・最小長エラーメッセージ
+ * @param options - 最小文字数・最大バイト数・最小長エラーメッセージ
  * @returns 検証済みパスワード文字列を返す Zod スキーマ
  */
 export function passwordField(
   field: string,
   options: {
     minLength?: number;
-    maxLength?: number;
+    maxBytes?: number;
     minLengthMessage?: string;
   } = {},
 ) {
   const {
     minLength = PASSWORD_MIN_LENGTH,
-    maxLength = 72,
+    maxBytes = PASSWORD_MAX_BYTES,
     minLengthMessage = PASSWORD_MIN_LENGTH_MESSAGE,
   } = options;
-  return requiredString(field, maxLength).superRefine((value, ctx) => {
-    if (value.length < minLength) {
-      ctx.addIssue({
-        code: "custom",
-        message: minLengthMessage,
-      });
-    }
-  });
+  // bcrypt は先頭 72 バイトしか使わないため、文字数ではなく UTF-8 のバイト数で検証する
+  return requiredString(field, Number.POSITIVE_INFINITY).superRefine(
+    (value, ctx) => {
+      if (value.length < minLength) {
+        ctx.addIssue({
+          code: "custom",
+          message: minLengthMessage,
+        });
+      }
+      if (utf8ByteLength(value) > maxBytes) {
+        ctx.addIssue({
+          code: "custom",
+          message: `'${field}' must be ${maxBytes} bytes or fewer`,
+        });
+      }
+    },
+  );
 }
 
 /**
@@ -171,9 +195,9 @@ export function numberField(
  */
 export function positiveNumberField(
   field: string,
-  options: { integer?: boolean; required?: boolean } = {},
+  options: { integer?: boolean; required?: boolean; max?: number } = {},
 ) {
-  const { integer = false, required = true } = options;
+  const { integer = false, required = true, max } = options;
   return numberField(field, { required }).superRefine((value, ctx) => {
     if (integer && !Number.isInteger(value)) {
       ctx.addIssue({
@@ -187,6 +211,27 @@ export function positiveNumberField(
         message: `'${field}' must be greater than 0`,
       });
     }
+    if (max !== undefined && value > max) {
+      ctx.addIssue({
+        code: "custom",
+        message: `'${field}' must be less than or equal to ${max}`,
+      });
+    }
+  });
+}
+
+/**
+ * DB の INTEGER(int4) 列に対応する ID・カウンタ用の正の整数フィールドを定義する。
+ * int4 の上限を超える値は Postgres の 22003(out of range)で 500 になるため、ここで弾く。
+ * @param field - エラーメッセージに使用するフィールド名
+ * @param options - 必須指定
+ * @returns 検証済み正の整数を返す Zod スキーマ
+ */
+export function idField(field: string, options: { required?: boolean } = {}) {
+  return positiveNumberField(field, {
+    integer: true,
+    required: options.required,
+    max: INT4_MAX,
   });
 }
 

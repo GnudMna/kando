@@ -62,6 +62,12 @@ describe("parseId", () => {
     const tooLarge = `${Number.MAX_SAFE_INTEGER + 1}`;
     expect(parseId(tooLarge)).toBeNull();
   });
+
+  it("int4 の上限を超える値に対して null を返す", () => {
+    expect(parseId("2147483647")).toBe(2147483647);
+    expect(parseId("2147483648")).toBeNull();
+    expect(parseId("99999999999")).toBeNull();
+  });
 });
 
 describe("validateBody", () => {
