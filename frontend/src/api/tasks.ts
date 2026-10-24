@@ -1,4 +1,4 @@
-import type { Task, TaskSnapshotPayload } from "@kando/types";
+import type { Task, TaskSnapshotPayload, WithRebalanced } from "@kando/types";
 import { API_URL, apiClient } from "./client.js";
 
 export type { TaskSnapshotPayload } from "@kando/types";
@@ -9,15 +9,15 @@ export type { TaskSnapshotPayload } from "@kando/types";
  * @param content - タスク内容
  * @param position - 表示順
  * @param due_date - 期限日(`YYYY-MM-DD`、省略時は未設定)
- * @returns 作成したタスク
+ * @returns 作成したタスク。position の衝突で振り直しが起きた場合は `rebalanced` を含む
  */
 export const createTask = (
   column_id: number,
   content: string,
   position: number,
   due_date: string | null = null,
-): Promise<Task> =>
-  apiClient.request<Task>(
+): Promise<WithRebalanced<Task>> =>
+  apiClient.request<WithRebalanced<Task>>(
     `${API_URL}/tasks`,
     apiClient.json("POST", {
       column_id,
@@ -62,14 +62,14 @@ export const saveTaskSnapshot = (
  * @param id - 移動対象タスク ID
  * @param column_id - 移動先カラム ID
  * @param position - 移動先の表示順
- * @returns 移動後のタスク
+ * @returns 移動後のタスク。position の衝突で振り直しが起きた場合は `rebalanced` を含む
  */
 export const moveTask = (
   id: number,
   column_id: number,
   position: number,
-): Promise<Task> =>
-  apiClient.request<Task>(
+): Promise<WithRebalanced<Task>> =>
+  apiClient.request<WithRebalanced<Task>>(
     `${API_URL}/tasks/${id}/move`,
     apiClient.json("PUT", { column_id, position }),
   );

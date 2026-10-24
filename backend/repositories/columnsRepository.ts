@@ -55,14 +55,14 @@ export async function updateColumnTitle(
  * @param id - カラム ID
  * @param position - 新しい表示順
  * @param userId - 所有者ユーザー ID。権限確認に使用
- * @returns 更新後のカラムレコード。対象が見つからない場合は `null`
+ * @returns 更新後のカラムレコードと振り直された他カラムの position。対象が見つからない場合は `null`
  */
 export async function moveColumn(
   client: PoolClient,
   id: number,
   position: number,
   userId: number,
-): Promise<DbColumn | null> {
+): Promise<{ column: DbColumn; rebalanced: PositionSlot[] } | null> {
   const owner = await client.query<{ row_id: number }>(
     `SELECT c.row_id FROM columns c
      JOIN rows r ON r.id = c.row_id
@@ -96,7 +96,8 @@ export async function moveColumn(
      RETURNING *`,
     [placed.position, id],
   );
-  return result.rows[0] ?? null;
+  const column = result.rows[0];
+  return column ? { column, rebalanced: placed.rebalance } : null;
 }
 
 /**

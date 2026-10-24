@@ -8,6 +8,7 @@ import {
   moveTask as moveTaskApi,
 } from "../../api/tasks";
 import { POSITION_GAP } from "../../utils/constants";
+import { applyTaskPositions } from "./boardCache";
 import { computeMoveTaskUpdate } from "./boardOptimisticUpdates";
 import type { BoardActionContext } from "./types";
 import { useBoardMutationContext } from "./useBoardMutationContext";
@@ -34,17 +35,20 @@ export function useTaskActions({
       position: number;
       rowId: number;
     }) => createTask(colId, "新しいタスク", position),
-    onSuccess: (newTask, { rowId, colId }) => {
+    onSuccess: ({ rebalanced = [], ...newTask }, { rowId, colId }) => {
       setBoardRows((rows) =>
-        rows.map((r) =>
-          r.id === rowId
-            ? {
-                ...r,
-                columns: r.columns.map((c) =>
-                  c.id === colId ? { ...c, tasks: [...c.tasks, newTask] } : c,
-                ),
-              }
-            : r,
+        applyTaskPositions(
+          rows.map((r) =>
+            r.id === rowId
+              ? {
+                  ...r,
+                  columns: r.columns.map((c) =>
+                    c.id === colId ? { ...c, tasks: [...c.tasks, newTask] } : c,
+                  ),
+                }
+              : r,
+          ),
+          rebalanced,
         ),
       );
     },
@@ -100,6 +104,12 @@ export function useTaskActions({
       const prevRows = getBoardRows();
       setRows(optimisticRows);
       return { prevRows };
+    },
+    onSuccess: ({ id, position, rebalanced = [] }) => {
+      // サーバーは衝突時に並び全体を振り直すため、確定した position を反映する
+      setBoardRows((rows) =>
+        applyTaskPositions(rows, [{ id, position }, ...rebalanced]),
+      );
     },
     onError: (err, _variables, context) => {
       if (context?.prevRows) {

@@ -24,7 +24,7 @@ Kando のバックエンド・フロントエンド共有型パッケージで�
 packages/types/
 └── src/
     ├── index.ts          # ドメイン型定義
-    ├── validation/       # Zod スキーマ（fields, schemas, format）
+    ├── validation/       # Zod スキーマ（fields, queryFields, schemas, format, boardQueryOpenApi）
     └── openapi/          # OpenAPI パス・コンポーネント定義
 ```
 
@@ -34,7 +34,7 @@ packages/types/
 npm --workspace @kando/types run build
 ```
 
-`backend` の `dev` / `build` / `test` は実行前にこのビルドを自動で行います。
+`backend` の `dev` / `build` / `test` と `frontend` の `build` は、実行前にこのビルドを自動で行います。
 
 ## OpenAPI 仕様の更新手順
 

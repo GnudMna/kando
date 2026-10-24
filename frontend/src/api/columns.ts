@@ -1,4 +1,4 @@
-import type { Column } from "@kando/types";
+import type { Column, WithRebalanced } from "@kando/types";
 import { API_URL, apiClient } from "./client.js";
 
 /**
@@ -41,10 +41,13 @@ export const deleteColumn = (id: number): Promise<void> =>
  * カラムの表示順を更新する。
  * @param id - カラム ID
  * @param position - 新しい表示順
- * @returns 移動後のカラム
+ * @returns 移動後のカラム。position の衝突で振り直しが起きた場合は `rebalanced` を含む
  */
-export const moveColumn = (id: number, position: number): Promise<Column> =>
-  apiClient.request<Column>(
+export const moveColumn = (
+  id: number,
+  position: number,
+): Promise<WithRebalanced<Column>> =>
+  apiClient.request<WithRebalanced<Column>>(
     `${API_URL}/columns/${id}/move`,
     apiClient.json("PUT", { position }),
   );

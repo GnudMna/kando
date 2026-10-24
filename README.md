@@ -12,8 +12,6 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?logo=opensourceinitiative)](LICENSE)
 
-<p>現在のバージョンは <strong>0.4.1</strong> です。未リリースの変更は <a href="CHANGELOG.md">CHANGELOG</a> を参照してください。</p>
-
 </div>
 
 ---
@@ -37,7 +35,7 @@
 
 ## ✨ 機能
 
-- 🔐 **ユーザー認証**: 初回登録・ログイン・ログアウトに対応（JWT ベース、HttpOnly Cookie、有効期限 7 日、ログアウトで即時失効、パスワード 12 文字以上）
+- 🔐 **ユーザー認証**: 初回登録・ログイン・ログアウトに対応（JWT ベース、HttpOnly Cookie、有効期限 7 日、ログアウトで即時失効、パスワード 12 文字以上・72 バイト以下）
 - 🗂️ **行ベースのかんばん管理**: 行（プロジェクト）ごとに複数カラムを管理
 - 🧱 **行作成時のデフォルト列生成**: 「未着手 / 進行中 / 完了」を自動作成
 - 🔀 **ドラッグ&ドロップ並び替え**: カラム・タスクの順序変更と列間移動に対応
@@ -69,7 +67,7 @@
 | テスト | Vitest（単体・ルーター）と Playwright（E2E） |
 
 `compose.yaml` では `db`（PostgreSQL）、`backend`（Node.js API）、`frontend`（Nginx で静的Reactアプリ配信）を起動します。
-`backend` コンテナ内では起動時に `npm run migrate`（`node-pg-migrate` によるバージョン管理マイグレーション）を実行したあと、API サーバーを開始します。
+`backend` コンテナ内では起動時に `npm run migrate`（`node-pg-migrate` によるバージョン管理マイグレーション）を実行したあと、API サーバーを開始します。backend コンテナは root ではなく `node` ユーザーで動きます。
 
 バックエンドの `validateBody` / `validateQuery`、フロントのログインフォーム、OpenAPI 仕様はいずれも `@kando/types/validation` の Zod スキーマを参照します。
 
@@ -95,7 +93,7 @@ AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build
 
 1. ブラウザで http://localhost:8080 を開く
 2. ユーザーが未登録の場合、**初回セットアップ画面**（ユーザー登録）が表示される
-3. ユーザー名とパスワード（12 文字以上）を入力して登録する
+3. ユーザー名とパスワード（12 文字以上・UTF-8 で 72 バイト以下）を入力して登録する
 4. 登録完了後、自動的にログインされボード画面へ遷移する
 
 2回目以降はログイン画面から既存アカウントでサインインします。登録は最初の 1 人だけです。
@@ -115,6 +113,7 @@ AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build
 | `AUTH_SECRET` | なし（必須） | JWT 署名シークレット。開発用の既定値では起動しない |
 | `CORS_ORIGIN` | `http://localhost:8080` | 許可するブラウザオリジン |
 | `COOKIE_SECURE` | `false` | 平文 HTTP のため。TLS の前段を置いたら `true` |
+| `TRUST_PROXY` | `1` | 信頼するプロキシの段数。TLS の前段を置いたら `2`（レートリミットの IP 判定に使う） |
 
 例:
 
@@ -247,20 +246,27 @@ npm --workspace frontend run dev -- --host
 
 | スクリプト | 説明 |
 |---|---|
+| `npm run setup` | 依存関係をインストール（`npm install`） |
 | `npm run dev` | 開発サーバー起動（Linux / macOS） |
 | `npm run dev:win` | 開発サーバー起動（Windows） |
+| `npm run build` | frontend と backend をビルド（`@kando/types` も事前にビルド） |
+| `npm run lint` | backend / frontend / `@kando/types` の ESLint を実行 |
+| `npm run lint:fix` | backend / frontend / `@kando/types` の ESLint 自動修正 |
+| `npm run format` | backend / frontend / `@kando/types` の Prettier 整形 |
+| `npm run typecheck` | backend / frontend / `@kando/types` の型チェック |
 | `npm run test` | 品質チェック（Linux / macOS）。lint、型チェック、単体・ルーターテスト、カバレッジ。E2E は含まない |
 | `npm run test:win` | 品質チェック（Windows）。内容は `npm run test` と同じ |
 | `npm run test:coverage` | ルートワークスペースのテストカバレッジを生成 |
 | `npm run test:ci` | CI 向けに compliance/lint/typecheck/test/e2e を実行 |
 | `npm run test:e2e` | Playwright による E2E テストを実行 |
 | `npm run test:e2e:install` | Playwright の Chromium をインストール |
-| `npm run check:compliance` | 依存関係のライセンス・監査チェック（Linux / macOS） |
+| `npm run check:licenses` | 本番依存のライセンスチェック（`licensee`） |
+| `npm run check:audit` | 本番依存の脆弱性チェック（`npm audit`、moderate 以上で失敗） |
+| `npm run check:compliance` | `check:licenses` と `check:audit` を続けて実行（Linux / macOS） |
 | `npm run check:compliance:win` | 依存関係のライセンス・監査チェック（Windows） |
-| `npm run lint` | backend / frontend / `@kando/types` の ESLint を実行 |
 | `./scripts/linux/dev.sh` / `scripts\windows\dev.bat` | 開発起動スクリプト（`migrate:dev` 実行後に backend/frontend を起動） |
 | `./scripts/linux/test.sh` / `scripts\windows\test.bat` | 品質チェック（`@kando/types` / backend / frontend の lint、型チェック、単体・ルーターテスト、カバレッジ） |
-| `./scripts/linux/format.sh` / `scripts\windows\format.bat` | backend/frontend の `lint:fix` と `format` を実行 |
+| `./scripts/linux/format.sh` / `scripts\windows\format.bat` | `@kando/types` / backend / frontend の `lint:fix` と `format` を実行 |
 | `./scripts/linux/db-backup.sh` / `scripts\windows\db-backup.bat` | Compose 上の DB を論理バックアップ（`.sql`） |
 | `./scripts/linux/db-restore.sh` / `scripts\windows\db-restore.bat` | `.sql` から DB 復元（`public` スキーマを再作成） |
 
@@ -310,6 +316,10 @@ E2E テスト（Playwright）:
 npm run test:e2e:install   # 初回のみ
 npm run test:e2e
 ```
+
+- Playwright は `scripts/linux/e2e-server.sh` でマイグレーション後に backend（`:3001`）と frontend（`:5173`）を起動してからテストする。PostgreSQL は事前に起動しておく
+- `e2e-server.sh` の `DATABASE_URL` 既定値は Dev Container の `db` ホストを指す。ホストから実行するときは `DATABASE_URL` を指定する
+- E2E 実行時は `E2E_TEST=true` が設定され、認証レートリミットが無効になる
 
 CI 用チェック:
 
@@ -381,7 +391,9 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 - リクエストバリデーションは [`@kando/types`](packages/types/README.md) の Zod スキーマで統一（リクエストボディ + クエリパラメータ）
 - ログイン/登録フォームも同一 Zod スキーマで送信前検証
 - `PUT /api/tasks/:id/snapshot` はリクエストの `revision` が現在値と一致するときだけ保存し、不一致は 409 を返す
-- タスクとカラムの並び順は対象行をロックしてから採番する。希望位置が衝突するか間隔が潰れているときは、1000 刻みに振り直す
+- タスクとカラムの並び順は対象行をロックしてから採番する。希望位置が衝突するか間隔が潰れているときは、1000 刻みに振り直す。振り直しが起きたときは、タスク作成・タスク移動・カラム移動のレスポンスに `rebalanced`（他アイテムの新しい `position`）が入る
+- JSON ボディの上限は 100kb（`/api/memos` のみ 512kb）。不正な JSON は 400、上限超過は 413 を返す
+- パスやボディの ID は PostgreSQL の `INTEGER` 上限（2147483647）を超えると 400 になる
 
 ---
 
@@ -423,10 +435,13 @@ npm workspace で 3 パッケージを管理しています。
 │   ├── scripts/          # OpenAPI JSON 生成など
 │   ├── services/         # ビジネスロジック（board, rows, columns, tasks, memos 等）
 │   ├── tests/
+│   ├── utils/
 │   ├── authToken.ts      # JWT 署名（トークン世代を含む）
+│   ├── errors.ts         # HTTP ステータス付きエラー（404 / 409 等）
 │   ├── migrate.ts
 │   ├── positionSlot.ts   # 並び順の採番と振り直し
-│   ├── productionEnv.ts  # 本番の AUTH_SECRET / CORS 検査
+│   ├── productionEnv.ts  # 本番の AUTH_SECRET / CORS / Cookie / プロキシ設定
+│   ├── rateLimits.ts     # レートリミット設定
 │   └── server.ts
 ├── frontend/             # React + Vite
 │   ├── public/

@@ -214,21 +214,31 @@ export async function findMatchingTaskIds(
   searchPattern: string,
 ): Promise<number[]> {
   const result = await client.query<{ id: number }>(
-    `SELECT DISTINCT t.id
+    `SELECT t.id
      FROM tasks t
      JOIN columns c ON c.id = t.column_id
      JOIN rows r ON r.id = c.row_id
-     LEFT JOIN subtasks s ON s.task_id = t.id
-     LEFT JOIN checklist_items ci
-       ON (ci.task_id = t.id AND ci.subtask_id IS NULL)
-       OR ci.subtask_id IN (SELECT id FROM subtasks WHERE task_id = t.id)
-     LEFT JOIN task_comments tc ON tc.task_id = t.id
      WHERE r.user_id = $1
        AND (
          t.content ILIKE $2
-         OR s.content ILIKE $2
-         OR ci.content ILIKE $2
-         OR tc.content ILIKE $2
+         OR EXISTS (
+           SELECT 1 FROM subtasks s
+           WHERE s.task_id = t.id AND s.content ILIKE $2
+         )
+         OR EXISTS (
+           SELECT 1 FROM checklist_items ci
+           WHERE ci.task_id = t.id AND ci.content ILIKE $2
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM subtasks s
+           JOIN checklist_items ci ON ci.subtask_id = s.id
+           WHERE s.task_id = t.id AND ci.content ILIKE $2
+         )
+         OR EXISTS (
+           SELECT 1 FROM task_comments tc
+           WHERE tc.task_id = t.id AND tc.content ILIKE $2
+         )
        )
      ORDER BY t.id ASC`,
     [userId, searchPattern],

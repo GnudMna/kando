@@ -52,7 +52,10 @@ describe("tasks router", () => {
 
   describe("POST /api/tasks", () => {
     it("有効入力ならタスクを作成して 200 を返す", async () => {
-      vi.mocked(tasksService.createTask).mockResolvedValueOnce(baseTask);
+      vi.mocked(tasksService.createTask).mockResolvedValueOnce({
+        task: baseTask,
+        rebalanced: [],
+      });
 
       const res = await request(createApp()).post("/api/tasks").send({
         column_id: 10,
@@ -70,6 +73,25 @@ describe("tasks router", () => {
         1000,
         99,
       );
+    });
+
+    it("振り直しが起きた場合は rebalanced を含めて返す", async () => {
+      vi.mocked(tasksService.createTask).mockResolvedValueOnce({
+        task: baseTask,
+        rebalanced: [{ id: 2, position: 1000 }],
+      });
+
+      const res = await request(createApp()).post("/api/tasks").send({
+        column_id: 10,
+        content: "新タスク",
+        position: 1000,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        ...baseTask,
+        rebalanced: [{ id: 2, position: 1000 }],
+      });
     });
 
     it("column_id 未指定なら 400 を返す", async () => {
@@ -157,7 +179,10 @@ describe("tasks router", () => {
   describe("PUT /api/tasks/:id/move", () => {
     it("有効入力ならタスクを移動して 200 を返す", async () => {
       const moved = { ...baseTask, column_id: 11, position: 2000 };
-      vi.mocked(tasksService.moveTask).mockResolvedValueOnce(moved);
+      vi.mocked(tasksService.moveTask).mockResolvedValueOnce({
+        task: moved,
+        rebalanced: [],
+      });
 
       const res = await request(createApp()).put("/api/tasks/1/move").send({
         column_id: 11,
@@ -167,6 +192,25 @@ describe("tasks router", () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual(moved);
       expect(tasksService.moveTask).toHaveBeenCalledWith(1, 11, 2000, 99);
+    });
+
+    it("振り直しが起きた場合は rebalanced を含めて返す", async () => {
+      const moved = { ...baseTask, column_id: 11, position: 2000 };
+      vi.mocked(tasksService.moveTask).mockResolvedValueOnce({
+        task: moved,
+        rebalanced: [{ id: 2, position: 1000 }],
+      });
+
+      const res = await request(createApp()).put("/api/tasks/1/move").send({
+        column_id: 11,
+        position: 1000,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        ...moved,
+        rebalanced: [{ id: 2, position: 1000 }],
+      });
     });
 
     it("column_id 未指定なら 400 を返す", async () => {

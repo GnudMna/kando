@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { TaskCard } from "../components/TaskCard";
 import * as api from "../api/boardApi";
+import type { Task } from "../types";
 import {
   baseTask,
   createQueryWrapper,
@@ -88,6 +89,34 @@ describe("TaskCard", () => {
           ]),
         }),
       );
+    });
+  });
+
+  it("完了トグル後にサーバーの revision を反映し子要素を保持すること", async () => {
+    // PUT /tasks/:id のレスポンスは子要素を含まないタスク行のみ
+    vi.mocked(api.updateTask).mockResolvedValue({
+      id: 1,
+      column_id: 10,
+      content: "テストタスク",
+      due_date: null,
+      position: 1000,
+      completed: true,
+      revision: 2,
+    } as Task);
+
+    const onTaskUpdated = vi.fn();
+    renderTaskCard({ task: taskWithChecklists, onTaskUpdated });
+    fireEvent.click(
+      screen.getByRole("button", { name: "タスク「テストタスク」を完了にする" }),
+    );
+
+    await waitFor(() => {
+      expect(api.updateTask).toHaveBeenCalledWith(1, { completed: true });
+      expect(onTaskUpdated).toHaveBeenCalledWith({
+        ...taskWithChecklists,
+        completed: true,
+        revision: 2,
+      });
     });
   });
 

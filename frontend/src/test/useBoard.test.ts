@@ -365,6 +365,68 @@ describe("useBoard", () => {
     expect(moveTask).toHaveBeenCalledWith(1, 11, 1000);
   });
 
+  it("moveTask がサーバーの振り直し結果をキャッシュに反映すること", async () => {
+    const taskB: Task = { ...taskA, id: 2, content: "タスクB", position: 2000 };
+    vi.mocked(fetchBoard).mockResolvedValue([
+      {
+        id: 1,
+        title: "行1",
+        position: 1000,
+        columns: [
+          {
+            id: 10,
+            row_id: 1,
+            title: "カラム1",
+            position: 1000,
+            tasks: [taskA, taskB],
+          },
+        ],
+      },
+    ]);
+    vi.mocked(moveTask).mockResolvedValue({
+      ...taskA,
+      position: 2000,
+      rebalanced: [{ id: 2, position: 1000 }],
+    });
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveTask("10", "10", 0, 1, 1);
+    });
+
+    await waitForBoard(result, () => {
+      const tasks = result.current.rows[0].columns[0].tasks;
+      expect(tasks.map((t) => [t.id, t.position])).toEqual([
+        [2, 1000],
+        [1, 2000],
+      ]);
+    });
+  });
+
+  it("addTask がサーバーの振り直し結果をキャッシュに反映し rebalanced を保持しないこと", async () => {
+    const newTask: Task = { ...taskA, id: 99, position: 2000 };
+    vi.mocked(createTask).mockResolvedValue({
+      ...newTask,
+      rebalanced: [{ id: 1, position: 500 }],
+    });
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.addTask(10, 1);
+    });
+
+    await waitForBoard(result, () => {
+      const tasks = result.current.rows[0].columns[0].tasks;
+      expect(tasks.map((t) => [t.id, t.position])).toEqual([
+        [1, 500],
+        [99, 2000],
+      ]);
+      expect(tasks[1]).not.toHaveProperty("rebalanced");
+    });
+  });
+
   it("addTask がカラムにタスクを追加すること", async () => {
     const newTask: Task = {
       id: 99,
@@ -465,6 +527,31 @@ describe("useBoard", () => {
       expect(row?.columns[1].id).toBe(10);
     });
     expect(moveColumn).toHaveBeenCalledWith(11, 500);
+  });
+
+  it("moveColumn がサーバーの振り直し結果をキャッシュに反映すること", async () => {
+    vi.mocked(moveColumn).mockResolvedValue({
+      id: 11,
+      row_id: 1,
+      title: "カラム2",
+      position: 1000,
+      tasks: [],
+      rebalanced: [{ id: 10, position: 2000 }],
+    });
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.moveColumn(1, 1, 0, 11);
+    });
+
+    await waitForBoard(result, () => {
+      const cols = result.current.rows[0].columns;
+      expect(cols.map((c) => [c.id, c.position])).toEqual([
+        [11, 1000],
+        [10, 2000],
+      ]);
+    });
   });
 
   it("moveColumn が API 失敗時に状態をロールバックすること", async () => {

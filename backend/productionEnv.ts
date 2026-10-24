@@ -23,6 +23,20 @@ export function productionEnvError(env: NodeJS.ProcessEnv): string | null {
 }
 
 /**
+ * 信頼するリバースプロキシの段数を読み取る。
+ * クライアント IP(レートリミットのキー)は、この段数だけ `X-Forwarded-For` の末尾から遡って決まる。
+ * 前段に TLS 用プロキシを足した場合は段数を増やさないと、全ユーザーがプロキシ 1 つの IP にまとまる。
+ * @param env - 検査対象の環境変数
+ * @returns 段数。`TRUST_PROXY` が未指定なら 1。0 以上の整数でなければ `null`
+ */
+export function trustProxyHops(env: NodeJS.ProcessEnv): number | null {
+  const raw = env.TRUST_PROXY?.trim();
+  if (!raw) return 1;
+  if (!/^\d+$/.test(raw)) return null;
+  return Number(raw);
+}
+
+/**
  * 認証 Cookie に Secure 属性を付けるか。
  * `COOKIE_SECURE` が明示されていればそれを優先する。未指定時は本番だけ true。
  * @param env - 検査対象の環境変数

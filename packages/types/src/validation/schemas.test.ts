@@ -38,6 +38,25 @@ describe("registerBodySchema / loginBodySchema", () => {
     ).toBe(true);
   });
 
+  it("72 バイトちょうどのパスワードを受け入れる", () => {
+    const body = { username: "alice", password: "あ".repeat(24) };
+    expect(registerBodySchema.safeParse(body).success).toBe(true);
+    expect(loginBodySchema.safeParse(body).success).toBe(true);
+  });
+
+  it("72 バイトを超えるパスワードを文字数に関わらず拒否する", () => {
+    const body = { username: "alice", password: "あ".repeat(25) };
+    for (const schema of [registerBodySchema, loginBodySchema]) {
+      const result = schema.safeParse(body);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(formatZodError(result.error)).toBe(
+          "'password' must be 72 bytes or fewer",
+        );
+      }
+    }
+  });
+
   it("空のユーザー名を拒否する", () => {
     const result = registerBodySchema.safeParse({
       username: "  ",
@@ -47,6 +66,39 @@ describe("registerBodySchema / loginBodySchema", () => {
     if (!result.success) {
       expect(formatZodError(result.error)).toBe("'username' must not be empty");
     }
+  });
+});
+
+describe("ID フィールドの int4 上限", () => {
+  it("int4 の最大値を受け入れ、超過を拒否する", () => {
+    expect(
+      createTaskBodySchema.safeParse({
+        column_id: 2147483647,
+        content: "a",
+        position: 1,
+      }).success,
+    ).toBe(true);
+
+    const result = createTaskBodySchema.safeParse({
+      column_id: 99999999999,
+      content: "a",
+      position: 1,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(formatZodError(result.error)).toBe(
+        "'column_id' must be less than or equal to 2147483647",
+      );
+    }
+  });
+
+  it("board クエリの row_id が int4 を超えると拒否する", () => {
+    expect(boardQuerySchema.safeParse({ row_id: "2147483648" }).success).toBe(
+      false,
+    );
+    expect(boardQuerySchema.safeParse({ row_id: "2147483647" }).success).toBe(
+      true,
+    );
   });
 });
 

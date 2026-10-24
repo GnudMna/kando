@@ -8,6 +8,7 @@ import {
   updateColumn,
 } from "../../api/columns";
 import { POSITION_GAP } from "../../utils/constants";
+import { applyColumnPositions } from "./boardCache";
 import { computeMoveColumnUpdate } from "./boardOptimisticUpdates";
 import type { BoardActionContext } from "./types";
 import { useBoardMutationContext } from "./useBoardMutationContext";
@@ -89,6 +90,12 @@ export function useColumnActions({
       const prevRows = getBoardRows();
       setRows(optimisticRows);
       return { prevRows };
+    },
+    onSuccess: ({ id, position, rebalanced = [] }) => {
+      // サーバーは衝突時に並び全体を振り直すため、確定した position を反映する
+      setBoardRows((rows) =>
+        applyColumnPositions(rows, [{ id, position }, ...rebalanced]),
+      );
     },
     onError: (err, _variables, context) => {
       if (context?.prevRows) {

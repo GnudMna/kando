@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import type { ZodType } from "zod";
-import { formatZodError } from "@kando/types/validation";
+import { formatZodError, INT4_MAX } from "@kando/types/validation";
 
 /**
  * ルートパラメータを正の整数にパースする。
@@ -12,7 +12,8 @@ export function parseId(id: string | string[] | undefined): number | null {
   const normalized = id.trim();
   if (!/^\d+$/.test(normalized)) return null;
   const n = Number(normalized);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
+  // DB の ID 列は INTEGER(int4)。上限超過は Postgres の 22003 で 500 になるため null 扱いにする
+  return Number.isSafeInteger(n) && n > 0 && n <= INT4_MAX ? n : null;
 }
 
 /**
