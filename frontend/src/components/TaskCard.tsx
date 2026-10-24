@@ -84,12 +84,16 @@ export const TaskCard = memo(function TaskCard({
 
   /**
    * タスクの完了状態を切り替えて API に保存する。
+   * サーバーが revision を進めるため、レスポンスをローカル state に反映する。
+   * レスポンスは子要素を含まないので、既存の子要素は保持したままマージする。
    * @returns 更新処理完了時に解決される Promise
    */
   const toggleCompleted = async () => {
     try {
-      await api.updateTask(task.id, { completed: !task.completed });
-      onTaskUpdated({ ...task, completed: !task.completed });
+      const updated = await api.updateTask(task.id, {
+        completed: !task.completed,
+      });
+      onTaskUpdated({ ...task, ...updated });
     } catch (err) {
       reportError("タスクの完了状態の更新に失敗しました", err);
     }
