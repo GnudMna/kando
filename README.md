@@ -115,6 +115,7 @@ AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build
 | `AUTH_SECRET` | なし（必須） | JWT 署名シークレット。開発用の既定値では起動しない |
 | `CORS_ORIGIN` | `http://localhost:8080` | 許可するブラウザオリジン |
 | `COOKIE_SECURE` | `false` | 平文 HTTP のため。TLS の前段を置いたら `true` |
+| `TRUST_PROXY` | `1` | 信頼するプロキシの段数。TLS の前段を置いたら `2`（レートリミットの IP 判定に使う） |
 
 例:
 

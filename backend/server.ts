@@ -4,7 +4,6 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { rateLimit } from "express-rate-limit";
 import { pool, waitForDbWithRetry } from "./db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
@@ -19,7 +18,12 @@ import checklistItemsRouter from "./routes/checklistItems.js";
 import taskCommentsRouter from "./routes/taskComments.js";
 import memosRouter from "./routes/memos.js";
 import openapiRouter from "./routes/openapi.js";
-import { isCookieSecure, productionEnvError } from "./productionEnv.js";
+import {
+  isCookieSecure,
+  productionEnvError,
+  trustProxyHops,
+} from "./productionEnv.js";
+import { applyRateLimits } from "./rateLimits.js";
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production";
@@ -53,8 +57,16 @@ if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
 
 app.disable("x-powered-by");
 
-// リバースプロキシ。nginx等からの X-Forwarded-For を信頼する
-app.set("trust proxy", 1);
+// リバースプロキシ。nginx等からの X-Forwarded-For を、末尾から TRUST_PROXY 段(既定 1)だけ信頼する。
+// nginx の前段に TLS 用プロキシ等を置く場合は、その分だけ増やす
+const proxyHops = trustProxyHops(process.env);
+if (proxyHops === null) {
+  console.error(
+    `FATAL: TRUST_PROXY must be a non-negative integer, got: ${process.env.TRUST_PROXY}`,
+  );
+  process.exit(1);
+}
+app.set("trust proxy", proxyHops);
 
 // セキュリティヘッダーを付与する。Swagger UI 用に unpkg を許可
 app.use(
@@ -118,29 +130,8 @@ app.use(cookieParser());
 // リクエストのメソッド・パス・ステータス・レスポンス時間をログ出力する
 app.use(requestLogger);
 
-// レートリミット: 1 IP あたり 15 分間に 300 リクエストまで
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 300,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many requests, please try again later" },
-});
-app.use("/api", limiter);
-
-// 認証エンドポイント専用のレートリミット: ブルートフォース攻撃対策として 15 分間に 10 リクエストまで
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many requests, please try again later" },
-});
-if (process.env.E2E_TEST !== "true") {
-  app.use("/api/auth/login", authLimiter);
-  app.use("/api/auth/register", authLimiter);
-  app.use("/api/auth/status", authLimiter);
-}
+// レートリミット。E2E では認証専用リミッターを無効化する
+applyRateLimits(app, { disableAuthLimit: process.env.E2E_TEST === "true" });
 
 // OpenAPI 仕様。認証不要
 app.use("/api", openapiRouter);
