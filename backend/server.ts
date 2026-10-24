@@ -108,6 +108,9 @@ app.use(
   }),
 );
 
+// メモは本文 50,000 文字まで許容する。UTF-8 で最大 3 バイト/文字(JSON エスケープ時は最大 6 バイト)のため、
+// メモ API のみ上限を広げる。解析済みボディは後続の express.json がスキップする
+app.use("/api/memos", express.json({ limit: "512kb" }));
 // リクエストボディをJSONとして解析する。100kB上限でDoSを防ぐ
 app.use(express.json({ limit: "100kb" }));
 // Cookie を解析する。HttpOnly JWT Cookie の読み取りに使用

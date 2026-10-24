@@ -4,6 +4,8 @@
  */
 import { z } from "zod";
 import {
+  idField,
+  INT4_MAX,
   numberField,
   optionalBooleanField,
   optionalNonEmptyString,
@@ -29,7 +31,7 @@ export const registerBodySchema = z.object({
 /** 認証: ログインリクエストボディ */
 export const loginBodySchema = z.object({
   username: requiredString("username", 100),
-  password: requiredString("password", 72),
+  password: passwordField("password", { minLength: 1 }),
 });
 
 /** 行作成リクエストボディ */
@@ -47,7 +49,7 @@ export const updateRowTitleBodySchema = z.object({
 export const createColumnBodySchema = z.object({
   title: requiredString("title", 200),
   position: positiveNumberField("position"),
-  row_id: positiveNumberField("row_id", { integer: true }),
+  row_id: idField("row_id"),
 });
 
 /** カラムタイトル更新リクエストボディ */
@@ -62,7 +64,7 @@ export const moveColumnBodySchema = z.object({
 
 /** タスク作成リクエストボディ */
 export const createTaskBodySchema = z.object({
-  column_id: positiveNumberField("column_id", { integer: true }),
+  column_id: idField("column_id"),
   content: requiredString("content", 2000),
   due_date: z
     .string({
@@ -117,13 +119,13 @@ export const updateTaskBodySchema = z.object({
 
 /** タスク移動リクエストボディ */
 export const moveTaskBodySchema = z.object({
-  column_id: positiveNumberField("column_id", { integer: true }),
+  column_id: idField("column_id"),
   position: positiveNumberField("position"),
 });
 
 /** サブタスク作成リクエストボディ */
 export const createSubtaskBodySchema = z.object({
-  task_id: positiveNumberField("task_id", { integer: true }),
+  task_id: idField("task_id"),
   content: requiredString("content", 2000),
 });
 
@@ -134,7 +136,7 @@ export const updateSubtaskBodySchema = z.object({
 
 /** タスクコメント作成リクエストボディ */
 export const createTaskCommentBodySchema = z.object({
-  task_id: positiveNumberField("task_id", { integer: true }),
+  task_id: idField("task_id"),
   content: requiredString("content", 2000),
 });
 
@@ -148,14 +150,8 @@ export const updateTaskCommentBodySchema = z.object({
 export const createChecklistItemBodySchema = z
   .object({
     content: requiredString("content", 500),
-    task_id: positiveNumberField("task_id", {
-      integer: true,
-      required: false,
-    }).optional(),
-    subtask_id: positiveNumberField("subtask_id", {
-      integer: true,
-      required: false,
-    }).optional(),
+    task_id: idField("task_id", { required: false }).optional(),
+    subtask_id: idField("subtask_id", { required: false }).optional(),
   })
   .superRefine((body, ctx) => {
     const hasTaskId = body.task_id !== undefined;
@@ -189,11 +185,11 @@ export const updateMemoBodySchema = z.object({
 
 /** メモとタスクの関連付けリクエストボディ */
 export const linkMemoTaskBodySchema = z.object({
-  task_id: positiveNumberField("task_id", { integer: true }),
+  task_id: idField("task_id"),
 });
 
 const taskSnapshotChecklistSchema = z.object({
-  id: positiveNumberField("id", { integer: true, required: false }).optional(),
+  id: idField("id", { required: false }).optional(),
   content: requiredString("content", 500),
   completed: z.boolean({
     error: () => "must be a boolean",
@@ -201,13 +197,13 @@ const taskSnapshotChecklistSchema = z.object({
 });
 
 const taskSnapshotSubtaskSchema = z.object({
-  id: positiveNumberField("id", { integer: true, required: false }).optional(),
+  id: idField("id", { required: false }).optional(),
   content: requiredString("content", 2000),
   checklists: z.array(taskSnapshotChecklistSchema),
 });
 
 const taskSnapshotCommentSchema = z.object({
-  id: positiveNumberField("id", { integer: true, required: false }).optional(),
+  id: idField("id", { required: false }).optional(),
   content: requiredString("content", 2000),
 });
 
@@ -255,7 +251,7 @@ export const taskSnapshotBodySchema = z
     checklists: z.array(taskSnapshotChecklistSchema),
     subtasks: z.array(taskSnapshotSubtaskSchema),
     comments: z.array(taskSnapshotCommentSchema),
-    revision: positiveNumberField("revision", { integer: true }),
+    revision: idField("revision"),
   })
   .superRefine((body, ctx) => {
     ensureNoDuplicateIds(body.checklists, "checklists", ctx);
@@ -278,7 +274,7 @@ export const MAX_SEARCH_QUERY_LENGTH = 200;
 
 /** ボード取得 API のクエリパラメータ */
 export const boardQuerySchema = z.object({
-  row_id: optionalPositiveIntQueryField("row_id"),
+  row_id: optionalPositiveIntQueryField("row_id", { max: INT4_MAX }),
   limit: optionalPositiveIntQueryField("limit", { max: MAX_BOARD_LIMIT }),
   offset: optionalNonNegativeIntQueryField("offset"),
   detail: detailQueryField(),
@@ -329,7 +325,7 @@ export const validateTestPositionSchema = z.object({
 
 /** validate.test.ts 用の row_id 整数スキーマ */
 export const validateTestRowIdSchema = z.object({
-  row_id: positiveNumberField("row_id", { integer: true }),
+  row_id: idField("row_id"),
 });
 
 /** validate.test.ts 用の positive position スキーマ */
@@ -357,7 +353,7 @@ export const validateTestScoreSchema = z.object({
 
 /** validate.test.ts 用の複合数値スキーマ */
 export const validateTestRowAndPositionSchema = z.object({
-  row_id: positiveNumberField("row_id", { integer: true }),
+  row_id: idField("row_id"),
   position: numberField("position").superRefine((value, ctx) => {
     if (value < 0.5) {
       ctx.addIssue({
