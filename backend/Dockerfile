@@ -25,5 +25,8 @@ COPY --from=backend-build /app/backend/dist ./backend/dist
 COPY --from=backend-build /app/backend/openapi ./backend/openapi
 COPY backend/migrations ./backend/migrations
 
+# root で動かさない。ランタイムはファイルを書き込まないので、読み取り権限だけで足りる
+USER node
+
 EXPOSE 3001
 CMD ["sh", "-c", "npm --workspace backend run migrate && npm --workspace backend run start"]
