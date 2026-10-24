@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { SetStateAction } from "react";
+import type { PositionUpdate } from "@kando/types";
 import type { Row } from "../../types";
 import { queryKeys } from "../../api/queryKeys";
 
@@ -22,6 +23,57 @@ export function updateBoardRows(
     if (!old) return old;
     return { ...old, rows: updater(old.rows) };
   });
+}
+
+/**
+ * サーバーが確定させたタスクの position を行配列へ反映する。
+ * 並び順は変えず、position の値だけを差し替える。
+ * @param rows - 現在の行配列
+ * @param updates - 反映するタスク ID と position
+ * @returns 更新後の行配列。変更が無い要素は同一参照を保つ
+ */
+export function applyTaskPositions(
+  rows: Row[],
+  updates: PositionUpdate[],
+): Row[] {
+  if (updates.length === 0) return rows;
+  const positionById = new Map(updates.map((u) => [u.id, u.position]));
+  return rows.map((row) => ({
+    ...row,
+    columns: row.columns.map((col) => ({
+      ...col,
+      tasks: col.tasks.map((task) => {
+        const position = positionById.get(task.id);
+        return position === undefined || position === task.position
+          ? task
+          : { ...task, position };
+      }),
+    })),
+  }));
+}
+
+/**
+ * サーバーが確定させたカラムの position を行配列へ反映する。
+ * 並び順は変えず、position の値だけを差し替える。
+ * @param rows - 現在の行配列
+ * @param updates - 反映するカラム ID と position
+ * @returns 更新後の行配列。変更が無い要素は同一参照を保つ
+ */
+export function applyColumnPositions(
+  rows: Row[],
+  updates: PositionUpdate[],
+): Row[] {
+  if (updates.length === 0) return rows;
+  const positionById = new Map(updates.map((u) => [u.id, u.position]));
+  return rows.map((row) => ({
+    ...row,
+    columns: row.columns.map((col) => {
+      const position = positionById.get(col.id);
+      return position === undefined || position === col.position
+        ? col
+        : { ...col, position };
+    }),
+  }));
 }
 
 /**

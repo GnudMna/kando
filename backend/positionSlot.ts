@@ -62,6 +62,19 @@ export function assignPosition(
 }
 
 /**
+ * レスポンスボディに振り直し結果を付与する。振り直しが無い場合は元の値をそのまま返す。
+ * @param item - 作成・移動したレコード
+ * @param rebalanced - 振り直された他アイテム
+ * @returns `rebalanced` を含むレスポンスボディ
+ */
+export function withRebalanced<T extends object>(
+  item: T,
+  rebalanced: PositionSlot[],
+): T | (T & { rebalanced: PositionSlot[] }) {
+  return rebalanced.length > 0 ? { ...item, rebalanced } : item;
+}
+
+/**
  * 末尾に置ける position を返す。末尾の加算が衝突する場合は全体を振り直す。
  * @param slots - ロック済みの既存アイテム
  * @returns 末尾の position と、必要な振り直し

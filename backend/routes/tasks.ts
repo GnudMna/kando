@@ -9,6 +9,7 @@ import {
   updateTaskBodySchema,
 } from "@kando/types/validation";
 import { HttpError, NotFoundError } from "../errors.js";
+import { withRebalanced } from "../positionSlot.js";
 import {
   createTask,
   updateTask,
@@ -96,14 +97,14 @@ router.post(
       return;
     }
 
-    const task = await createTask(
+    const { task, rebalanced } = await createTask(
       column_id,
       content,
       normalizedDueDate,
       position,
       req.userId!,
     );
-    res.json(task);
+    res.json(withRebalanced(task, rebalanced));
   }),
 );
 
@@ -229,8 +230,13 @@ router.put(
       column_id: number;
       position: number;
     };
-    const task = await moveTask(id, column_id, position, req.userId!);
-    res.json(task);
+    const { task, rebalanced } = await moveTask(
+      id,
+      column_id,
+      position,
+      req.userId!,
+    );
+    res.json(withRebalanced(task, rebalanced));
   }),
 );
 

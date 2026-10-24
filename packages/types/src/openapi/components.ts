@@ -129,6 +129,29 @@ export const Column = z
   })
   .openapi("Column");
 
+export const PositionUpdate = z
+  .object({
+    id: z.number().int(),
+    position: z.number(),
+  })
+  .openapi("PositionUpdate");
+
+const rebalancedField = z
+  .array(PositionUpdate)
+  .optional()
+  .openapi({
+    description:
+      "position の衝突で並び全体が 1000 刻みに振り直された場合のみ含まれる、他アイテムの新しい position。",
+  });
+
+export const TaskWithRebalance = Task.extend({
+  rebalanced: rebalancedField,
+}).openapi("TaskWithRebalance");
+
+export const ColumnWithRebalance = Column.extend({
+  rebalanced: rebalancedField,
+}).openapi("ColumnWithRebalance");
+
 export const Row = z
   .object({
     id: z.number().int(),

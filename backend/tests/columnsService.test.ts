@@ -103,11 +103,12 @@ describe("columnsService", () => {
       return { rows: [] };
     });
     vi.mocked(pool.connect).mockResolvedValue(client as never);
-    vi.mocked(repository.moveColumn).mockResolvedValue(column);
+    const rebalanced = [{ id: 11, position: 1000 }];
+    vi.mocked(repository.moveColumn).mockResolvedValue({ column, rebalanced });
 
     const result = await service.moveColumn(10, 2000, 99);
 
-    expect(result).toBe(column);
+    expect(result).toEqual({ column, rebalanced });
     expect(repository.moveColumn).toHaveBeenCalledWith(client, 10, 2000, 99);
     expect(client.release).toHaveBeenCalled();
   });

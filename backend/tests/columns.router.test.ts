@@ -98,7 +98,10 @@ describe("columns router", () => {
       title: "カラム",
       position: 5000,
     };
-    vi.mocked(mockedService.moveColumn).mockResolvedValue(moved);
+    vi.mocked(mockedService.moveColumn).mockResolvedValue({
+      column: moved,
+      rebalanced: [],
+    });
 
     const res = await request(createApp())
       .put("/api/columns/20/move")
@@ -107,6 +110,29 @@ describe("columns router", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual(moved);
     expect(mockedService.moveColumn).toHaveBeenCalledWith(20, 5000, 99);
+  });
+
+  it("PUT /api/columns/:id/move は振り直しが起きた場合 rebalanced を含めて返す", async () => {
+    const moved: Column = {
+      id: 20,
+      row_id: 1,
+      title: "カラム",
+      position: 2000,
+    };
+    vi.mocked(mockedService.moveColumn).mockResolvedValue({
+      column: moved,
+      rebalanced: [{ id: 21, position: 1000 }],
+    });
+
+    const res = await request(createApp())
+      .put("/api/columns/20/move")
+      .send({ position: 1000 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ...moved,
+      rebalanced: [{ id: 21, position: 1000 }],
+    });
   });
 
   it("DELETE /api/columns/:id はカラムを削除する", async () => {
