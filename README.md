@@ -12,8 +12,6 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?logo=opensourceinitiative)](LICENSE)
 
-<p>現在のバージョンは <strong>0.5.0</strong> です。未リリースの変更は <a href="CHANGELOG.md">CHANGELOG</a> を参照してください。</p>
-
 </div>
 
 ---
