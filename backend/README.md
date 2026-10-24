@@ -45,14 +45,15 @@ npm install
 
 ## 環境変数
 
-| 変数名          | 必須     | 説明                                                                               | 既定値                                     |
-| --------------- | -------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
-| `DATABASE_URL`  | はい     | PostgreSQL 接続文字列                                                              | なし                                       |
-| `AUTH_SECRET`   | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須。開発用プレースホルダは拒否） | なし                                       |
-| `COOKIE_SECURE` | いいえ   | 認証 Cookie の Secure 属性。`true` / `false`。未指定時は production だけ true      | production で true                         |
-| `PORT`          | いいえ   | API 待ち受けポート                                                                 | `3001`                                     |
-| `NODE_ENV`      | いいえ   | 実行環境 (`production` で挙動変更)                                                 | `development`                              |
-| `CORS_ORIGIN`   | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可）      | `http://localhost:5173`（production 以外） |
+| 変数名          | 必須     | 説明                                                                                   | 既定値                                     |
+| --------------- | -------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `DATABASE_URL`  | はい     | PostgreSQL 接続文字列                                                                  | なし                                       |
+| `AUTH_SECRET`   | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須。開発用プレースホルダは拒否）     | なし                                       |
+| `COOKIE_SECURE` | いいえ   | 認証 Cookie の Secure 属性。`true` / `false`。未指定時は production だけ true          | production で true                         |
+| `TRUST_PROXY`   | いいえ   | 信頼するリバースプロキシの段数（0 以上の整数）。nginx の前段にプロキシを足したら増やす | `1`                                        |
+| `PORT`          | いいえ   | API 待ち受けポート                                                                     | `3001`                                     |
+| `NODE_ENV`      | いいえ   | 実行環境 (`production` で挙動変更)                                                     | `development`                              |
+| `CORS_ORIGIN`   | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可）          | `http://localhost:5173`（production 以外） |
 
 `.env` 例（ルートの `.env.example` を参照）:
 
@@ -157,7 +158,9 @@ Docker Compose 起動時:
 
 補足:
 
-- `/api/auth/*` には認証レートリミットが適用される（15 分間に 10 リクエスト）
+- `/api/auth/login` と `/api/auth/register` には認証レートリミットが適用される（IP ごとに、失敗したリクエストが 15 分間に 10 回まで。成功したリクエストは数えない）。`/api/auth/status` は対象外
+- 全 API には IP ごとに 15 分間 3000 リクエストの共通レートリミットが適用される
+- 前段に TLS 用プロキシを置く場合は `TRUST_PROXY=2` にする。段数が足りないと全ユーザーがプロキシの IP 1 つにまとまり、1 人の失敗で全員がロックアウトされる
 - 発行された JWT は HttpOnly Cookie（`token`）に保存される。API クライアント向けには `Authorization: Bearer <token>` ヘッダーも利用可能（有効期限 7 日）
 - 初回起動時は `GET /api/auth/status` が `{ "hasUsers": false }` を返し、フロントエンドは登録画面を表示する。ユーザーが既にいる場合、登録は 403 になる
 - JWT にはトークン世代が入り、ログアウトで世代を進める。世代が合わないトークンは 401 になる

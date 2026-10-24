@@ -34,6 +34,8 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
       # 公開ポートは平文 HTTP。TLS の前段を置いたら true にする
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # 信頼するプロキシの段数。frontend(nginx)の前段に TLS 用プロキシを置いたら 2 にする
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     depends_on:
       db:
         condition: service_healthy

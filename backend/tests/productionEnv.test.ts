@@ -3,6 +3,7 @@ import {
   DEV_AUTH_SECRET,
   isCookieSecure,
   productionEnvError,
+  trustProxyHops,
 } from "../productionEnv.js";
 
 describe("productionEnvError", () => {
@@ -46,6 +47,24 @@ describe("productionEnvError", () => {
         AUTH_SECRET: "a-real-secret-value",
       }),
     ).toBeNull();
+  });
+});
+
+describe("trustProxyHops", () => {
+  it("未指定・空文字なら 1 段", () => {
+    expect(trustProxyHops({})).toBe(1);
+    expect(trustProxyHops({ TRUST_PROXY: "  " })).toBe(1);
+  });
+
+  it("0 以上の整数を段数として返す", () => {
+    expect(trustProxyHops({ TRUST_PROXY: "0" })).toBe(0);
+    expect(trustProxyHops({ TRUST_PROXY: "2" })).toBe(2);
+  });
+
+  it("整数以外は null を返す", () => {
+    expect(trustProxyHops({ TRUST_PROXY: "-1" })).toBeNull();
+    expect(trustProxyHops({ TRUST_PROXY: "1.5" })).toBeNull();
+    expect(trustProxyHops({ TRUST_PROXY: "true" })).toBeNull();
   });
 });
 
