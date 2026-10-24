@@ -2,7 +2,11 @@ import type { Pool } from "pg";
 import { pool } from "../db.js";
 import type { DbTask, Task, TaskSnapshotPayload } from "@kando/types";
 import { ConflictError, HttpError, NotFoundError } from "../errors.js";
-import { appendPosition, assignPosition } from "../positionSlot.js";
+import {
+  appendPosition,
+  assignPosition,
+  type PositionSlot,
+} from "../positionSlot.js";
 import {
   TASK_RETURNING_COLUMNS,
   calcPosition,
@@ -22,7 +26,7 @@ import {
  * @param due_date - 期限日(`YYYY-MM-DD`)。未設定は `null`
  * @param position - カラム内の表示順
  * @param userId - 操作ユーザーの ID
- * @returns 作成したタスク(子要素は空配列)
+ * @returns 作成したタスク(子要素は空配列)と、振り直された他タスクの position
  * @throws NotFoundError カラムがユーザーのものでない場合
  */
 export async function createTask(
@@ -31,7 +35,7 @@ export async function createTask(
   due_date: string | null,
   position: number,
   userId: number,
-): Promise<Task> {
+): Promise<{ task: Task; rebalanced: PositionSlot[] }> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -55,7 +59,7 @@ export async function createTask(
       placed.position,
     );
     await client.query("COMMIT");
-    return created;
+    return { task: created, rebalanced: placed.rebalance };
   } catch (err) {
     try {
       await client.query("ROLLBACK");
@@ -281,7 +285,7 @@ export async function saveTaskSnapshot(
  * @param column_id - 移動先カラム ID
  * @param position - 移動先カラム内の表示順
  * @param userId - 操作ユーザーの ID
- * @returns 更新後タスク
+ * @returns 更新後タスクと、振り直された他タスクの position
  * @throws NotFoundError タスクまたは移動先カラムがユーザーのものでない場合
  */
 export async function moveTask(
@@ -289,7 +293,7 @@ export async function moveTask(
   column_id: number,
   position: number,
   userId: number,
-): Promise<Task> {
+): Promise<{ task: Task; rebalanced: PositionSlot[] }> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -333,7 +337,7 @@ export async function moveTask(
       throw new NotFoundError("Task not found");
     }
     await client.query("COMMIT");
-    return result.rows[0] as Task;
+    return { task: result.rows[0] as Task, rebalanced: placed.rebalance };
   } catch (err) {
     try {
       await client.query("ROLLBACK");

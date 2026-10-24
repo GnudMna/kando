@@ -72,7 +72,7 @@ describe("tasksService", () => {
 
       const result = await service.createTask(10, "新タスク", null, 1000, 99);
 
-      expect(result).toEqual(baseTask);
+      expect(result).toEqual({ task: baseTask, rebalanced: [] });
       expect(repository.insertTask).toHaveBeenCalledWith(
         client,
         10,
@@ -164,7 +164,36 @@ describe("tasksService", () => {
 
       const result = await service.moveTask(1, 11, 2000, 99);
 
-      expect(result).toEqual(moved);
+      expect(result).toEqual({ task: moved, rebalanced: [] });
+    });
+
+    it("position が衝突した場合は振り直し結果を返す", async () => {
+      const client = createMockClient();
+      mockedPool.connect.mockResolvedValueOnce(client);
+      const moved = { ...baseTask, column_id: 11, position: 2000 };
+      client.query.mockImplementation(async (sql: unknown) => {
+        const statement = String(sql);
+        if (statement === "BEGIN" || statement === "COMMIT") return { rows: [] };
+        if (statement.includes("SELECT c.id")) return { rows: [{ id: 11 }] };
+        if (statement.includes("SELECT t.column_id")) {
+          return { rows: [{ column_id: 10 }] };
+        }
+        if (statement.startsWith("UPDATE tasks SET column_id")) {
+          return { rows: [moved] };
+        }
+        return { rows: [] };
+      });
+      vi.mocked(repository.lockTasksInColumns).mockResolvedValueOnce([
+        { id: 1, column_id: 10, position: 1000 },
+        { id: 2, column_id: 11, position: 1000 },
+      ]);
+
+      const result = await service.moveTask(1, 11, 1000, 99);
+
+      expect(result.rebalanced).toEqual([{ id: 2, position: 1000 }]);
+      expect(repository.updateTaskPositions).toHaveBeenCalledWith(client, [
+        { id: 2, position: 1000 },
+      ]);
     });
 
     it("移動先カラムが無い場合 NotFoundError を投げる", async () => {

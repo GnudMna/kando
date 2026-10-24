@@ -13,6 +13,7 @@ import {
   updateColumnTitleBodySchema,
 } from "@kando/types/validation";
 import { NotFoundError } from "../errors.js";
+import { withRebalanced } from "../positionSlot.js";
 
 const router = Router();
 
@@ -73,11 +74,11 @@ router.put(
       return;
     }
     const { position } = req.body as { position: number };
-    const column = await moveColumn(id, position, req.userId!);
-    if (!column) {
+    const moved = await moveColumn(id, position, req.userId!);
+    if (!moved) {
       throw new NotFoundError("Column not found");
     }
-    res.json(column);
+    res.json(withRebalanced(moved.column, moved.rebalanced));
   }),
 );
 

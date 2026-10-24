@@ -118,6 +118,20 @@ export interface Task extends DbTask {
   checklist_count?: number;
 }
 
+/** position 振り直しで更新された他アイテムの新しい表示順。 */
+export interface PositionUpdate {
+  /** 更新されたアイテムの ID */
+  id: number;
+  /** 振り直し後の position */
+  position: number;
+}
+
+/**
+ * 作成・移動 API のレスポンス。position の衝突で並び全体が振り直された場合のみ
+ * `rebalanced` に他アイテムの新しい position が入る。
+ */
+export type WithRebalanced<T> = T & { rebalanced?: PositionUpdate[] };
+
 /** タスク一覧を含むカラム型。 */
 export interface Column extends DbColumn {
   /** カラム内のタスク */

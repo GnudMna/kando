@@ -6,6 +6,7 @@ import { z } from "./setup.js";
 import {
   AuthStatusResponse,
   Column,
+  ColumnWithRebalance,
   DbChecklistItem,
   DbSubtask,
   DbTaskComment,
@@ -17,6 +18,7 @@ import {
   Subtask,
   SuccessResponse,
   Task,
+  TaskWithRebalance,
   authenticatedSecurity,
   jsonResponse,
   pathIdParam,
@@ -314,7 +316,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
       },
     },
     responses: {
-      200: jsonResponse(Column, "移動後のカラム"),
+      200: jsonResponse(ColumnWithRebalance, "移動後のカラム"),
       400: standardErrors[400],
       401: standardErrors[401],
       404: standardErrors[404],
@@ -351,7 +353,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
       },
     },
     responses: {
-      200: jsonResponse(Task, "作成したタスク"),
+      200: jsonResponse(TaskWithRebalance, "作成したタスク"),
       400: standardErrors[400],
       401: standardErrors[401],
       404: standardErrors[404],
@@ -433,7 +435,7 @@ export function registerPaths(registry: OpenAPIRegistry): void {
       },
     },
     responses: {
-      200: jsonResponse(Task, "移動後のタスク"),
+      200: jsonResponse(TaskWithRebalance, "移動後のタスク"),
       400: standardErrors[400],
       401: standardErrors[401],
       404: standardErrors[404],

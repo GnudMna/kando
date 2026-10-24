@@ -1,5 +1,6 @@
 import { pool } from "../db.js";
 import type { DbColumn } from "../types.js";
+import type { PositionSlot } from "../positionSlot.js";
 import {
   deleteColumn as deleteColumnQuery,
   moveColumn as moveColumnQuery,
@@ -50,19 +51,19 @@ export async function updateColumnTitle(
  * @param id - カラム ID
  * @param position - 新しい表示順
  * @param userId - リクエストユーザー ID(所有権確認に使用)
- * @returns 更新後のカラムレコード。対象が見つからない場合は `null`
+ * @returns 更新後のカラムレコードと振り直された他カラムの position。対象が見つからない場合は `null`
  */
 export async function moveColumn(
   id: number,
   position: number,
   userId: number,
-): Promise<DbColumn | null> {
+): Promise<{ column: DbColumn; rebalanced: PositionSlot[] } | null> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const column = await moveColumnQuery(client, id, position, userId);
+    const moved = await moveColumnQuery(client, id, position, userId);
     await client.query("COMMIT");
-    return column;
+    return moved;
   } catch (err) {
     try {
       await client.query("ROLLBACK");
