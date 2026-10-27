@@ -7,7 +7,9 @@ import {
   deleteTask,
   moveTask as moveTaskApi,
 } from "../../api/tasks";
+import { queryKeys } from "../../api/queryKeys";
 import { POSITION_GAP } from "../../utils/constants";
+import { isTaskSummary } from "../../utils/taskSummary";
 import { applyTaskPositions } from "./boardCache";
 import { computeMoveTaskUpdate } from "./boardOptimisticUpdates";
 import type { BoardActionContext } from "./types";
@@ -23,7 +25,7 @@ export function useTaskActions({
   boardIndexesRef,
   setRows,
 }: BoardActionContext) {
-  const { setBoardRows, getBoardRows, onMutationError } =
+  const { queryClient, setBoardRows, getBoardRows, onMutationError } =
     useBoardMutationContext();
 
   const addTaskMutation = useMutation({
@@ -161,6 +163,13 @@ export function useTaskActions({
 
   const updateTask = useCallback(
     (updatedTask: Task) => {
+      // 遅延読み込み用の詳細キャッシュが編集前の内容を保持しないよう同期する
+      if (!isTaskSummary(updatedTask)) {
+        queryClient.setQueryData(
+          queryKeys.tasks.detail(updatedTask.id),
+          updatedTask,
+        );
+      }
       setRows((prev) => {
         const colKey = updatedTask.column_id.toString();
         const location =
@@ -193,7 +202,7 @@ export function useTaskActions({
         return newRows;
       });
     },
-    [boardIndexesRef, setRows],
+    [boardIndexesRef, queryClient, setRows],
   );
 
   const moveTask = useCallback(
