@@ -28,6 +28,7 @@
 ### Performance
 
 - 横断検索のクエリを `LEFT JOIN` + `DISTINCT` から `EXISTS` に書き換えた
+- 横断検索の `ILIKE '%keyword%'` がインデックスを使えるよう、`pg_trgm` 拡張と、タスク・サブタスク・チェックリスト・コメントの `content` への GIN インデックスを追加した
 
 ### Docs
 
