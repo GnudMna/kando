@@ -12,11 +12,11 @@ Kando のバックエンド・フロントエンド共有型パッケージで�
 
 ## エクスポート
 
-| サブパス                  | 内容                                      | 主な利用者                               |
-| ------------------------- | ----------------------------------------- | ---------------------------------------- |
-| `@kando/types`            | ドメイン型 + validation の再エクスポート  | frontend, backend                        |
-| `@kando/types/validation` | Zod スキーマ（`createTaskBodySchema` 等） | backend（`middleware/validate`）         |
-| `@kando/types/openapi`    | OpenAPI ドキュメント生成関数              | backend（`scripts/generate-openapi.ts`） |
+| サブパス                  | 内容                                      | 主な利用者                                                                 |
+| ------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| `@kando/types`            | ドメイン型 + validation の再エクスポート  | frontend, backend                                                          |
+| `@kando/types/validation` | Zod スキーマ（`createTaskBodySchema` 等） | backend（`middleware/validate`、`routes/auth`）, frontend（`LoginScreen`） |
+| `@kando/types/openapi`    | OpenAPI ドキュメント生成関数              | backend（`scripts/generate-openapi.ts`）                                   |
 
 ## ディレクトリ構成
 
@@ -25,7 +25,7 @@ packages/types/
 └── src/
     ├── index.ts          # ドメイン型定義
     ├── validation/       # Zod スキーマ（fields, queryFields, schemas, format, boardQueryOpenApi）
-    └── openapi/          # OpenAPI パス・コンポーネント定義
+    └── openapi/          # OpenAPI 生成（document, paths, components, setup）とスナップショットテスト
 ```
 
 ## ビルド
@@ -40,7 +40,7 @@ npm --workspace @kando/types run build
 
 1. `src/validation/` または `src/openapi/` のスキーマ・パス定義を変更
 2. `npm --workspace @kando/types run test` でスナップショットテストを確認
-3. `npm --workspace backend run openapi:generate` で `backend/openapi/openapi.json` を再生成
+3. `npm --workspace backend run openapi:generate` で `backend/openapi/openapi.json` を再生成（生成物は Git 管理外。`backend` の `build` / `dev` でも自動生成される）
 4. `GET /api/openapi.json` および Swagger UI に反映される
 
 ## テスト
