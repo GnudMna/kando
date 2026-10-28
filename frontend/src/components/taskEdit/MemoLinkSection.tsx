@@ -1,36 +1,29 @@
 import { useEffect, useRef } from "react";
 import { Plus, FileText, X } from "lucide-react";
 import type { Memo } from "../../api/boardApi";
-import * as api from "../../api/boardApi";
-import { invalidateMemoCache } from "./memoCache";
 import { useAppNavigation } from "../../providers/useAppNavigation";
 
 interface MemoLinkSectionProps {
-  taskId: number;
-  /** `true` の間は API を呼ばず選択状態のみ更新する(未作成の下書きタスク用) */
-  deferLinking?: boolean;
   allMemos: Memo[] | null;
   linkedMemoIds: Set<number>;
   onLinkedMemoIdsChange: (updater: (prev: Set<number>) => Set<number>) => void;
+  /** メモ一覧の読み込み失敗など、表示するエラー文言 */
   memoLinkError: string | null;
-  onMemoLinkErrorChange: (error: string | null) => void;
   showMemoPicker: boolean;
   onShowMemoPickerChange: (show: boolean) => void;
 }
 
 /**
  * タスクに関連付けられたメモの表示・追加・解除 UI。
+ * 選択状態のみを更新し、サーバーへの反映はモーダル保存時に呼び出し側が行う。
  * @param props - `MemoLinkSectionProps`(同ファイル interface を参照)
  * @returns メモ連携セクションの JSX 要素
  */
 export function MemoLinkSection({
-  taskId,
-  deferLinking = false,
   allMemos,
   linkedMemoIds,
   onLinkedMemoIdsChange,
   memoLinkError,
-  onMemoLinkErrorChange,
   showMemoPicker,
   onShowMemoPickerChange,
 }: MemoLinkSectionProps) {
@@ -88,30 +81,10 @@ export function MemoLinkSection({
                         role="option"
                         aria-selected="false"
                         onClick={() => {
-                          onMemoLinkErrorChange(null);
-                          if (deferLinking) {
-                            onLinkedMemoIdsChange(
-                              (prev) => new Set([...prev, memo.id]),
-                            );
-                            onShowMemoPickerChange(false);
-                            return;
-                          }
-                          api
-                            .linkMemoTask(memo.id, taskId)
-                            .then(() => {
-                              invalidateMemoCache();
-                              onLinkedMemoIdsChange(
-                                (prev) => new Set([...prev, memo.id]),
-                              );
-                              onShowMemoPickerChange(false);
-                            })
-                            .catch((err: unknown) => {
-                              onMemoLinkErrorChange(
-                                err instanceof Error
-                                  ? err.message
-                                  : "関連付けに失敗しました",
-                              );
-                            });
+                          onLinkedMemoIdsChange(
+                            (prev) => new Set([...prev, memo.id]),
+                          );
+                          onShowMemoPickerChange(false);
                         }}
                       >
                         <FileText size={12} aria-hidden="true" />
@@ -166,34 +139,13 @@ export function MemoLinkSection({
                   type="button"
                   className="memo-linked-chip-remove"
                   aria-label={`「${memo.title || "メモ"}」の関連付けを解除`}
-                  onClick={() => {
-                    onMemoLinkErrorChange(null);
-                    if (deferLinking) {
-                      onLinkedMemoIdsChange((prev) => {
-                        const next = new Set(prev);
-                        next.delete(memo.id);
-                        return next;
-                      });
-                      return;
-                    }
-                    api
-                      .unlinkMemoTask(memo.id, taskId)
-                      .then(() => {
-                        invalidateMemoCache();
-                        onLinkedMemoIdsChange((prev) => {
-                          const next = new Set(prev);
-                          next.delete(memo.id);
-                          return next;
-                        });
-                      })
-                      .catch((err: unknown) => {
-                        onMemoLinkErrorChange(
-                          err instanceof Error
-                            ? err.message
-                            : "解除に失敗しました",
-                        );
-                      });
-                  }}
+                  onClick={() =>
+                    onLinkedMemoIdsChange((prev) => {
+                      const next = new Set(prev);
+                      next.delete(memo.id);
+                      return next;
+                    })
+                  }
                 >
                   <X size={11} />
                 </button>
