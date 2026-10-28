@@ -48,6 +48,7 @@ export function useKanbanBoardState(board: BoardApi) {
     removeTask,
     copyTask,
     updateTask,
+    patchTask,
     moveTask,
     moveColumn,
   } = board;
@@ -366,5 +367,6 @@ export function useKanbanBoardState(board: BoardApi) {
     removeColumn,
     removeRow,
     updateTask,
+    patchTask,
   };
 }

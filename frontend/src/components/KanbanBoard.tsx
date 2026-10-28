@@ -61,6 +61,7 @@ export function KanbanBoard() {
     handleCopyTask,
     handleEditTask,
     updateTask,
+    patchTask,
     handleDragEnd,
     taskDueHighlights,
     editingTask,
@@ -142,6 +143,7 @@ export function KanbanBoard() {
           onDeleteTask={handleDeleteTask}
           onCopyTask={handleCopyTask}
           onTaskUpdated={updateTask}
+          onTaskPatched={patchTask}
           onEditTask={handleEditTask}
           taskDueHighlights={taskDueHighlights}
           dueSoonDays={dueSoonDays}
