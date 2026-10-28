@@ -45,6 +45,60 @@ describe("useTaskEditForm", () => {
     expect(onClose).toHaveBeenCalledWith("saved");
   });
 
+  describe("下書き(onCreate 指定)", () => {
+    const draftTask: Task = { ...baseTask, id: 0, revision: 0 };
+    const onCreate = vi.fn();
+
+    beforeEach(() => {
+      onCreate.mockReset();
+    });
+
+    const renderDraft = () =>
+      renderHook(() =>
+        useTaskEditForm({ task: draftTask, onClose, onTaskUpdated, onCreate }),
+      );
+
+    it("保存時は saveTaskSnapshot ではなく onCreate を呼ぶ", async () => {
+      const created = { ...baseTask, id: 50 };
+      onCreate.mockResolvedValue(created);
+
+      const { result } = renderDraft();
+      act(() => {
+        result.current.setLocalTask((prev) => ({ ...prev, content: "新規" }));
+      });
+      await act(async () => {
+        await result.current.saveAndClose();
+      });
+
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "新規" }),
+        [],
+      );
+      expect(api.saveTaskSnapshot).not.toHaveBeenCalled();
+      expect(onTaskUpdated).toHaveBeenCalledWith(created);
+      expect(onClose).toHaveBeenCalledWith("saved");
+    });
+
+    it("onCreate 失敗時はモーダルを閉じず saveError をセットする", async () => {
+      onCreate.mockRejectedValue(new Error("network"));
+
+      const { result } = renderDraft();
+      await act(async () => {
+        await result.current.saveAndClose();
+      });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(result.current.saveError).toBe(
+        "保存中にエラーが発生しました。再試行してください。",
+      );
+    });
+
+    it("isDraft が true になる", () => {
+      expect(renderDraft().result.current.isDraft).toBe(true);
+      expect(renderForm().result.current.isDraft).toBe(false);
+    });
+  });
+
   it("サマリータスクは詳細読み込み完了前に保存しない", async () => {
     const summaryTask: Task = {
       ...taskWithChecklists,

@@ -103,7 +103,7 @@ export function columnInRow(row, columnTitle) {
 }
 
 /**
- * 行の先頭列（未着手）にタスクを追加し、カードが表示されるまで待機する。
+ * 行の先頭列（未着手）にタスクを追加し、編集モーダルを保存してカードが表示されるまで待機する。
  *
  * @param {import('@playwright/test').Page} page - 操作対象の Playwright ページ
  * @param {string} rowTitle - 対象行のタイトル
@@ -120,6 +120,11 @@ export async function addTaskInRow(
   await firstColumn
     .getByRole("button", { name: "タスクを追加", exact: true })
     .click();
+  // 新規タスクは編集モーダルを保存した時点で初めて作成される
+  await expect(
+    page.getByRole("dialog", { name: "タスクを編集" }),
+  ).toBeVisible();
+  await saveTaskModal(page);
   await expect(
     row.getByRole("button", {
       name: `タスク「${expectedContent}」を編集`,

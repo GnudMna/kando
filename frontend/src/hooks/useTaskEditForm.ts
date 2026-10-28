@@ -22,6 +22,16 @@ interface UseTaskEditFormOptions {
   task: Task;
   onClose: (reason: "saved" | "dismiss") => void;
   onTaskUpdated: (task: Task) => void;
+  /**
+   * 指定すると新規タスクの下書きとして扱い、保存時に既存タスクの更新ではなく作成する。
+   * 下書きはサーバーに存在しないため、関連メモの追加・解除も保存まで保留する。
+   * @param payload - 保存ペイロード
+   * @param memoIds - 保存と同時に紐付ける関連メモ ID
+   */
+  onCreate?: (
+    payload: api.TaskSnapshotPayload,
+    memoIds: number[],
+  ) => Promise<Task>;
 }
 
 /**
@@ -33,7 +43,9 @@ export function useTaskEditForm({
   task,
   onClose,
   onTaskUpdated,
+  onCreate,
 }: UseTaskEditFormOptions) {
+  const isDraft = onCreate !== undefined;
   const [localTask, setLocalTask] = useState<LocalTask>(() => {
     const cloned = structuredClone(task) as LocalTask;
     cloned.due_date = normalizeDueDateValue(cloned.due_date);
@@ -170,7 +182,9 @@ export function useTaskEditForm({
         revision: final.revision,
       };
 
-      const savedTask = await api.saveTaskSnapshot(task.id, payload);
+      const savedTask = onCreate
+        ? await onCreate(payload, [...linkedMemoIds])
+        : await api.saveTaskSnapshot(task.id, payload);
       onTaskUpdated(savedTask);
       onClose("saved");
     } catch (err) {
@@ -370,6 +384,7 @@ export function useTaskEditForm({
     setMemoLinkError,
     showMemoPicker,
     setShowMemoPicker,
+    isDraft,
     saveAndClose,
     addSubtask,
     saveSubtaskEdit,
