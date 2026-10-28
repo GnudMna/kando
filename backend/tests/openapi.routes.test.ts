@@ -36,4 +36,15 @@ describe("OpenAPI routes", () => {
     expect(res.text).toContain("swagger-ui");
     expect(res.text).toContain("/api/openapi.json");
   });
+
+  it("GET /api/docs sets a CSP that allows unpkg only with a nonce for inline script", async () => {
+    const res = await request(app).get("/api/docs");
+    const csp = res.headers["content-security-policy"];
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+
+    expect(csp).toContain("https://unpkg.com");
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(nonce).toBeDefined();
+    expect(res.text).toContain(`<script nonce="${nonce}">`);
+  });
 });

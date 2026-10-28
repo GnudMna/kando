@@ -68,21 +68,8 @@ if (proxyHops === null) {
 }
 app.set("trust proxy", proxyHops);
 
-// セキュリティヘッダーを付与する。Swagger UI 用に unpkg を許可
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'", "https://unpkg.com"],
-      },
-    },
-  }),
-);
+// セキュリティヘッダーを付与する。Swagger UI 用の緩和 CSP は /api/docs のルート側で上書きする
+app.use(helmet());
 
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",")
