@@ -21,6 +21,7 @@ export {
 export type { TaskSnapshotPayload } from "./tasks.js";
 export {
   createTask,
+  fetchTask,
   updateTask,
   saveTaskSnapshot,
   moveTask,

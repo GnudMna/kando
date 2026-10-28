@@ -1,7 +1,11 @@
-import { pool } from "../db.js";
 import type { DbTaskComment } from "../types.js";
 import { NotFoundError } from "../errors.js";
-import { verifyTaskOwnedByUser } from "../repositories/ownershipRepository.js";
+import {
+  lockTaskOfComment,
+  verifyTaskOwnedByUser,
+} from "../repositories/ownershipRepository.js";
+import { bumpTaskRevision } from "../repositories/tasksRepository.js";
+import { withTransaction } from "../transaction.js";
 import {
   deleteTaskComment as deleteTaskCommentQuery,
   insertTaskComment,
@@ -10,7 +14,7 @@ import {
 } from "../repositories/taskCommentsRepository.js";
 
 /**
- * タスクコメントを新規作成する。
+ * タスクコメントを新規作成する。親タスクの `revision` も進める。
  * @param taskId - 親タスク ID
  * @param content - コメント本文
  * @param userId - 操作ユーザー ID
@@ -22,9 +26,7 @@ export async function createTaskComment(
   content: string,
   userId: number,
 ): Promise<DbTaskComment> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  return withTransaction(async (client) => {
     if (
       !(await verifyTaskOwnedByUser(client, taskId, userId, {
         forUpdate: true,
@@ -34,18 +36,9 @@ export async function createTaskComment(
     }
     const position = await nextCommentPosition(client, taskId);
     const comment = await insertTaskComment(client, taskId, content, position);
-    await client.query("COMMIT");
+    await bumpTaskRevision(client, taskId);
     return comment;
-  } catch (err) {
-    try {
-      await client.query("ROLLBACK");
-    } catch (rollbackErr) {
-      console.error("Rollback failed:", rollbackErr);
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 type TaskCommentPatch = {
@@ -54,7 +47,7 @@ type TaskCommentPatch = {
 };
 
 /**
- * タスクコメントを部分更新する。
+ * タスクコメントを部分更新する。親タスクの `revision` も進める。
  * @param id - 更新対象 ID
  * @param patch - 更新フィールド
  * @param userId - 操作ユーザー ID
@@ -66,15 +59,22 @@ export async function updateTaskComment(
   patch: TaskCommentPatch,
   userId: number,
 ): Promise<DbTaskComment> {
-  const comment = await updateTaskCommentQuery(pool, id, patch, userId);
-  if (!comment) {
-    throw new NotFoundError("Comment not found");
-  }
-  return comment;
+  return withTransaction(async (client) => {
+    const parentTaskId = await lockTaskOfComment(client, id, userId);
+    if (parentTaskId === null) {
+      throw new NotFoundError("Comment not found");
+    }
+    const comment = await updateTaskCommentQuery(client, id, patch, userId);
+    if (!comment) {
+      throw new NotFoundError("Comment not found");
+    }
+    await bumpTaskRevision(client, parentTaskId);
+    return comment;
+  });
 }
 
 /**
- * タスクコメントを削除する。
+ * タスクコメントを削除する。親タスクの `revision` も進める。
  * @param id - 削除対象 ID
  * @param userId - 操作ユーザー ID
  * @returns `true`: 削除成功
@@ -84,9 +84,16 @@ export async function deleteTaskComment(
   id: number,
   userId: number,
 ): Promise<boolean> {
-  const deleted = await deleteTaskCommentQuery(pool, id, userId);
-  if (deleted === 0) {
-    throw new NotFoundError("Comment not found");
-  }
-  return true;
+  return withTransaction(async (client) => {
+    const parentTaskId = await lockTaskOfComment(client, id, userId);
+    if (parentTaskId === null) {
+      throw new NotFoundError("Comment not found");
+    }
+    const deleted = await deleteTaskCommentQuery(client, id, userId);
+    if (deleted === 0) {
+      throw new NotFoundError("Comment not found");
+    }
+    await bumpTaskRevision(client, parentTaskId);
+    return true;
+  });
 }
