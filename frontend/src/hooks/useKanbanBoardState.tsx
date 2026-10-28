@@ -8,9 +8,8 @@ import {
 } from "react";
 import type { DropResult } from "@hello-pangea/dnd";
 import type { Row, Task } from "../types";
-import { linkMemoTask } from "../api/memos";
 import { fetchTask, type TaskSnapshotPayload } from "../api/tasks";
-import { invalidateMemoCache } from "../components/taskEdit/memoCache";
+import { useMemoMutations } from "./useMemos";
 import { getDueHighlight } from "../utils/dueDate";
 import { countTasks } from "../utils/taskSearch";
 import { taskNeedsDetailLoad } from "../utils/taskSummary";
@@ -79,6 +78,7 @@ export function useKanbanBoardState(board: BoardApi) {
   const rowsRef = useRef(rows);
   const { registerOpenTaskHandler } = useAppNavigation();
   const { reportError } = useOperationError();
+  const { syncTaskLinks } = useMemoMutations();
 
   useEffect(() => {
     rowsRef.current = rows;
@@ -239,17 +239,16 @@ export function useKanbanBoardState(board: BoardApi) {
         payload,
       );
       // タスクは作成済みのため、紐付け失敗は保存失敗にせず通知のみ行う
-      const results = await Promise.allSettled(
-        memoIds.map((memoId) => linkMemoTask(memoId, saved.id)),
-      );
-      if (memoIds.length > 0) invalidateMemoCache();
-      const failed = results.find((r) => r.status === "rejected");
+      const failed = await syncTaskLinks(saved.id, {
+        link: memoIds,
+        unlink: [],
+      });
       if (failed) {
         reportError("関連メモの紐付けに失敗しました", failed.reason);
       }
       return saved;
     },
-    [createTaskFromSnapshot, editingTask, reportError],
+    [createTaskFromSnapshot, editingTask, reportError, syncTaskLinks],
   );
 
   const handleDeleteTask = useCallback(

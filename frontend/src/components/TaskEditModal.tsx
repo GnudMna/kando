@@ -168,13 +168,10 @@ export function TaskEditModal({
           />
 
           <MemoLinkSection
-            taskId={task.id}
-            deferLinking={form.isDraft}
             allMemos={form.allMemos}
             linkedMemoIds={form.linkedMemoIds}
             onLinkedMemoIdsChange={form.setLinkedMemoIds}
             memoLinkError={form.memoLinkError}
-            onMemoLinkErrorChange={form.setMemoLinkError}
             showMemoPicker={form.showMemoPicker}
             onShowMemoPickerChange={form.setShowMemoPicker}
           />
