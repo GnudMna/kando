@@ -332,7 +332,8 @@ export async function fetchUserRows(
   if (rowWhereClauses.length > 0) {
     rowsQuery += ` WHERE ${rowWhereClauses.join(" AND ")}`;
   }
-  rowsQuery += " ORDER BY position ASC";
+  // position が重複してもページング結果が安定するよう id で順序を確定させる
+  rowsQuery += " ORDER BY position ASC, id ASC";
 
   if (limit !== null) {
     rowQueryParams.push(limit);
