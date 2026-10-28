@@ -109,6 +109,10 @@ export const TaskCard = memo(function TaskCard({
    * カード上では個別 API で即時保存する。編集モーダル内の変更はスナップショット一括保存であり、
    * 二系統の永続化経路がある点に注意(モーダル保存前にカードでトグルした値は個別 API 経由で反映済み)。
    *
+   * サーバーは個別 API でも親タスクの revision を進める。レスポンスは項目だけで revision を含まないため、
+   * 反映後にタスクを取り直して revision を最新化する。取り込まないと、次のスナップショット保存が
+   * 自分自身の変更で 409 になる。
+   *
    * @param item - 対象チェックリスト項目(id と completed が必要)
    * @param type - 'タスク直下' なら 'task'、'サブタスク配下' なら 'subtask'
    * @param subtaskId - type が 'subtask' の場合の親サブタスク ID
@@ -147,6 +151,28 @@ export const TaskCard = memo(function TaskCard({
       }
     } catch (err) {
       reportError("チェックリストの更新に失敗しました", err);
+      return;
+    }
+    await refreshTaskRevision();
+  };
+
+  /**
+   * 個別 API で子要素を変更したあと、サーバーの最新 revision だけを取得して親の state へ反映する。
+   * タスク全体は置き換えず revision のみマージする。取得中に進んだ連続トグルの結果を巻き戻さないため。
+   * 取得応答が前後しても revision が古い値へ戻らないよう、大きい方を採る。
+   * 保存自体は成功済みなので、取得に失敗してもエラーは出さない。revision が古いまま残る場合、
+   * 次のスナップショット保存は 409 になり、開き直しを促すメッセージで安全側に倒れる。
+   * @returns 反映処理完了時に解決される Promise
+   */
+  const refreshTaskRevision = async () => {
+    try {
+      const { revision } = await api.fetchTask(task.id);
+      onTaskPatched(task.id, (prev) => ({
+        ...prev,
+        revision: Math.max(prev.revision, revision),
+      }));
+    } catch {
+      // 失敗時は上記のとおり 409 側で検知されるため握りつぶす
     }
   };
 

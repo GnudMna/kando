@@ -1,4 +1,3 @@
-import { pool } from "../db.js";
 import type { DbChecklistItem } from "../types.js";
 import { HttpError, NotFoundError } from "../errors.js";
 import {
@@ -9,12 +8,15 @@ import {
   updateChecklistItem as updateChecklistItemQuery,
 } from "../repositories/checklistItemsRepository.js";
 import {
-  verifySubtaskOwnedByUser,
+  lockTaskOfChecklistItem,
+  lockTaskOfSubtask,
   verifyTaskOwnedByUser,
 } from "../repositories/ownershipRepository.js";
+import { bumpTaskRevision } from "../repositories/tasksRepository.js";
+import { withTransaction } from "../transaction.js";
 
 /**
- * チェックリスト項目を新規作成する。
+ * チェックリスト項目を新規作成する。親タスクの `revision` も進める。
  * @param content - 項目本文
  * @param taskId - 親タスク ID
  * @param subtaskId - 親サブタスク ID
@@ -29,10 +31,8 @@ export async function createChecklistItem(
   subtaskId: number | null,
   userId: number,
 ): Promise<DbChecklistItem> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
+  return withTransaction(async (client) => {
+    let parentTaskId: number;
     let nextPosition: number;
     if (taskId !== null) {
       if (
@@ -42,15 +42,14 @@ export async function createChecklistItem(
       ) {
         throw new NotFoundError("Task not found");
       }
+      parentTaskId = taskId;
       nextPosition = await nextChecklistPositionForTask(client, taskId);
     } else if (subtaskId !== null) {
-      if (
-        !(await verifySubtaskOwnedByUser(client, subtaskId, userId, {
-          forUpdate: true,
-        }))
-      ) {
+      const lockedTaskId = await lockTaskOfSubtask(client, subtaskId, userId);
+      if (lockedTaskId === null) {
         throw new NotFoundError("Subtask not found");
       }
+      parentTaskId = lockedTaskId;
       nextPosition = await nextChecklistPositionForSubtask(client, subtaskId);
     } else {
       throw new HttpError(500, "Invalid checklist parent refs");
@@ -63,19 +62,9 @@ export async function createChecklistItem(
       content.trim(),
       nextPosition,
     );
-
-    await client.query("COMMIT");
+    await bumpTaskRevision(client, parentTaskId);
     return item;
-  } catch (err) {
-    try {
-      await client.query("ROLLBACK");
-    } catch (rollbackErr) {
-      console.error("Rollback failed:", rollbackErr);
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 type ChecklistItemPatch = {
@@ -85,7 +74,7 @@ type ChecklistItemPatch = {
 };
 
 /**
- * チェックリスト項目を部分更新する。
+ * チェックリスト項目を部分更新する。親タスクの `revision` も進める。
  * @param id - 更新対象 ID
  * @param patch - 更新フィールド
  * @param userId - 操作ユーザー ID
@@ -97,15 +86,22 @@ export async function updateChecklistItem(
   patch: ChecklistItemPatch,
   userId: number,
 ): Promise<DbChecklistItem> {
-  const item = await updateChecklistItemQuery(pool, id, patch, userId);
-  if (!item) {
-    throw new NotFoundError("Checklist item not found");
-  }
-  return item;
+  return withTransaction(async (client) => {
+    const parentTaskId = await lockTaskOfChecklistItem(client, id, userId);
+    if (parentTaskId === null) {
+      throw new NotFoundError("Checklist item not found");
+    }
+    const item = await updateChecklistItemQuery(client, id, patch, userId);
+    if (!item) {
+      throw new NotFoundError("Checklist item not found");
+    }
+    await bumpTaskRevision(client, parentTaskId);
+    return item;
+  });
 }
 
 /**
- * チェックリスト項目を削除する。
+ * チェックリスト項目を削除する。親タスクの `revision` も進める。
  * @param id - 削除対象 ID
  * @param userId - 操作ユーザー ID
  * @returns `true`: 削除成功
@@ -115,9 +111,16 @@ export async function deleteChecklistItem(
   id: number,
   userId: number,
 ): Promise<boolean> {
-  const deleted = await deleteChecklistItemQuery(pool, id, userId);
-  if (deleted === 0) {
-    throw new NotFoundError("Checklist item not found");
-  }
-  return true;
+  return withTransaction(async (client) => {
+    const parentTaskId = await lockTaskOfChecklistItem(client, id, userId);
+    if (parentTaskId === null) {
+      throw new NotFoundError("Checklist item not found");
+    }
+    const deleted = await deleteChecklistItemQuery(client, id, userId);
+    if (deleted === 0) {
+      throw new NotFoundError("Checklist item not found");
+    }
+    await bumpTaskRevision(client, parentTaskId);
+    return true;
+  });
 }

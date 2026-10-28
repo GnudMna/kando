@@ -1,7 +1,11 @@
-import { pool } from "../db.js";
 import type { DbSubtask } from "../types.js";
 import { NotFoundError } from "../errors.js";
-import { verifyTaskOwnedByUser } from "../repositories/ownershipRepository.js";
+import {
+  lockTaskOfSubtask,
+  verifyTaskOwnedByUser,
+} from "../repositories/ownershipRepository.js";
+import { bumpTaskRevision } from "../repositories/tasksRepository.js";
+import { withTransaction } from "../transaction.js";
 import {
   deleteSubtask as deleteSubtaskQuery,
   insertSubtask,
@@ -9,7 +13,7 @@ import {
 } from "../repositories/subtasksRepository.js";
 
 /**
- * サブタスクを新規作成する。
+ * サブタスクを新規作成する。親タスクの `revision` も進める。
  * @param taskId - 親タスク ID
  * @param content - サブタスク本文
  * @param userId - 操作ユーザー ID
@@ -21,15 +25,22 @@ export async function createSubtask(
   content: string,
   userId: number,
 ): Promise<DbSubtask & { checklists: [] }> {
-  if (!(await verifyTaskOwnedByUser(pool, taskId, userId))) {
-    throw new NotFoundError("Task not found");
-  }
-  const subtask = await insertSubtask(pool, taskId, content);
-  return { ...subtask, checklists: [] };
+  return withTransaction(async (client) => {
+    if (
+      !(await verifyTaskOwnedByUser(client, taskId, userId, {
+        forUpdate: true,
+      }))
+    ) {
+      throw new NotFoundError("Task not found");
+    }
+    const subtask = await insertSubtask(client, taskId, content);
+    await bumpTaskRevision(client, taskId);
+    return { ...subtask, checklists: [] as [] };
+  });
 }
 
 /**
- * サブタスク本文を更新する。
+ * サブタスク本文を更新する。親タスクの `revision` も進める。
  * @param id - 更新対象サブタスク ID
  * @param content - 新しい本文
  * @param userId - 操作ユーザー ID
@@ -41,15 +52,22 @@ export async function updateSubtask(
   content: string,
   userId: number,
 ): Promise<DbSubtask> {
-  const subtask = await updateSubtaskContent(pool, id, content, userId);
-  if (!subtask) {
-    throw new NotFoundError("Subtask not found");
-  }
-  return subtask;
+  return withTransaction(async (client) => {
+    const parentTaskId = await lockTaskOfSubtask(client, id, userId);
+    if (parentTaskId === null) {
+      throw new NotFoundError("Subtask not found");
+    }
+    const subtask = await updateSubtaskContent(client, id, content, userId);
+    if (!subtask) {
+      throw new NotFoundError("Subtask not found");
+    }
+    await bumpTaskRevision(client, parentTaskId);
+    return subtask;
+  });
 }
 
 /**
- * サブタスクを削除する。
+ * サブタスクを削除する。親タスクの `revision` も進める。
  * @param id - 削除対象サブタスク ID
  * @param userId - 操作ユーザー ID
  * @returns `true`: 削除成功
@@ -59,9 +77,16 @@ export async function deleteSubtask(
   id: number,
   userId: number,
 ): Promise<boolean> {
-  const deleted = await deleteSubtaskQuery(pool, id, userId);
-  if (deleted === 0) {
-    throw new NotFoundError("Subtask not found");
-  }
-  return true;
+  return withTransaction(async (client) => {
+    const parentTaskId = await lockTaskOfSubtask(client, id, userId);
+    if (parentTaskId === null) {
+      throw new NotFoundError("Subtask not found");
+    }
+    const deleted = await deleteSubtaskQuery(client, id, userId);
+    if (deleted === 0) {
+      throw new NotFoundError("Subtask not found");
+    }
+    await bumpTaskRevision(client, parentTaskId);
+    return true;
+  });
 }

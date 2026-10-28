@@ -7,10 +7,27 @@ import type {
   TaskSnapshotCommentPayload,
 } from "@kando/types";
 import { HttpError } from "../errors.js";
+import type { Queryable } from "./rowsRepository.js";
 
 /** タスク INSERT/UPDATE の `RETURNING` 句で取得するカラム一覧。 */
 export const TASK_RETURNING_COLUMNS =
   "id, column_id, content, due_date::text AS due_date, position, completed, revision";
+
+/**
+ * タスクの `revision` を 1 進める。
+ * サブタスク・チェックリスト・コメントを個別 API で変更したときに呼び、
+ * 開きっぱなしの編集モーダルからのスナップショット保存を 409 にする。
+ * @param client - トランザクション中のクライアント(対象タスクは事前にロックしておく)
+ * @param taskId - 子要素が属するタスク ID
+ */
+export async function bumpTaskRevision(
+  client: Queryable,
+  taskId: number,
+): Promise<void> {
+  await client.query("UPDATE tasks SET revision = revision + 1 WHERE id = $1", [
+    taskId,
+  ]);
+}
 
 /**
  * 配列インデックスから並び順用の position 値を 1000 刻みで採番する。

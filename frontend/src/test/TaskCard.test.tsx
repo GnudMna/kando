@@ -25,6 +25,8 @@ describe("TaskCard", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // チェックリストのトグル後に revision を取り直すため、取得結果を既定で用意する
+    vi.mocked(api.fetchTask).mockResolvedValue(baseTask);
   });
 
   it("タスク内容が表示されること", () => {
@@ -114,13 +116,78 @@ describe("TaskCard", () => {
       }),
     );
 
-    await waitFor(() => expect(onTaskPatched).toHaveBeenCalledTimes(2));
+    // 各トグルの反映と、そのあとの revision 取り直しで合計 4 回
+    await waitFor(() => expect(onTaskPatched).toHaveBeenCalledTimes(4));
     // クリック時点の task ではなく、直前の更新結果に対して順に適用する
     const result = onTaskPatched.mock.calls.reduce(
       (acc: Task, [, updater]) => (updater as (prev: Task) => Task)(acc),
       taskWithChecklists,
     );
     expect(result.checklists.map((c) => c.completed)).toEqual([true, false]);
+  });
+
+  it("チェックリストのトグル後にタスクを取り直して最新の revision を反映すること", async () => {
+    vi.mocked(api.updateChecklistItem).mockResolvedValue({
+      id: 101,
+      task_id: 1,
+      subtask_id: null,
+      content: "チェック項目A",
+      completed: true,
+      position: 1000,
+    });
+    // 個別 API がサーバー側で revision を進めた後の最新タスク
+    vi.mocked(api.fetchTask).mockResolvedValue({
+      ...taskWithChecklists,
+      revision: 5,
+    });
+
+    const onTaskPatched = vi.fn();
+    renderTaskCard({ task: taskWithChecklists, onTaskPatched });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "チェックリスト「チェック項目A」を完了にする",
+      }),
+    );
+
+    await waitFor(() => expect(onTaskPatched).toHaveBeenCalledTimes(2));
+    expect(api.fetchTask).toHaveBeenCalledWith(taskWithChecklists.id);
+    const refresh = onTaskPatched.mock.calls[1][1] as (prev: Task) => Task;
+    // revision だけを進め、直前までの子要素の更新は保持する
+    const current = { ...taskWithChecklists, revision: 3 };
+    expect(refresh(current)).toEqual({ ...current, revision: 5 });
+    // 応答が前後しても revision は古い値へ戻らない
+    expect(refresh({ ...current, revision: 7 }).revision).toBe(7);
+  });
+
+  it("revision の取り直しに失敗してもトグル結果は残りエラーを出さないこと", async () => {
+    vi.mocked(api.updateChecklistItem).mockResolvedValue({
+      id: 101,
+      task_id: 1,
+      subtask_id: null,
+      content: "チェック項目A",
+      completed: true,
+      position: 1000,
+    });
+    vi.mocked(api.fetchTask).mockRejectedValue(new Error("network error"));
+
+    const onTaskPatched = vi.fn();
+    renderTaskCard({ task: taskWithChecklists, onTaskPatched });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "チェックリスト「チェック項目A」を完了にする",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(api.fetchTask).toHaveBeenCalled();
+    });
+    // トグル結果の反映のみで、取り直し失敗による追加の反映はない
+    expect(onTaskPatched).toHaveBeenCalledTimes(1);
+    const updater = onTaskPatched.mock.calls[0][1] as (prev: Task) => Task;
+    expect(updater(taskWithChecklists).checklists[0]).toMatchObject({
+      id: 101,
+      completed: true,
+    });
   });
 
   it("完了トグル後にサーバーの revision を反映し子要素を保持すること", async () => {
@@ -138,7 +205,9 @@ describe("TaskCard", () => {
     const onTaskPatched = vi.fn();
     renderTaskCard({ task: taskWithChecklists, onTaskPatched });
     fireEvent.click(
-      screen.getByRole("button", { name: "タスク「テストタスク」を完了にする" }),
+      screen.getByRole("button", {
+        name: "タスク「テストタスク」を完了にする",
+      }),
     );
 
     await waitFor(() => {

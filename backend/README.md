@@ -279,6 +279,8 @@ Docker Compose 起動時:
 
 `revision` には取得時のタスクの値を入れます。サーバーの現在値と一致したときだけ保存し、`revision` を 1 進めます。一致しなければ別の更新が先に入っているため 409 を返します。`PUT /api/tasks/:id` など他の更新でも `revision` は進むので、クライアントは更新レスポンスの `revision` をキャッシュへ反映する必要があります。
 
+サブタスク・チェックリスト項目・コメントの個別 API（`/api/subtasks`、`/api/checklist-items`、`/api/task-comments` の作成・更新・削除）も、親タスクを `FOR UPDATE` でロックしたうえで同じトランザクション内で `revision` を 1 進めます。これらのレスポンスは子要素だけで `revision` を含まないため、クライアントは `GET /api/tasks/:id` でタスクを取り直して `revision` を更新します。
+
 `id` を持つ子要素は更新、`id` のない子要素は新規作成、リクエストに含まれない既存の子要素は削除されます。並び順は配列の順になります。そのタスクに属さない `id` を指定すると 400 を返します。
 
 リクエスト例:
@@ -360,6 +362,7 @@ backend/
 │   ├── rowsService.ts, columnsService.ts, tasksService.ts
 │   ├── memosService.ts, subtasksService.ts
 │   └── checklistItemsService.ts, taskCommentsService.ts
+├── transaction.ts # `withTransaction`（専用接続で BEGIN / COMMIT / ROLLBACK）
 ├── tests/        # Vitest テスト（services / middleware / router）
 ├── utils/        # groupMap 等の汎用ヘルパー
 ├── authToken.ts      # JWT の署名・検証（トークン世代を含む）

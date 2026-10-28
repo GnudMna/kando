@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import checklistItemsRouter from "../routes/checklistItems.js";
 import { errorHandler } from "../middleware/errorHandler.js";
 import { pool } from "../db.js";
+import {
+  BUMP_REVISION_SQL,
+  issuedStatements,
+  setupTransactionClient,
+  transactionControls,
+} from "./helpers/transactionClient.js";
 
 vi.mock("../db.js", () => ({
   pool: {
@@ -17,25 +23,7 @@ type MockedPool = {
   query: MockFn;
   connect: MockFn;
 };
-type MockedClient = {
-  query: MockFn;
-  release: MockFn;
-};
-
 const mockedPool = pool as unknown as MockedPool;
-
-/**
- * `pool.connect()` で返すモッククライアントを用意し、1回分だけ接続を差し込む。
- * @returns クエリ/リリースを検証できるモッククライアント
- */
-function setupConnectedClient(): MockedClient {
-  const client: MockedClient = {
-    query: vi.fn(),
-    release: vi.fn(),
-  };
-  mockedPool.connect.mockResolvedValueOnce(client);
-  return client;
-}
 
 /**
  * checklist-items ルーターテスト用の Express アプリを生成する。
@@ -85,25 +73,27 @@ describe("checklist-items router", () => {
     expect(mockedPool.connect).not.toHaveBeenCalled();
   });
 
-  it("POST /api/checklist-items は有効入力なら作成して 200 を返す", async () => {
-    const client = setupConnectedClient();
-    client.query
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
-      .mockResolvedValueOnce({ rows: [{ next_position: 1000 }] })
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: 10,
-            task_id: 1,
-            subtask_id: null,
-            content: "項目",
-            completed: false,
-            position: 1000,
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ rows: [] });
+  it("POST /api/checklist-items は有効入力なら作成して親タスクの revision を進める", async () => {
+    const client = setupTransactionClient(mockedPool.connect, (sql) => {
+      if (sql.includes("FOR UPDATE")) return { rows: [{ id: 1 }] };
+      if (sql.includes("MAX(position)")) {
+        return { rows: [{ next_position: 1000 }] };
+      }
+      if (sql.includes("INSERT INTO checklist_items")) {
+        return {
+          rows: [
+            {
+              id: 10,
+              task_id: 1,
+              subtask_id: null,
+              content: "項目",
+              completed: false,
+              position: 1000,
+            },
+          ],
+        };
+      }
+    });
 
     const res = await request(createApp())
       .post("/api/checklist-items")
@@ -119,48 +109,42 @@ describe("checklist-items router", () => {
       position: 1000,
     });
 
-    expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
-    const [lockSql, lockParams] = client.query.mock.calls[1] as [
-      string,
-      unknown[],
-    ];
-    expect(lockSql).toContain("FOR UPDATE");
-    expect(lockSql).toContain("r.user_id = $2");
-    expect(lockParams).toEqual([1, 99]);
-    expect(client.query).toHaveBeenNthCalledWith(
-      3,
+    const statements = issuedStatements(client);
+    expect(statements[0][0]).toContain("FOR UPDATE");
+    expect(statements[0][0]).toContain("r.user_id = $2");
+    expect(statements[0][1]).toEqual([1, 99]);
+    expect(statements[1]).toEqual([
       "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE task_id = $1",
       [1],
-    );
-    const [insertSql, insertParams] = client.query.mock.calls[3] as [
-      string,
-      unknown[],
-    ];
-    expect(insertSql).toContain("INSERT INTO checklist_items");
-    expect(insertParams).toEqual([1, null, "項目", 1000]);
-    expect(client.query).toHaveBeenNthCalledWith(5, "COMMIT");
+    ]);
+    expect(statements[2][0]).toContain("INSERT INTO checklist_items");
+    expect(statements[2][1]).toEqual([1, null, "項目", 1000]);
+    expect(statements[3]).toEqual([BUMP_REVISION_SQL, [1]]);
+    expect(transactionControls(client)).toEqual(["BEGIN", "COMMIT"]);
     expect(client.release).toHaveBeenCalledTimes(1);
   });
 
-  it("POST /api/checklist-items は subtask_id 指定時もロックして採番する", async () => {
-    const client = setupConnectedClient();
-    client.query
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: 20 }] })
-      .mockResolvedValueOnce({ rows: [{ next_position: 2000 }] })
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: 11,
-            task_id: null,
-            subtask_id: 20,
-            content: "サブタスク項目",
-            completed: false,
-            position: 2000,
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ rows: [] });
+  it("POST /api/checklist-items は subtask_id 指定時も親タスクをロックして revision を進める", async () => {
+    const client = setupTransactionClient(mockedPool.connect, (sql) => {
+      if (sql.includes("FOR UPDATE")) return { rows: [{ id: 7 }] };
+      if (sql.includes("MAX(position)")) {
+        return { rows: [{ next_position: 2000 }] };
+      }
+      if (sql.includes("INSERT INTO checklist_items")) {
+        return {
+          rows: [
+            {
+              id: 11,
+              task_id: null,
+              subtask_id: 20,
+              content: "サブタスク項目",
+              completed: false,
+              position: 2000,
+            },
+          ],
+        };
+      }
+    });
 
     const res = await request(createApp())
       .post("/api/checklist-items")
@@ -176,27 +160,32 @@ describe("checklist-items router", () => {
       position: 2000,
     });
 
-    expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
-    const [lockSql, lockParams] = client.query.mock.calls[1] as [
-      string,
-      unknown[],
-    ];
-    expect(lockSql).toContain("FOR UPDATE");
-    expect(lockSql).toContain("r.user_id = $2");
-    expect(lockParams).toEqual([20, 99]);
-    expect(client.query).toHaveBeenNthCalledWith(
-      3,
+    const statements = issuedStatements(client);
+    expect(statements[0][0]).toContain("FROM subtasks s");
+    expect(statements[0][0]).toContain("FOR UPDATE OF t");
+    expect(statements[0][0]).toContain("r.user_id = $2");
+    expect(statements[0][1]).toEqual([20, 99]);
+    expect(statements[1]).toEqual([
       "SELECT COALESCE(MAX(position), 0) + 1000 AS next_position FROM checklist_items WHERE subtask_id = $1",
       [20],
-    );
-    const [insertSql, insertParams] = client.query.mock.calls[3] as [
-      string,
-      unknown[],
-    ];
-    expect(insertSql).toContain("INSERT INTO checklist_items");
-    expect(insertParams).toEqual([null, 20, "サブタスク項目", 2000]);
-    expect(client.query).toHaveBeenNthCalledWith(5, "COMMIT");
+    ]);
+    expect(statements[2][1]).toEqual([null, 20, "サブタスク項目", 2000]);
+    expect(statements[3]).toEqual([BUMP_REVISION_SQL, [7]]);
+    expect(transactionControls(client)).toEqual(["BEGIN", "COMMIT"]);
     expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("POST /api/checklist-items は親サブタスクが無ければ 404 で revision を進めない", async () => {
+    const client = setupTransactionClient(mockedPool.connect, () => undefined);
+
+    const res = await request(createApp())
+      .post("/api/checklist-items")
+      .send({ subtask_id: 20, content: "項目" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Subtask not found" });
+    expect(issuedStatements(client)).toHaveLength(1);
+    expect(transactionControls(client)).toEqual(["BEGIN", "ROLLBACK"]);
   });
 
   it("PUT /api/checklist-items/:id は更新対象が空なら 400 を返す", async () => {
@@ -221,17 +210,22 @@ describe("checklist-items router", () => {
     expect(mockedPool.query).not.toHaveBeenCalled();
   });
 
-  it("PUT /api/checklist-items/:id は有効入力なら更新して 200 を返す", async () => {
-    mockedPool.query.mockResolvedValueOnce({
-      rows: [
-        {
-          id: 5,
-          task_id: 1,
-          subtask_id: null,
-          content: "更新後",
-          completed: true,
-        },
-      ],
+  it("PUT /api/checklist-items/:id は有効入力なら更新して親タスクの revision を進める", async () => {
+    const client = setupTransactionClient(mockedPool.connect, (sql) => {
+      if (sql.includes("FOR UPDATE OF t")) return { rows: [{ id: 1 }] };
+      if (sql.includes("UPDATE checklist_items SET")) {
+        return {
+          rows: [
+            {
+              id: 5,
+              task_id: 1,
+              subtask_id: null,
+              content: "更新後",
+              completed: true,
+            },
+          ],
+        };
+      }
     });
 
     const res = await request(createApp())
@@ -247,8 +241,56 @@ describe("checklist-items router", () => {
       completed: true,
     });
 
-    const [sql, params] = mockedPool.query.mock.calls[0] as [string, unknown[]];
-    expect(sql).toContain("UPDATE checklist_items SET");
-    expect(params).toEqual([true, "更新後", 5, 99]);
+    const statements = issuedStatements(client);
+    expect(statements[0][0]).toContain("FROM checklist_items ci");
+    expect(statements[0][1]).toEqual([5, 99]);
+    expect(statements[1][0]).toContain("UPDATE checklist_items SET");
+    expect(statements[1][1]).toEqual([true, "更新後", 5, 99]);
+    expect(statements[2]).toEqual([BUMP_REVISION_SQL, [1]]);
+    expect(transactionControls(client)).toEqual(["BEGIN", "COMMIT"]);
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("PUT /api/checklist-items/:id は対象が無ければ 404 で revision を進めない", async () => {
+    const client = setupTransactionClient(mockedPool.connect, () => undefined);
+
+    const res = await request(createApp())
+      .put("/api/checklist-items/5")
+      .send({ completed: true });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Checklist item not found" });
+    expect(issuedStatements(client)).toHaveLength(1);
+    expect(transactionControls(client)).toEqual(["BEGIN", "ROLLBACK"]);
+  });
+
+  it("DELETE /api/checklist-items/:id は削除して親タスクの revision を進める", async () => {
+    const client = setupTransactionClient(mockedPool.connect, (sql) => {
+      if (sql.includes("FOR UPDATE OF t")) return { rows: [{ id: 1 }] };
+      if (sql.includes("DELETE FROM checklist_items")) return { rowCount: 1 };
+    });
+
+    const res = await request(createApp()).delete("/api/checklist-items/5");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true });
+    const statements = issuedStatements(client);
+    expect(statements[1][0]).toContain(
+      "DELETE FROM checklist_items WHERE id = $1",
+    );
+    expect(statements[1][1]).toEqual([5, 99]);
+    expect(statements[2]).toEqual([BUMP_REVISION_SQL, [1]]);
+    expect(transactionControls(client)).toEqual(["BEGIN", "COMMIT"]);
+  });
+
+  it("DELETE /api/checklist-items/:id は対象が無ければ 404 で revision を進めない", async () => {
+    const client = setupTransactionClient(mockedPool.connect, () => undefined);
+
+    const res = await request(createApp()).delete("/api/checklist-items/5");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Checklist item not found" });
+    expect(issuedStatements(client)).toHaveLength(1);
+    expect(transactionControls(client)).toEqual(["BEGIN", "ROLLBACK"]);
   });
 });
