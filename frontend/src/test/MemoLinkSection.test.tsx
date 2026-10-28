@@ -43,10 +43,12 @@ describe("MemoLinkSection", () => {
     linkedMemoIds?: Set<number>;
     showMemoPicker?: boolean;
     allMemos?: Memo[] | null;
+    deferLinking?: boolean;
   }) =>
     render(
       <MemoLinkSection
         taskId={10}
+        deferLinking={overrides?.deferLinking}
         allMemos={
           overrides !== undefined && "allMemos" in overrides
             ? overrides.allMemos!
@@ -95,6 +97,27 @@ describe("MemoLinkSection", () => {
       expect(onLinkedMemoIdsChange).toHaveBeenCalled();
       expect(onShowMemoPickerChange).toHaveBeenCalledWith(false);
     });
+  });
+
+  it("deferLinking 時は API を呼ばず選択状態のみ更新する", () => {
+    renderSection({ showMemoPicker: true, deferLinking: true });
+
+    fireEvent.click(screen.getByRole("option", { name: /メモA/ }));
+
+    expect(api.linkMemoTask).not.toHaveBeenCalled();
+    expect(onLinkedMemoIdsChange).toHaveBeenCalled();
+    expect(onShowMemoPickerChange).toHaveBeenCalledWith(false);
+  });
+
+  it("deferLinking 時の解除も API を呼ばない", () => {
+    renderSection({ linkedMemoIds: new Set([1]), deferLinking: true });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "「メモA」の関連付けを解除" }),
+    );
+
+    expect(api.unlinkMemoTask).not.toHaveBeenCalled();
+    expect(onLinkedMemoIdsChange).toHaveBeenCalled();
   });
 
   it("関連付け済みメモを表示して解除できる", async () => {

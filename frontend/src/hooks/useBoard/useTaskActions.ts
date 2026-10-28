@@ -6,6 +6,8 @@ import {
   createTask,
   deleteTask,
   moveTask as moveTaskApi,
+  saveTaskSnapshot,
+  type TaskSnapshotPayload,
 } from "../../api/tasks";
 import { queryKeys } from "../../api/queryKeys";
 import { POSITION_GAP } from "../../utils/constants";
@@ -27,35 +29,6 @@ export function useTaskActions({
 }: BoardActionContext) {
   const { queryClient, setBoardRows, getBoardRows, onMutationError } =
     useBoardMutationContext();
-
-  const addTaskMutation = useMutation({
-    mutationFn: ({
-      colId,
-      position,
-    }: {
-      colId: number;
-      position: number;
-      rowId: number;
-    }) => createTask(colId, "新しいタスク", position),
-    onSuccess: ({ rebalanced = [], ...newTask }, { rowId, colId }) => {
-      setBoardRows((rows) =>
-        applyTaskPositions(
-          rows.map((r) =>
-            r.id === rowId
-              ? {
-                  ...r,
-                  columns: r.columns.map((c) =>
-                    c.id === colId ? { ...c, tasks: [...c.tasks, newTask] } : c,
-                  ),
-                }
-              : r,
-          ),
-          rebalanced,
-        ),
-      );
-    },
-    onError: onMutationError("タスクの追加に失敗しました"),
-  });
 
   const removeTaskMutation = useMutation({
     mutationFn: ({ taskId }: { taskId: number; colId: number }) =>
@@ -121,22 +94,67 @@ export function useTaskActions({
     },
   });
 
-  const addTask = useCallback(
-    async (colId: number, rowId: number): Promise<Task | null> => {
+  /**
+   * 編集モーダルの内容からタスクを新規作成する。
+   * 保存操作の時点で初めてサーバーへ作成するため、モーダルを破棄しても空のタスクは残らない。
+   * 作成後のスナップショット保存に失敗した場合は、作成したタスクを削除して呼び出し元へ再スローする。
+   * @param colId - 追加先カラム ID
+   * @param rowId - 追加先行 ID
+   * @param payload - モーダルの保存ペイロード(`revision` は作成結果で置き換える)
+   * @returns 保存後のタスク
+   * @throws Error 追加先が見つからない場合、または作成・保存に失敗した場合
+   */
+  const createTaskFromSnapshot = useCallback(
+    async (
+      colId: number,
+      rowId: number,
+      payload: TaskSnapshotPayload,
+    ): Promise<Task> => {
       const row = rowsRef.current.find((r) => r.id === rowId);
       const col = row?.columns.find((c) => c.id === colId);
-      if (!col) return null;
+      if (!col) throw new Error("追加先のカラムが見つかりません");
       const position =
         col.tasks.length > 0
           ? col.tasks[col.tasks.length - 1].position + POSITION_GAP
           : POSITION_GAP;
+
+      const { rebalanced = [], ...created } = await createTask(
+        colId,
+        payload.content,
+        position,
+        payload.due_date,
+      );
+      let saved: Task;
       try {
-        return await addTaskMutation.mutateAsync({ colId, rowId, position });
-      } catch {
-        return null;
+        saved = await saveTaskSnapshot(created.id, {
+          ...payload,
+          revision: created.revision,
+        });
+      } catch (err) {
+        await deleteTask(created.id).catch(() => {
+          /* 削除にも失敗した場合は元のエラーを優先する */
+        });
+        throw err;
       }
+
+      setBoardRows((rows) =>
+        applyTaskPositions(
+          rows.map((r) =>
+            r.id === rowId
+              ? {
+                  ...r,
+                  columns: r.columns.map((c) =>
+                    c.id === colId ? { ...c, tasks: [...c.tasks, saved] } : c,
+                  ),
+                }
+              : r,
+          ),
+          rebalanced,
+        ),
+      );
+      return saved;
     },
-    [addTaskMutation, rowsRef],
+    [rowsRef, setBoardRows],
   );
 
   const removeTask = useCallback(
@@ -267,5 +285,12 @@ export function useTaskActions({
     [boardIndexesRef, moveTaskMutation, rowsRef],
   );
 
-  return { addTask, removeTask, copyTask, updateTask, patchTask, moveTask };
+  return {
+    createTaskFromSnapshot,
+    removeTask,
+    copyTask,
+    updateTask,
+    patchTask,
+    moveTask,
+  };
 }

@@ -19,7 +19,7 @@ interface BoardColumnProps {
   colProvided: DraggableProvided;
   onRenameColumn: (colId: number, title: string) => Promise<void>;
   onRemoveColumn: (colId: number) => Promise<void>;
-  onAddTask: (colId: number, rowId: number) => Promise<void>;
+  onAddTask: (colId: number, rowId: number) => void;
   onDeleteTask: (colId: number, taskId: number) => Promise<void>;
   onCopyTask: (colId: number, taskId: number) => Promise<void>;
   onTaskUpdated: (task: Task) => void;
@@ -208,7 +208,7 @@ export const BoardColumn = memo(function BoardColumn({
         <button
           type="button"
           className="btn column-add-task-btn"
-          onClick={() => void onAddTask(column.id, rowId)}
+          onClick={() => onAddTask(column.id, rowId)}
         >
           <Plus size={16} /> タスクを追加
         </button>

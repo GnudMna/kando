@@ -13,6 +13,8 @@ import {
 } from "./testUtils";
 import type { Task } from "../types";
 
+const sampleTask = (): Task => sampleBoardRows[0].columns[0].tasks[0];
+
 vi.mock("../hooks/useBoard");
 vi.mock("../api/board");
 
@@ -20,12 +22,22 @@ vi.mock("../components/TaskEditModal", () => ({
   TaskEditModal: ({
     task,
     onClose,
+    onCreate,
   }: {
     task: Task;
     onClose: (reason: "saved" | "dismiss") => void;
+    onCreate?: (payload: unknown, memoIds: number[]) => Promise<Task>;
   }) => (
     <div role="dialog" aria-label="タスク編集モーダル">
       <span>{task.content}</span>
+      {onCreate && (
+        <button
+          type="button"
+          onClick={() => void onCreate({ content: "作成内容" }, [])}
+        >
+          モーダルで作成
+        </button>
+      )}
       <button type="button" onClick={() => onClose("dismiss")}>
         モーダルを閉じる
       </button>
@@ -235,5 +247,58 @@ describe("KanbanBoard", () => {
 
     expect(screen.getByTestId("list-view")).toBeInTheDocument();
     expect(screen.getByText("2 rows in list")).toBeInTheDocument();
+  });
+
+  it("「タスクを追加」ではサーバーへ作成せず下書きのモーダルを開くこと", () => {
+    const createTaskFromSnapshot = vi.fn();
+    const removeTask = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useBoard).mockReturnValue(
+      createMockUseBoardReturn({
+        createTaskFromSnapshot,
+        removeTask,
+      }) as ReturnType<typeof useBoard>,
+    );
+
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
+    fireEvent.click(screen.getAllByRole("button", { name: "タスクを追加" })[0]);
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("新しいタスク");
+    expect(createTaskFromSnapshot).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("モーダルを閉じる"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(createTaskFromSnapshot).not.toHaveBeenCalled();
+    expect(removeTask).not.toHaveBeenCalled();
+  });
+
+  it("下書きモーダルの保存で追加先の行・カラムを指定して作成すること", async () => {
+    const createTaskFromSnapshot = vi.fn().mockResolvedValue(sampleTask());
+    vi.mocked(useBoard).mockReturnValue(
+      createMockUseBoardReturn({ createTaskFromSnapshot }) as ReturnType<
+        typeof useBoard
+      >,
+    );
+
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
+    fireEvent.click(screen.getAllByRole("button", { name: "タスクを追加" })[0]);
+    fireEvent.click(screen.getByText("モーダルで作成"));
+
+    await waitFor(() => {
+      expect(createTaskFromSnapshot).toHaveBeenCalledWith(
+        sampleBoardRows[0].columns[0].id,
+        sampleBoardRows[0].id,
+        { content: "作成内容" },
+      );
+    });
+  });
+
+  it("既存タスクの編集では onCreate を渡さないこと", async () => {
+    render(<KanbanBoard />, { wrapper: createQueryWrapper() });
+    fireEvent.click(screen.getByText("テストタスク"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("モーダルで作成")).not.toBeInTheDocument();
   });
 });

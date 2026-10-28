@@ -34,7 +34,7 @@ interface KanbanRowsViewProps {
   confirmAction: (message: string, onConfirm: () => void) => void;
   onRenameColumn: (colId: number, title: string) => Promise<void>;
   onRemoveColumn: (colId: number) => Promise<void>;
-  onAddTask: (colId: number, rowId: number) => Promise<void>;
+  onAddTask: (colId: number, rowId: number) => void;
   onDeleteTask: (colId: number, taskId: number) => Promise<void>;
   onCopyTask: (colId: number, taskId: number) => Promise<void>;
   onTaskUpdated: (task: Task) => void;
@@ -65,7 +65,7 @@ type KanbanRowBlockProps = {
   confirmAction: (message: string, onConfirm: () => void) => void;
   onRenameColumn: (colId: number, title: string) => Promise<void>;
   onRemoveColumn: (colId: number) => Promise<void>;
-  onAddTask: (colId: number, rowId: number) => Promise<void>;
+  onAddTask: (colId: number, rowId: number) => void;
   onDeleteTask: (colId: number, taskId: number) => Promise<void>;
   onCopyTask: (colId: number, taskId: number) => Promise<void>;
   onTaskUpdated: (task: Task) => void;

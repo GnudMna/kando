@@ -7,6 +7,8 @@ import { useAppNavigation } from "../../providers/useAppNavigation";
 
 interface MemoLinkSectionProps {
   taskId: number;
+  /** `true` の間は API を呼ばず選択状態のみ更新する(未作成の下書きタスク用) */
+  deferLinking?: boolean;
   allMemos: Memo[] | null;
   linkedMemoIds: Set<number>;
   onLinkedMemoIdsChange: (updater: (prev: Set<number>) => Set<number>) => void;
@@ -23,6 +25,7 @@ interface MemoLinkSectionProps {
  */
 export function MemoLinkSection({
   taskId,
+  deferLinking = false,
   allMemos,
   linkedMemoIds,
   onLinkedMemoIdsChange,
@@ -86,6 +89,13 @@ export function MemoLinkSection({
                         aria-selected="false"
                         onClick={() => {
                           onMemoLinkErrorChange(null);
+                          if (deferLinking) {
+                            onLinkedMemoIdsChange(
+                              (prev) => new Set([...prev, memo.id]),
+                            );
+                            onShowMemoPickerChange(false);
+                            return;
+                          }
                           api
                             .linkMemoTask(memo.id, taskId)
                             .then(() => {
@@ -158,6 +168,14 @@ export function MemoLinkSection({
                   aria-label={`「${memo.title || "メモ"}」の関連付けを解除`}
                   onClick={() => {
                     onMemoLinkErrorChange(null);
+                    if (deferLinking) {
+                      onLinkedMemoIdsChange((prev) => {
+                        const next = new Set(prev);
+                        next.delete(memo.id);
+                        return next;
+                      });
+                      return;
+                    }
                     api
                       .unlinkMemoTask(memo.id, taskId)
                       .then(() => {

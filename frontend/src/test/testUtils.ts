@@ -179,7 +179,7 @@ export const createMockUseBoardReturn = (
   addColumn: vi.fn().mockResolvedValue(undefined),
   renameColumn: vi.fn().mockResolvedValue(undefined),
   removeColumn: vi.fn().mockResolvedValue(undefined),
-  addTask: vi.fn().mockResolvedValue(null),
+  createTaskFromSnapshot: vi.fn().mockResolvedValue(null),
   removeTask: vi.fn().mockResolvedValue(undefined),
   copyTask: vi.fn().mockResolvedValue(null),
   updateTask: vi.fn(),

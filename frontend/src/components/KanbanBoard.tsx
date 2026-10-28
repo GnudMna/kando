@@ -66,6 +66,7 @@ export function KanbanBoard() {
     taskDueHighlights,
     editingTask,
     handleCloseTaskModal,
+    handleCreateTask,
     confirmState,
     setConfirmState,
     handleConfirm,
@@ -174,6 +175,7 @@ export function KanbanBoard() {
             task={editingTask.task}
             onClose={handleCloseTaskModal}
             onTaskUpdated={updateTask}
+            onCreate={editingTask.isNew ? handleCreateTask : undefined}
           />
         </Suspense>
       )}

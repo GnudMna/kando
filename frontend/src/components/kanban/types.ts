@@ -4,7 +4,10 @@ import type { Task } from "../../types";
 export interface EditingTask {
   task: Task;
   colId: number;
+  /** 新規タスクの下書きか。`true` の間はサーバーに存在せず、保存時に初めて作成する */
   isNew: boolean;
+  /** 新規タスクの追加先行 ID。`isNew` が `true` の場合のみ設定する */
+  rowId?: number;
 }
 
 /** インライン編集中の行・カラムの ID とタイトルを保持する型。 */
