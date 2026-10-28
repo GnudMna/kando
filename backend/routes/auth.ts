@@ -23,9 +23,10 @@ const BCRYPT_ROUNDS = 12;
 /**
  * ユーザーが存在しない場合のタイミング攻撃対策用ダミーハッシュ。
  * bcrypt.compare は常に実行されるため、ユーザー名の存否がタイミングで露出しない。
+ * bcryptjs は長さが不正なハッシュだと計算せずに false を返すため、
+ * 固定文字列ではなく実際の cost で起動時に生成する。
  */
-const DUMMY_HASH =
-  "$2b$12$RJj.qfAEo4xN8xoHk1BzVOXIEFeSPPJVrMrRJdaUh7B2pq2jJz6.";
+const DUMMY_HASH = bcrypt.hashSync("dummy-password-for-timing", BCRYPT_ROUNDS);
 
 /**
  * JWT を署名して HttpOnly Cookie としてレスポンスにセットする。
