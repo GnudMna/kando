@@ -205,6 +205,36 @@ export function useTaskActions({
     [boardIndexesRef, queryClient, setRows],
   );
 
+  /**
+   * 最新の state 上のタスクへ差分更新を適用する。
+   * 非同期応答の到着時点のタスクを基に組み立てるため、
+   * 連続操作で先行する更新を古い task の再構築で上書きしない。
+   * @param taskId - 対象タスク ID
+   * @param updater - 直前のタスクから更新後のタスクを返す関数
+   */
+  const patchTask = useCallback(
+    (taskId: number, updater: (prev: Task) => Task) => {
+      queryClient.setQueryData<Task>(
+        queryKeys.tasks.detail(taskId),
+        (old) => old && updater(old),
+      );
+      setRows((prev) =>
+        prev.map((r) => ({
+          ...r,
+          columns: r.columns.map((c) =>
+            c.tasks.some((t) => t.id === taskId)
+              ? {
+                  ...c,
+                  tasks: c.tasks.map((t) => (t.id === taskId ? updater(t) : t)),
+                }
+              : c,
+          ),
+        })),
+      );
+    },
+    [queryClient, setRows],
+  );
+
   const moveTask = useCallback(
     async (
       srcDroppableId: string,
@@ -237,5 +267,5 @@ export function useTaskActions({
     [boardIndexesRef, moveTaskMutation, rowsRef],
   );
 
-  return { addTask, removeTask, copyTask, updateTask, moveTask };
+  return { addTask, removeTask, copyTask, updateTask, patchTask, moveTask };
 }

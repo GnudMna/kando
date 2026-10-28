@@ -294,6 +294,26 @@ describe("useBoard", () => {
     });
   });
 
+  it("patchTask が連続して適用されても先行する更新を保持すること", async () => {
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.patchTask(taskA.id, (prev) => ({
+        ...prev,
+        content: "更新1",
+      }));
+      result.current.patchTask(taskA.id, (prev) => ({
+        ...prev,
+        completed: true,
+      }));
+    });
+    await waitForBoard(result, () => {
+      const col = result.current.rows[0].columns.find((c) => c.id === 10);
+      expect(col?.tasks[0]).toMatchObject({ content: "更新1", completed: true });
+    });
+  });
+
   it("moveTask が同一カラム内でタスクを並び替えること", async () => {
     const taskB: Task = {
       id: 2,

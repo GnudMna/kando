@@ -38,6 +38,7 @@ interface KanbanRowsViewProps {
   onDeleteTask: (colId: number, taskId: number) => Promise<void>;
   onCopyTask: (colId: number, taskId: number) => Promise<void>;
   onTaskUpdated: (task: Task) => void;
+  onTaskPatched: (taskId: number, updater: (prev: Task) => Task) => void;
   onEditTask: (task: Task, colId: number) => void;
   taskDueHighlights: Map<number, DueHighlightResult>;
   dueSoonDays: number;
@@ -68,6 +69,7 @@ type KanbanRowBlockProps = {
   onDeleteTask: (colId: number, taskId: number) => Promise<void>;
   onCopyTask: (colId: number, taskId: number) => Promise<void>;
   onTaskUpdated: (task: Task) => void;
+  onTaskPatched: (taskId: number, updater: (prev: Task) => Task) => void;
   onEditTask: (task: Task, colId: number) => void;
   taskDueHighlights: Map<number, DueHighlightResult>;
   dueSoonDays: number;
@@ -95,6 +97,7 @@ function KanbanRowBlock({
   onDeleteTask,
   onCopyTask,
   onTaskUpdated,
+  onTaskPatched,
   onEditTask,
   taskDueHighlights,
   dueSoonDays,
@@ -143,6 +146,7 @@ function KanbanRowBlock({
                     onDeleteTask={onDeleteTask}
                     onCopyTask={onCopyTask}
                     onTaskUpdated={onTaskUpdated}
+                    onTaskPatched={onTaskPatched}
                     onEditTask={onEditTask}
                     taskDueHighlights={taskDueHighlights}
                     dueSoonDays={dueSoonDays}
@@ -185,6 +189,7 @@ export function KanbanRowsView({
   onDeleteTask,
   onCopyTask,
   onTaskUpdated,
+  onTaskPatched,
   onEditTask,
   taskDueHighlights,
   dueSoonDays,
@@ -207,6 +212,7 @@ export function KanbanRowsView({
     onDeleteTask,
     onCopyTask,
     onTaskUpdated,
+    onTaskPatched,
     onEditTask,
     taskDueHighlights,
     dueSoonDays,

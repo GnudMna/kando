@@ -76,6 +76,7 @@ export interface TaskCardProps {
   onDeleteTask: (colId: number, taskId: number) => void;
   onCopyTask: (colId: number, taskId: number) => void;
   onTaskUpdated: (task: Task) => void;
+  onTaskPatched: (taskId: number, updater: (prev: Task) => Task) => void;
   onEditTask: (task: Task, colId: number) => void;
 }
 
@@ -152,6 +153,7 @@ export const createTaskCardProps = (
   onDeleteTask: vi.fn(),
   onCopyTask: vi.fn(),
   onTaskUpdated: vi.fn(),
+  onTaskPatched: vi.fn(),
   onEditTask: vi.fn(),
   ...overrides,
 });
@@ -181,6 +183,7 @@ export const createMockUseBoardReturn = (
   removeTask: vi.fn().mockResolvedValue(undefined),
   copyTask: vi.fn().mockResolvedValue(null),
   updateTask: vi.fn(),
+  patchTask: vi.fn(),
   moveTask: vi.fn().mockResolvedValue(undefined),
   moveColumn: vi.fn().mockResolvedValue(undefined),
   ...overrides,

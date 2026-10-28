@@ -23,6 +23,7 @@ interface BoardColumnProps {
   onDeleteTask: (colId: number, taskId: number) => Promise<void>;
   onCopyTask: (colId: number, taskId: number) => Promise<void>;
   onTaskUpdated: (task: Task) => void;
+  onTaskPatched: (taskId: number, updater: (prev: Task) => Task) => void;
   onEditTask: (task: Task, colId: number) => void;
   taskDueHighlights: Map<number, DueHighlightResult>;
   dueSoonDays: number;
@@ -44,6 +45,7 @@ export const BoardColumn = memo(function BoardColumn({
   onDeleteTask,
   onCopyTask,
   onTaskUpdated,
+  onTaskPatched,
   onEditTask,
   taskDueHighlights,
   dueSoonDays,
@@ -173,6 +175,7 @@ export const BoardColumn = memo(function BoardColumn({
                         onDeleteTask={onDeleteTask}
                         onCopyTask={onCopyTask}
                         onTaskUpdated={onTaskUpdated}
+                        onTaskPatched={onTaskPatched}
                         onEditTask={onEditTask}
                       />
                     </div>

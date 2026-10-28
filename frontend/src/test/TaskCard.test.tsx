@@ -57,7 +57,7 @@ describe("TaskCard", () => {
     expect(screen.getByText("2日遅れ")).toBeInTheDocument();
   });
 
-  it("チェックリストのトグルで API が呼ばれ onTaskUpdated が実行されること", async () => {
+  it("チェックリストのトグルで API が呼ばれ onTaskPatched が実行されること", async () => {
     const updatedItem = {
       id: 101,
       task_id: 1,
@@ -68,8 +68,8 @@ describe("TaskCard", () => {
     };
     vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
 
-    const onTaskUpdated = vi.fn();
-    renderTaskCard({ task: taskWithChecklists, onTaskUpdated });
+    const onTaskPatched = vi.fn();
+    renderTaskCard({ task: taskWithChecklists, onTaskPatched });
 
     // 未完了のチェックリストボタンをクリック
     fireEvent.click(
@@ -82,14 +82,45 @@ describe("TaskCard", () => {
       expect(api.updateChecklistItem).toHaveBeenCalledWith(101, {
         completed: true,
       });
-      expect(onTaskUpdated).toHaveBeenCalledWith(
-        expect.objectContaining({
-          checklists: expect.arrayContaining([
-            expect.objectContaining({ id: 101, completed: true }),
-          ]),
-        }),
-      );
+      expect(onTaskPatched).toHaveBeenCalledWith(1, expect.any(Function));
     });
+    const updater = onTaskPatched.mock.calls[0][1] as (prev: Task) => Task;
+    expect(updater(taskWithChecklists).checklists).toEqual([
+      updatedItem,
+      taskWithChecklists.checklists[1],
+    ]);
+  });
+
+  it("連続トグルの応答が先行する更新を上書きしないこと", async () => {
+    vi.mocked(api.updateChecklistItem).mockImplementation(async (id) => ({
+      id,
+      task_id: 1,
+      subtask_id: null,
+      content: id === 101 ? "チェック項目A" : "チェック項目B",
+      completed: id === 101,
+      position: id === 101 ? 1000 : 2000,
+    }));
+    const onTaskPatched = vi.fn();
+    renderTaskCard({ task: taskWithChecklists, onTaskPatched });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "チェックリスト「チェック項目A」を完了にする",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "チェックリスト「チェック項目B」を未完了にする",
+      }),
+    );
+
+    await waitFor(() => expect(onTaskPatched).toHaveBeenCalledTimes(2));
+    // クリック時点の task ではなく、直前の更新結果に対して順に適用する
+    const result = onTaskPatched.mock.calls.reduce(
+      (acc: Task, [, updater]) => (updater as (prev: Task) => Task)(acc),
+      taskWithChecklists,
+    );
+    expect(result.checklists.map((c) => c.completed)).toEqual([true, false]);
   });
 
   it("完了トグル後にサーバーの revision を反映し子要素を保持すること", async () => {
@@ -104,28 +135,30 @@ describe("TaskCard", () => {
       revision: 2,
     } as Task);
 
-    const onTaskUpdated = vi.fn();
-    renderTaskCard({ task: taskWithChecklists, onTaskUpdated });
+    const onTaskPatched = vi.fn();
+    renderTaskCard({ task: taskWithChecklists, onTaskPatched });
     fireEvent.click(
       screen.getByRole("button", { name: "タスク「テストタスク」を完了にする" }),
     );
 
     await waitFor(() => {
       expect(api.updateTask).toHaveBeenCalledWith(1, { completed: true });
-      expect(onTaskUpdated).toHaveBeenCalledWith({
-        ...taskWithChecklists,
-        completed: true,
-        revision: 2,
-      });
+      expect(onTaskPatched).toHaveBeenCalledWith(1, expect.any(Function));
+    });
+    const updater = onTaskPatched.mock.calls[0][1] as (prev: Task) => Task;
+    expect(updater(taskWithChecklists)).toEqual({
+      ...taskWithChecklists,
+      completed: true,
+      revision: 2,
     });
   });
 
-  it("API エラー時に onTaskUpdated が呼ばれないこと", async () => {
+  it("API エラー時に onTaskPatched が呼ばれないこと", async () => {
     vi.mocked(api.updateChecklistItem).mockRejectedValue(
       new Error("network error"),
     );
-    const onTaskUpdated = vi.fn();
-    renderTaskCard({ task: taskWithChecklists, onTaskUpdated });
+    const onTaskPatched = vi.fn();
+    renderTaskCard({ task: taskWithChecklists, onTaskPatched });
     fireEvent.click(
       screen.getByRole("button", {
         name: "チェックリスト「チェック項目A」を完了にする",
@@ -133,7 +166,7 @@ describe("TaskCard", () => {
     );
 
     await waitFor(() => {
-      expect(onTaskUpdated).not.toHaveBeenCalled();
+      expect(onTaskPatched).not.toHaveBeenCalled();
     });
   });
 
@@ -183,9 +216,9 @@ describe("TaskCard", () => {
       position: 1000,
     };
     vi.mocked(api.updateChecklistItem).mockResolvedValue(updatedItem);
-    const onTaskUpdated = vi.fn();
+    const onTaskPatched = vi.fn();
 
-    renderTaskCard({ task: taskWithSubtasks, onTaskUpdated });
+    renderTaskCard({ task: taskWithSubtasks, onTaskPatched });
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -197,17 +230,11 @@ describe("TaskCard", () => {
       expect(api.updateChecklistItem).toHaveBeenCalledWith(301, {
         completed: true,
       });
-      expect(onTaskUpdated).toHaveBeenCalledWith(
-        expect.objectContaining({
-          subtasks: expect.arrayContaining([
-            expect.objectContaining({
-              checklists: expect.arrayContaining([
-                expect.objectContaining({ id: 301, completed: true }),
-              ]),
-            }),
-          ]),
-        }),
-      );
+      expect(onTaskPatched).toHaveBeenCalledWith(1, expect.any(Function));
     });
+    const updater = onTaskPatched.mock.calls[0][1] as (prev: Task) => Task;
+    expect(updater(taskWithSubtasks).subtasks[0].checklists).toEqual([
+      updatedItem,
+    ]);
   });
 });
