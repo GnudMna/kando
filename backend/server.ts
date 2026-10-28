@@ -55,6 +55,15 @@ if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
   process.exit(1);
 }
 
+const rawShutdownTimeout = process.env.SHUTDOWN_TIMEOUT_MS ?? "30000";
+const parsedShutdownTimeout = Number(rawShutdownTimeout);
+if (!Number.isInteger(parsedShutdownTimeout) || parsedShutdownTimeout < 1) {
+  console.error(
+    `FATAL: SHUTDOWN_TIMEOUT_MS must be a positive integer, got: ${rawShutdownTimeout}`,
+  );
+  process.exit(1);
+}
+
 app.disable("x-powered-by");
 
 // リバースプロキシ。nginx等からの X-Forwarded-For を、末尾から TRUST_PROXY 段(既定 1)だけ信頼する。
@@ -68,21 +77,8 @@ if (proxyHops === null) {
 }
 app.set("trust proxy", proxyHops);
 
-// セキュリティヘッダーを付与する。Swagger UI 用に unpkg を許可
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'", "https://unpkg.com"],
-      },
-    },
-  }),
-);
+// セキュリティヘッダーを付与する。Swagger UI 用の緩和 CSP は /api/docs のルート側で上書きする
+app.use(helmet());
 
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",")
@@ -184,10 +180,7 @@ app.use(errorHandler);
 const PORT = parsedPort;
 
 // Graceful shutdown 設定。ms
-const SHUTDOWN_TIMEOUT_MS = parseInt(
-  (process.env.SHUTDOWN_TIMEOUT_MS as string) ?? "30000",
-  10,
-);
+const SHUTDOWN_TIMEOUT_MS = parsedShutdownTimeout;
 
 import type { Server } from "http";
 import type { Socket } from "net";

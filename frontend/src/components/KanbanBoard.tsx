@@ -61,10 +61,12 @@ export function KanbanBoard() {
     handleCopyTask,
     handleEditTask,
     updateTask,
+    patchTask,
     handleDragEnd,
     taskDueHighlights,
     editingTask,
     handleCloseTaskModal,
+    handleCreateTask,
     confirmState,
     setConfirmState,
     handleConfirm,
@@ -142,6 +144,7 @@ export function KanbanBoard() {
           onDeleteTask={handleDeleteTask}
           onCopyTask={handleCopyTask}
           onTaskUpdated={updateTask}
+          onTaskPatched={patchTask}
           onEditTask={handleEditTask}
           taskDueHighlights={taskDueHighlights}
           dueSoonDays={dueSoonDays}
@@ -172,6 +175,7 @@ export function KanbanBoard() {
             task={editingTask.task}
             onClose={handleCloseTaskModal}
             onTaskUpdated={updateTask}
+            onCreate={editingTask.isNew ? handleCreateTask : undefined}
           />
         </Suspense>
       )}

@@ -48,10 +48,12 @@ export function useLazyTaskDetails(task: Task, onLoaded: (task: Task) => void) {
   }, [task.id]);
 
   useEffect(() => {
-    if (data) {
+    // クエリが無効でも古いキャッシュが残るため、詳細が未読み込みの間だけ反映する
+    // (編集済みタスクを編集前の詳細で上書きしない)
+    if (needsLoad && data) {
       onLoaded(data);
     }
-  }, [data, onLoaded]);
+  }, [needsLoad, data, onLoaded]);
 
   useEffect(() => {
     if (!isError || reportedErrorRef.current) return;

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,6 +46,22 @@ router.get(
  * Swagger UI で API 仕様を閲覧する HTML ページを返す。
  */
 router.get("/docs", (_req, res) => {
+  const nonce = randomBytes(16).toString("base64");
+  // Swagger UI の配信元(unpkg)とインライン実行はこのページだけに許可する。インラインスクリプトは nonce で限定
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}' https://unpkg.com`,
+      "style-src 'self' 'unsafe-inline' https://unpkg.com",
+      "img-src 'self' data: https:",
+      "font-src 'self' https://unpkg.com",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+    ].join("; "),
+  );
   res.type("html").send(`<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -56,7 +73,7 @@ router.get("/docs", (_req, res) => {
 <body>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
-  <script>
+  <script nonce="${nonce}">
     SwaggerUIBundle({
       url: "/api/openapi.json",
       dom_id: "#swagger-ui",

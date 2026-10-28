@@ -28,5 +28,10 @@ COPY backend/migrations ./backend/migrations
 # root で動かさない。ランタイムはファイルを書き込まないので、読み取り権限だけで足りる
 USER node
 
+# npm --workspace backend run と同じく backend ディレクトリを cwd にする
+WORKDIR /app/backend
+
 EXPOSE 3001
-CMD ["sh", "-c", "npm --workspace backend run migrate && npm --workspace backend run start"]
+# マイグレーション後に exec で sh を node に置き換え、node を PID 1 にする。
+# これで docker stop の SIGTERM が server.ts のシャットダウン処理まで届く
+CMD ["sh", "-c", "node dist/migrate.js && exec node dist/server.js"]

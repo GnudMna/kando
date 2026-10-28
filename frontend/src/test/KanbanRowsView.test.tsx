@@ -34,6 +34,7 @@ describe("KanbanRowsView", () => {
     onDeleteTask: noopAsync,
     onCopyTask: noopAsync,
     onTaskUpdated: vi.fn(),
+    onTaskPatched: vi.fn(),
     onEditTask: vi.fn(),
     taskDueHighlights: new Map(),
     dueSoonDays: 3,

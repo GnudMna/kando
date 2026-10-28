@@ -35,6 +35,7 @@ interface Props {
   onDeleteTask: (colId: number, taskId: number) => void;
   onCopyTask: (colId: number, taskId: number) => void;
   onTaskUpdated: (task: Task) => void;
+  onTaskPatched: (taskId: number, updater: (prev: Task) => Task) => void;
   onEditTask: (task: Task, colId: number) => void;
 }
 
@@ -47,7 +48,8 @@ interface Props {
  * @param dueHighlight - 期限強調状態
  * @param onDeleteTask - タスク削除コールバック
  * @param onCopyTask - タスクコピーコールバック
- * @param onTaskUpdated - タスク更新時のコールバック
+ * @param onTaskUpdated - タスク全体の置き換えコールバック
+ * @param onTaskPatched - 最新のタスクへ差分更新を適用するコールバック
  * @param onEditTask - タスク編集開始時のコールバック
  * @returns タスクカードの JSX 要素
  */
@@ -58,6 +60,7 @@ export const TaskCard = memo(function TaskCard({
   onDeleteTask,
   onCopyTask,
   onTaskUpdated,
+  onTaskPatched,
   onEditTask,
 }: Props) {
   const { reportError } = useOperationError();
@@ -85,7 +88,7 @@ export const TaskCard = memo(function TaskCard({
   /**
    * タスクの完了状態を切り替えて API に保存する。
    * サーバーが revision を進めるため、レスポンスをローカル state に反映する。
-   * レスポンスは子要素を含まないので、既存の子要素は保持したままマージする。
+   * レスポンスは子要素を含まないので、応答到着時点の最新タスクへマージして子要素を保持する。
    * @returns 更新処理完了時に解決される Promise
    */
   const toggleCompleted = async () => {
@@ -93,7 +96,7 @@ export const TaskCard = memo(function TaskCard({
       const updated = await api.updateTask(task.id, {
         completed: !task.completed,
       });
-      onTaskUpdated({ ...task, ...updated });
+      onTaskPatched(task.id, (prev) => ({ ...prev, ...updated }));
     } catch (err) {
       reportError("タスクの完了状態の更新に失敗しました", err);
     }
@@ -101,10 +104,14 @@ export const TaskCard = memo(function TaskCard({
 
   /**
    * チェックリスト項目の完了状態を切り替えて API に保存する。
-   * 成功時は onTaskUpdated で親コンポーネントの state を更新する。
+   * 成功時は onTaskPatched で最新の state に差分だけ適用する(クリック時点の task から再構築しない)。
    *
    * カード上では個別 API で即時保存する。編集モーダル内の変更はスナップショット一括保存であり、
    * 二系統の永続化経路がある点に注意(モーダル保存前にカードでトグルした値は個別 API 経由で反映済み)。
+   *
+   * サーバーは個別 API でも親タスクの revision を進める。レスポンスは項目だけで revision を含まないため、
+   * 反映後にタスクを取り直して revision を最新化する。取り込まないと、次のスナップショット保存が
+   * 自分自身の変更で 409 になる。
    *
    * @param item - 対象チェックリスト項目(id と completed が必要)
    * @param type - 'タスク直下' なら 'task'、'サブタスク配下' なら 'subtask'
@@ -121,16 +128,16 @@ export const TaskCard = memo(function TaskCard({
         completed: !item.completed,
       });
       if (type === "task") {
-        onTaskUpdated({
-          ...task,
-          checklists: task.checklists.map((c) =>
+        onTaskPatched(task.id, (prev) => ({
+          ...prev,
+          checklists: prev.checklists.map((c) =>
             c.id === item.id ? updatedItem : c,
           ),
-        });
+        }));
       } else if (subtaskId !== undefined) {
-        onTaskUpdated({
-          ...task,
-          subtasks: task.subtasks.map((s) =>
+        onTaskPatched(task.id, (prev) => ({
+          ...prev,
+          subtasks: prev.subtasks.map((s) =>
             s.id === subtaskId
               ? {
                   ...s,
@@ -140,10 +147,32 @@ export const TaskCard = memo(function TaskCard({
                 }
               : s,
           ),
-        });
+        }));
       }
     } catch (err) {
       reportError("チェックリストの更新に失敗しました", err);
+      return;
+    }
+    await refreshTaskRevision();
+  };
+
+  /**
+   * 個別 API で子要素を変更したあと、サーバーの最新 revision だけを取得して親の state へ反映する。
+   * タスク全体は置き換えず revision のみマージする。取得中に進んだ連続トグルの結果を巻き戻さないため。
+   * 取得応答が前後しても revision が古い値へ戻らないよう、大きい方を採る。
+   * 保存自体は成功済みなので、取得に失敗してもエラーは出さない。revision が古いまま残る場合、
+   * 次のスナップショット保存は 409 になり、開き直しを促すメッセージで安全側に倒れる。
+   * @returns 反映処理完了時に解決される Promise
+   */
+  const refreshTaskRevision = async () => {
+    try {
+      const { revision } = await api.fetchTask(task.id);
+      onTaskPatched(task.id, (prev) => ({
+        ...prev,
+        revision: Math.max(prev.revision, revision),
+      }));
+    } catch {
+      // 失敗時は上記のとおり 409 側で検知されるため握りつぶす
     }
   };
 

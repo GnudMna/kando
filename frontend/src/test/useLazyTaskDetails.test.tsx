@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import { useLazyTaskDetails } from "../hooks/useLazyTaskDetails";
 import { fetchTask } from "../api/tasks";
+import { queryKeys } from "../api/queryKeys";
+import { createQueryClient } from "../providers/queryClient";
 import { createQueryWrapper, baseTask } from "./testUtils";
 import type { Task } from "../types";
 
@@ -92,6 +94,21 @@ describe("useLazyTaskDetails", () => {
     });
 
     expect(fetchTask).not.toHaveBeenCalled();
+  });
+
+  it("詳細が読み込み済みのタスクは、キャッシュに古い詳細が残っていても onLoaded で上書きしない", () => {
+    const onLoaded = vi.fn();
+    const queryClient = createQueryClient();
+    const staleDetail: Task = { ...fullTask, content: "編集前" };
+    const editedTask: Task = { ...fullTask, content: "編集後" };
+
+    queryClient.setQueryData(queryKeys.tasks.detail(editedTask.id), staleDetail);
+
+    render(<LazyTaskProbe task={editedTask} onLoaded={onLoaded} />, {
+      wrapper: createQueryWrapper(queryClient),
+    });
+
+    expect(onLoaded).not.toHaveBeenCalled();
   });
 
   it("サマリータスクが可視になったら詳細を取得して onLoaded を呼ぶ", async () => {

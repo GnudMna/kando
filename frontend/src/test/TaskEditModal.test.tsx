@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TaskEditModal } from "../components/TaskEditModal";
 import * as api from "../api/boardApi";
-import { invalidateMemoCache } from "../components/taskEdit/memoCache";
+import * as memosApi from "../api/memos";
 import {
   baseTask,
   taskWithChecklists,
@@ -13,6 +13,7 @@ import {
 } from "./testUtils";
 
 vi.mock("../api/boardApi");
+vi.mock("../api/memos");
 
 describe("TaskEditModal", () => {
   const onClose = vi.fn();
@@ -52,7 +53,7 @@ describe("TaskEditModal", () => {
     vi.clearAllMocks();
     onClose.mockReset();
     onTaskUpdated.mockReset();
-    vi.mocked(api.fetchMemos).mockResolvedValue([]);
+    vi.mocked(memosApi.fetchMemos).mockResolvedValue([]);
   });
 
   it("タスク内容とモーダルタイトルが表示されること", async () => {
@@ -177,9 +178,7 @@ describe("TaskEditModal", () => {
   });
 
   it("メモ一覧取得後に空メッセージが表示されること", async () => {
-    invalidateMemoCache();
-    vi.spyOn(Date, "now").mockReturnValue(Number.MAX_SAFE_INTEGER + 200_000);
-    vi.mocked(api.fetchMemos).mockResolvedValue([]);
+    vi.mocked(memosApi.fetchMemos).mockResolvedValue([]);
 
     render(
       <TaskEditModal
@@ -191,7 +190,7 @@ describe("TaskEditModal", () => {
     );
 
     await waitFor(() => {
-      expect(api.fetchMemos).toHaveBeenCalledTimes(1);
+      expect(memosApi.fetchMemos).toHaveBeenCalledTimes(1);
     });
     await waitFor(() => {
       expect(

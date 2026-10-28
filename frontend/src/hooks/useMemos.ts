@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createMemo, deleteMemo, fetchMemos, updateMemo } from "../api/memos";
+import {
+  createMemo,
+  deleteMemo,
+  fetchMemos,
+  linkMemoTask,
+  unlinkMemoTask,
+  updateMemo,
+} from "../api/memos";
 import { queryKeys } from "../api/queryKeys";
 import type { Memo } from "@kando/types";
 
@@ -59,5 +66,27 @@ export function useMemoMutations() {
     },
   });
 
-  return { create, update, remove, invalidate, setMemosCache };
+  /**
+   * タスクとメモの関連付けを一括で追加・解除し、メモ一覧キャッシュを無効化する。
+   * 一部が失敗しても残りは実行し、最初の失敗を返す。
+   * @param taskId - 対象タスク ID
+   * @param changes - 関連付けるメモ ID と解除するメモ ID
+   * @returns 最初の失敗結果。すべて成功(または変更なし)の場合は `undefined`
+   */
+  const syncTaskLinks = async (
+    taskId: number,
+    changes: { link: number[]; unlink: number[] },
+  ): Promise<PromiseRejectedResult | undefined> => {
+    const results = await Promise.allSettled([
+      ...changes.link.map((memoId) => linkMemoTask(memoId, taskId)),
+      ...changes.unlink.map((memoId) => unlinkMemoTask(memoId, taskId)),
+    ]);
+    if (results.length === 0) return undefined;
+    void invalidate();
+    return results.find(
+      (r): r is PromiseRejectedResult => r.status === "rejected",
+    );
+  };
+
+  return { create, update, remove, invalidate, setMemosCache, syncTaskLinks };
 }

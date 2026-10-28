@@ -10,7 +10,14 @@ import {
   moveColumn,
   updateColumn,
 } from "../api/columns";
-import { copyTask, createTask, deleteTask, moveTask } from "../api/tasks";
+import {
+  copyTask,
+  createTask,
+  deleteTask,
+  moveTask,
+  saveTaskSnapshot,
+  type TaskSnapshotPayload,
+} from "../api/tasks";
 import { createQueryWrapper, sampleBoardRows } from "./testUtils";
 import type { Row, Task } from "../types";
 
@@ -294,6 +301,29 @@ describe("useBoard", () => {
     });
   });
 
+  it("patchTask が連続して適用されても先行する更新を保持すること", async () => {
+    const { result } = await renderBoardHook();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.patchTask(taskA.id, (prev) => ({
+        ...prev,
+        content: "更新1",
+      }));
+      result.current.patchTask(taskA.id, (prev) => ({
+        ...prev,
+        completed: true,
+      }));
+    });
+    await waitForBoard(result, () => {
+      const col = result.current.rows[0].columns.find((c) => c.id === 10);
+      expect(col?.tasks[0]).toMatchObject({
+        content: "更新1",
+        completed: true,
+      });
+    });
+  });
+
   it("moveTask が同一カラム内でタスクを並び替えること", async () => {
     const taskB: Task = {
       id: 2,
@@ -404,35 +434,21 @@ describe("useBoard", () => {
     });
   });
 
-  it("addTask がサーバーの振り直し結果をキャッシュに反映し rebalanced を保持しないこと", async () => {
-    const newTask: Task = { ...taskA, id: 99, position: 2000 };
-    vi.mocked(createTask).mockResolvedValue({
-      ...newTask,
-      rebalanced: [{ id: 1, position: 500 }],
-    });
-    const { result } = await renderBoardHook();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await act(async () => {
-      await result.current.addTask(10, 1);
-    });
-
-    await waitForBoard(result, () => {
-      const tasks = result.current.rows[0].columns[0].tasks;
-      expect(tasks.map((t) => [t.id, t.position])).toEqual([
-        [1, 500],
-        [99, 2000],
-      ]);
-      expect(tasks[1]).not.toHaveProperty("rebalanced");
-    });
-  });
-
-  it("addTask がカラムにタスクを追加すること", async () => {
-    const newTask: Task = {
+  describe("createTaskFromSnapshot", () => {
+    const snapshotPayload: TaskSnapshotPayload = {
+      content: "新規",
+      due_date: "2026-01-02",
+      completed: false,
+      checklists: [],
+      subtasks: [],
+      comments: [],
+      revision: 0,
+    };
+    const created: Task = {
       id: 99,
       column_id: 10,
-      content: "新しいタスク",
-      due_date: null,
+      content: "新規",
+      due_date: "2026-01-02",
       position: 2000,
       completed: false,
       revision: 1,
@@ -440,34 +456,90 @@ describe("useBoard", () => {
       checklists: [],
       comments: [],
     };
-    vi.mocked(createTask).mockResolvedValue(newTask);
 
-    const { result } = await renderBoardHook();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    it("作成後にスナップショットを保存し、保存結果をカラムへ追加すること", async () => {
+      const saved: Task = { ...created, revision: 2 };
+      vi.mocked(createTask).mockResolvedValue(created);
+      vi.mocked(saveTaskSnapshot).mockResolvedValue(saved);
+      const { result } = await renderBoardHook();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    let created: Task | null = null;
-    await act(async () => {
-      created = await result.current.addTask(10, 1);
+      let returned: Task | null = null;
+      await act(async () => {
+        returned = await result.current.createTaskFromSnapshot(
+          10,
+          1,
+          snapshotPayload,
+        );
+      });
+
+      expect(returned).toEqual(saved);
+      expect(createTask).toHaveBeenCalledWith(10, "新規", 2000, "2026-01-02");
+      expect(saveTaskSnapshot).toHaveBeenCalledWith(99, {
+        ...snapshotPayload,
+        revision: 1,
+      });
+      await waitForBoard(result, () => {
+        const col = result.current.rows[0].columns.find((c) => c.id === 10);
+        expect(col?.tasks).toHaveLength(2);
+        expect(col?.tasks[1]).toEqual(saved);
+      });
     });
 
-    expect(created).toEqual(newTask);
-    await waitForBoard(result, () => {
-      const col = result.current.rows[0].columns.find((c) => c.id === 10);
-      expect(col?.tasks).toHaveLength(2);
+    it("サーバーの振り直し結果をキャッシュに反映し rebalanced を保持しないこと", async () => {
+      vi.mocked(createTask).mockResolvedValue({
+        ...created,
+        rebalanced: [{ id: 1, position: 500 }],
+      });
+      vi.mocked(saveTaskSnapshot).mockResolvedValue(created);
+      const { result } = await renderBoardHook();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await act(async () => {
+        await result.current.createTaskFromSnapshot(10, 1, snapshotPayload);
+      });
+
+      await waitForBoard(result, () => {
+        const tasks = result.current.rows[0].columns[0].tasks;
+        expect(tasks.map((t) => [t.id, t.position])).toEqual([
+          [1, 500],
+          [99, 2000],
+        ]);
+        expect(tasks[1]).not.toHaveProperty("rebalanced");
+      });
     });
-    expect(createTask).toHaveBeenCalledWith(10, "新しいタスク", 2000);
-  });
 
-  it("addTask が失敗した場合 operationError がセットされること", async () => {
-    vi.mocked(createTask).mockRejectedValue(new Error("fail"));
-    const { result } = await renderBoardHook();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    it("スナップショット保存に失敗したら作成したタスクを削除して再スローすること", async () => {
+      vi.mocked(createTask).mockResolvedValue(created);
+      vi.mocked(saveTaskSnapshot).mockRejectedValue(new Error("fail"));
+      vi.mocked(deleteTask).mockResolvedValue();
+      const { result } = await renderBoardHook();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await act(async () => {
-      await result.current.addTask(10, 1);
+      await act(async () => {
+        await expect(
+          result.current.createTaskFromSnapshot(10, 1, snapshotPayload),
+        ).rejects.toThrow("fail");
+      });
+
+      expect(deleteTask).toHaveBeenCalledWith(99);
+      expect(result.current.rows[0].columns[0].tasks).toHaveLength(1);
     });
 
-    expect(result.current.operationError).toBe("タスクの追加に失敗しました");
+    it("作成に失敗した場合は削除を呼ばず再スローすること", async () => {
+      vi.mocked(createTask).mockRejectedValue(new Error("fail"));
+      const { result } = await renderBoardHook();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await act(async () => {
+        await expect(
+          result.current.createTaskFromSnapshot(10, 1, snapshotPayload),
+        ).rejects.toThrow("fail");
+      });
+
+      expect(saveTaskSnapshot).not.toHaveBeenCalled();
+      expect(deleteTask).not.toHaveBeenCalled();
+    });
   });
 
   it("copyTask がタスクを複製すること", async () => {

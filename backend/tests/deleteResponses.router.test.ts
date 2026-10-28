@@ -9,6 +9,7 @@ import checklistItemsRouter from "../routes/checklistItems.js";
 import taskCommentsRouter from "../routes/taskComments.js";
 import { errorHandler } from "../middleware/errorHandler.js";
 import { pool } from "../db.js";
+import { setupTransactionClient } from "./helpers/transactionClient.js";
 
 vi.mock("../db.js", () => ({
   pool: {
@@ -50,6 +51,8 @@ function createApp() {
 type DeleteCase = {
   path: string;
   notFoundMessage: string;
+  /** 親タスクの revision を進めるため、トランザクション内で削除する API */
+  transactional?: boolean;
 };
 
 const cases: DeleteCase[] = [
@@ -67,14 +70,17 @@ const cases: DeleteCase[] = [
   },
   {
     path: "/api/subtasks/1",
+    transactional: true,
     notFoundMessage: "Subtask not found",
   },
   {
     path: "/api/checklist-items/1",
+    transactional: true,
     notFoundMessage: "Checklist item not found",
   },
   {
     path: "/api/task-comments/1",
+    transactional: true,
     notFoundMessage: "Comment not found",
   },
 ];
@@ -84,9 +90,31 @@ describe("DELETE API response consistency", () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * 削除 API が参照するモックを用意する。
+   * トランザクション API は親タスクのロック結果と削除件数を、それ以外は削除件数だけを返す。
+   * @param testCase - 検証対象の DELETE API
+   * @param found - 削除対象が存在するか
+   */
+  function mockDelete(testCase: DeleteCase, found: boolean) {
+    if (testCase.transactional) {
+      setupTransactionClient(mockedPool.connect, (sql) => {
+        if (sql.includes("FOR UPDATE OF t")) {
+          return { rows: found ? [{ id: 1 }] : [] };
+        }
+        return { rowCount: found ? 1 : 0, rows: [] };
+      });
+      return;
+    }
+    mockedPool.query.mockResolvedValueOnce({
+      rowCount: found ? 1 : 0,
+      rows: [],
+    });
+  }
+
   for (const testCase of cases) {
     it(`${testCase.path} は削除対象がある場合 success を返す`, async () => {
-      mockedPool.query.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+      mockDelete(testCase, true);
 
       const res = await request(createApp()).delete(testCase.path);
 
@@ -95,7 +123,7 @@ describe("DELETE API response consistency", () => {
     });
 
     it(`${testCase.path} は削除対象がない場合 404 を返す`, async () => {
-      mockedPool.query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      mockDelete(testCase, false);
 
       const res = await request(createApp()).delete(testCase.path);
 

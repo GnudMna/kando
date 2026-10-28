@@ -8,7 +8,8 @@ import {
 } from "react";
 import type { DropResult } from "@hello-pangea/dnd";
 import type { Row, Task } from "../types";
-import { fetchTask } from "../api/tasks";
+import { fetchTask, type TaskSnapshotPayload } from "../api/tasks";
+import { useMemoMutations } from "./useMemos";
 import { getDueHighlight } from "../utils/dueDate";
 import { countTasks } from "../utils/taskSearch";
 import { taskNeedsDetailLoad } from "../utils/taskSummary";
@@ -30,6 +31,9 @@ import { useOperationError } from "../providers/useOperationError";
 
 type BoardApi = ReturnType<typeof useBoard>;
 
+/** 新規タスクの下書きに設定する初期のタスク内容。 */
+const DRAFT_TASK_CONTENT = "新しいタスク";
+
 /**
  * KanbanBoard の UI 状態と操作ハンドラーを管理する。
  * @param board - `useBoard` の戻り値
@@ -44,10 +48,11 @@ export function useKanbanBoardState(board: BoardApi) {
     addColumn,
     renameColumn,
     removeColumn,
-    addTask,
+    createTaskFromSnapshot,
     removeTask,
     copyTask,
     updateTask,
+    patchTask,
     moveTask,
     moveColumn,
   } = board;
@@ -73,6 +78,7 @@ export function useKanbanBoardState(board: BoardApi) {
   const rowsRef = useRef(rows);
   const { registerOpenTaskHandler } = useAppNavigation();
   const { reportError } = useOperationError();
+  const { syncTaskLinks } = useMemoMutations();
 
   useEffect(() => {
     rowsRef.current = rows;
@@ -201,12 +207,48 @@ export function useKanbanBoardState(board: BoardApi) {
     setEditingRow(null);
   }, [editingRow, renameRow]);
 
-  const handleAddTask = useCallback(
-    async (colId: number, rowId: number) => {
-      const newTask = await addTask(colId, rowId);
-      if (newTask) setEditingTask({ task: newTask, colId, isNew: true });
+  const handleAddTask = useCallback((colId: number, rowId: number) => {
+    // サーバーへは保存時に初めて作成する。破棄しても空のタスクが残らない
+    setEditingTask({
+      task: {
+        id: 0,
+        column_id: colId,
+        content: DRAFT_TASK_CONTENT,
+        due_date: null,
+        position: 0,
+        completed: false,
+        revision: 0,
+        subtasks: [],
+        checklists: [],
+        comments: [],
+      },
+      colId,
+      rowId,
+      isNew: true,
+    });
+  }, []);
+
+  const handleCreateTask = useCallback(
+    async (payload: TaskSnapshotPayload, memoIds: number[]): Promise<Task> => {
+      if (!editingTask?.isNew || editingTask.rowId === undefined) {
+        throw new Error("新規タスクの編集中ではありません");
+      }
+      const saved = await createTaskFromSnapshot(
+        editingTask.colId,
+        editingTask.rowId,
+        payload,
+      );
+      // タスクは作成済みのため、紐付け失敗は保存失敗にせず通知のみ行う
+      const failed = await syncTaskLinks(saved.id, {
+        link: memoIds,
+        unlink: [],
+      });
+      if (failed) {
+        reportError("関連メモの紐付けに失敗しました", failed.reason);
+      }
+      return saved;
     },
-    [addTask],
+    [createTaskFromSnapshot, editingTask, reportError, syncTaskLinks],
   );
 
   const handleDeleteTask = useCallback(
@@ -273,22 +315,9 @@ export function useKanbanBoardState(board: BoardApi) {
     };
   }, [rows]);
 
-  const handleCloseTaskModal = useCallback(
-    (reason: "saved" | "dismiss") => {
-      if (!editingTask) return;
-
-      const shouldDeleteUnsavedTask = editingTask.isNew && reason !== "saved";
-      const colId = editingTask.colId;
-      const taskId = editingTask.task.id;
-
-      setEditingTask(null);
-
-      if (shouldDeleteUnsavedTask) {
-        void removeTask(colId, taskId);
-      }
-    },
-    [editingTask, removeTask],
-  );
+  const handleCloseTaskModal = useCallback(() => {
+    setEditingTask(null);
+  }, []);
 
   const renderRowHeader = useCallback(
     (row: Row) => (
@@ -357,6 +386,7 @@ export function useKanbanBoardState(board: BoardApi) {
     startAddColumn,
     handleSaveRowTitle,
     handleAddTask,
+    handleCreateTask,
     handleDeleteTask,
     handleCopyTask,
     handleEditTask,
@@ -366,5 +396,6 @@ export function useKanbanBoardState(board: BoardApi) {
     removeColumn,
     removeRow,
     updateTask,
+    patchTask,
   };
 }

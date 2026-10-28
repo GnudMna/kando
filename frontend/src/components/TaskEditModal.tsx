@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useDraggable } from "../hooks/useDraggable";
 import { useTaskEditForm } from "../hooks/useTaskEditForm";
 import type { Task } from "../types";
+import type { TaskSnapshotPayload } from "../api/tasks";
 import { CommentSection } from "./CommentSection";
 import { TaskDetailsFields } from "./taskEdit/TaskDetailsFields";
 import { TaskChecklistSection } from "./taskEdit/TaskChecklistSection";
@@ -15,6 +16,8 @@ interface Props {
   task: Task;
   onClose: (reason: "saved" | "dismiss") => void;
   onTaskUpdated: (task: Task) => void;
+  /** 指定時は新規タスクの下書きとして開き、保存時にこの関数でタスクを作成する */
+  onCreate?: (payload: TaskSnapshotPayload, memoIds: number[]) => Promise<Task>;
 }
 
 /**
@@ -23,10 +26,16 @@ interface Props {
  * @param task - 編集対象タスク
  * @param onClose - モーダル終了コールバック(保存または破棄の理由を渡す)
  * @param onTaskUpdated - 保存後のタスク更新コールバック
+ * @param onCreate - 新規タスクの作成関数(指定時は保存まで何もサーバーへ作成しない)
  * @returns タスク編集モーダルの JSX 要素
  */
-export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
-  const form = useTaskEditForm({ task, onClose, onTaskUpdated });
+export function TaskEditModal({
+  task,
+  onClose,
+  onTaskUpdated,
+  onCreate,
+}: Props) {
+  const form = useTaskEditForm({ task, onClose, onTaskUpdated, onCreate });
   const { containerRef, onHandleMouseDown, posStyle, isDragged, isDragging } =
     useDraggable();
   const modalTitleId = useId();
@@ -159,12 +168,10 @@ export function TaskEditModal({ task, onClose, onTaskUpdated }: Props) {
           />
 
           <MemoLinkSection
-            taskId={task.id}
             allMemos={form.allMemos}
             linkedMemoIds={form.linkedMemoIds}
             onLinkedMemoIdsChange={form.setLinkedMemoIds}
             memoLinkError={form.memoLinkError}
-            onMemoLinkErrorChange={form.setMemoLinkError}
             showMemoPicker={form.showMemoPicker}
             onShowMemoPickerChange={form.setShowMemoPicker}
           />

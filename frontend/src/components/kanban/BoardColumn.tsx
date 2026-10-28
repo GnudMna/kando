@@ -19,10 +19,11 @@ interface BoardColumnProps {
   colProvided: DraggableProvided;
   onRenameColumn: (colId: number, title: string) => Promise<void>;
   onRemoveColumn: (colId: number) => Promise<void>;
-  onAddTask: (colId: number, rowId: number) => Promise<void>;
+  onAddTask: (colId: number, rowId: number) => void;
   onDeleteTask: (colId: number, taskId: number) => Promise<void>;
   onCopyTask: (colId: number, taskId: number) => Promise<void>;
   onTaskUpdated: (task: Task) => void;
+  onTaskPatched: (taskId: number, updater: (prev: Task) => Task) => void;
   onEditTask: (task: Task, colId: number) => void;
   taskDueHighlights: Map<number, DueHighlightResult>;
   dueSoonDays: number;
@@ -44,6 +45,7 @@ export const BoardColumn = memo(function BoardColumn({
   onDeleteTask,
   onCopyTask,
   onTaskUpdated,
+  onTaskPatched,
   onEditTask,
   taskDueHighlights,
   dueSoonDays,
@@ -173,6 +175,7 @@ export const BoardColumn = memo(function BoardColumn({
                         onDeleteTask={onDeleteTask}
                         onCopyTask={onCopyTask}
                         onTaskUpdated={onTaskUpdated}
+                        onTaskPatched={onTaskPatched}
                         onEditTask={onEditTask}
                       />
                     </div>
@@ -205,7 +208,7 @@ export const BoardColumn = memo(function BoardColumn({
         <button
           type="button"
           className="btn column-add-task-btn"
-          onClick={() => void onAddTask(column.id, rowId)}
+          onClick={() => onAddTask(column.id, rowId)}
         >
           <Plus size={16} /> タスクを追加
         </button>

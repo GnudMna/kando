@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import type {
   Task,
   LocalTask,
@@ -6,22 +6,29 @@ import type {
   LocalChecklistItem,
   TempId,
 } from "../types";
-import type { Memo } from "../api/boardApi";
 import * as api from "../api/boardApi";
 import { fetchTask } from "../api/tasks";
 import { normalizeDueDateValue } from "../utils/dueDate";
 import { POSITION_GAP } from "../utils/constants";
 import { tempId, isTemp } from "../utils/localId";
 import { taskNeedsDetailLoad } from "../utils/taskSummary";
-import {
-  getCachedMemos,
-  setCachedMemos,
-} from "../components/taskEdit/memoCache";
+import { useMemoMutations, useMemosQuery } from "./useMemos";
+import { useOperationError } from "../providers/useOperationError";
 
 interface UseTaskEditFormOptions {
   task: Task;
   onClose: (reason: "saved" | "dismiss") => void;
   onTaskUpdated: (task: Task) => void;
+  /**
+   * 指定すると新規タスクの下書きとして扱い、保存時に既存タスクの更新ではなく作成する。
+   * 下書きはサーバーに存在しないため、関連メモの追加・解除も保存まで保留する。
+   * @param payload - 保存ペイロード
+   * @param memoIds - 保存と同時に紐付ける関連メモ ID
+   */
+  onCreate?: (
+    payload: api.TaskSnapshotPayload,
+    memoIds: number[],
+  ) => Promise<Task>;
 }
 
 /**
@@ -33,6 +40,7 @@ export function useTaskEditForm({
   task,
   onClose,
   onTaskUpdated,
+  onCreate,
 }: UseTaskEditFormOptions) {
   const [localTask, setLocalTask] = useState<LocalTask>(() => {
     const cloned = structuredClone(task) as LocalTask;
@@ -65,48 +73,28 @@ export function useTaskEditForm({
   const isLoadingDetails =
     taskNeedsDetailLoad(task) && loadedTaskId !== task.id;
   const detailsReady = !isLoadingDetails;
-  const [allMemos, setAllMemos] = useState<Memo[] | null>(() =>
-    getCachedMemos(),
+  const { data: memos, isError: memosLoadFailed } = useMemosQuery();
+  const { syncTaskLinks } = useMemoMutations();
+  const { reportError } = useOperationError();
+  const allMemos = memos ?? (memosLoadFailed ? [] : null);
+  // サーバー上の関連付け状態。編集中の選択(linkedOverride)はこれとの差分を保存時に反映する
+  const initialLinkedMemoIds = useMemo(
+    () =>
+      new Set(
+        (memos ?? [])
+          .filter((m) => m.tasks.some((t) => t.id === task.id))
+          .map((m) => m.id),
+      ),
+    [memos, task.id],
   );
-  const [linkedMemoIds, setLinkedMemoIds] = useState<Set<number>>(() => {
-    const cached = getCachedMemos();
-    if (!cached) return new Set<number>();
-    return new Set(
-      cached
-        .filter((m) => m.tasks.some((t) => t.id === task.id))
-        .map((m) => m.id),
-    );
-  });
-  const [memoLinkError, setMemoLinkError] = useState<string | null>(null);
+  const [linkedOverride, setLinkedOverride] = useState<Set<number> | null>(
+    null,
+  );
+  const linkedMemoIds = linkedOverride ?? initialLinkedMemoIds;
+  const setLinkedMemoIds = (
+    updater: (prev: Set<number>) => Set<number>,
+  ) => setLinkedOverride((prev) => updater(prev ?? initialLinkedMemoIds));
   const [showMemoPicker, setShowMemoPicker] = useState(false);
-
-  useEffect(() => {
-    if (getCachedMemos()) return;
-
-    let cancelled = false;
-    api
-      .fetchMemos()
-      .then((memos) => {
-        if (cancelled) return;
-        setCachedMemos(memos);
-        setAllMemos(memos);
-        const linked = new Set(
-          memos
-            .filter((m) => m.tasks.some((t) => t.id === task.id))
-            .map((m) => m.id),
-        );
-        setLinkedMemoIds(linked);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setMemoLinkError("メモ一覧の読み込みに失敗しました");
-          setAllMemos([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [task.id]);
 
   useEffect(() => {
     if (!taskNeedsDetailLoad(task)) return;
@@ -170,7 +158,24 @@ export function useTaskEditForm({
         revision: final.revision,
       };
 
-      const savedTask = await api.saveTaskSnapshot(task.id, payload);
+      // 別画面で削除済みのメモは紐付けない
+      const existingMemoIds = new Set((memos ?? []).map((m) => m.id));
+      const link = [...linkedMemoIds].filter(
+        (id) => existingMemoIds.has(id) && !initialLinkedMemoIds.has(id),
+      );
+      const unlink = [...initialLinkedMemoIds].filter(
+        (id) => !linkedMemoIds.has(id),
+      );
+
+      let savedTask: Task;
+      if (onCreate) {
+        savedTask = await onCreate(payload, link);
+      } else {
+        savedTask = await api.saveTaskSnapshot(task.id, payload);
+        // タスクは保存済みのため、紐付け失敗は保存失敗にせず通知のみ行う
+        const failed = await syncTaskLinks(savedTask.id, { link, unlink });
+        if (failed) reportError("関連メモの紐付けに失敗しました", failed.reason);
+      }
       onTaskUpdated(savedTask);
       onClose("saved");
     } catch (err) {
@@ -366,8 +371,7 @@ export function useTaskEditForm({
     allMemos,
     linkedMemoIds,
     setLinkedMemoIds,
-    memoLinkError,
-    setMemoLinkError,
+    memoLinkError: memosLoadFailed ? "メモ一覧の読み込みに失敗しました" : null,
     showMemoPicker,
     setShowMemoPicker,
     saveAndClose,

@@ -245,6 +245,25 @@ describe("auth router", () => {
     expect(res.body.error).toBe("ユーザー名またはパスワードが正しくありません");
   });
 
+  it("POST /api/auth/login は存在しないユーザーでも実際の cost の bcrypt 比較を行う", async () => {
+    mockedPool.query.mockResolvedValueOnce({ rows: [] });
+    const compareSpy = vi.spyOn(bcrypt, "compare");
+
+    try {
+      await request(createApp())
+        .post("/api/auth/login")
+        .send({ username: "ghost", password: "validpassword12" });
+
+      expect(compareSpy).toHaveBeenCalledTimes(1);
+      const dummyHash = compareSpy.mock.calls[0][1] as string;
+      // bcryptjs は長さが不正だと計算せず即 false を返すため、60文字であることを固定する
+      expect(dummyHash).toHaveLength(60);
+      expect(bcrypt.getRounds(dummyHash)).toBe(12);
+    } finally {
+      compareSpy.mockRestore();
+    }
+  });
+
   it("POST /api/auth/logout は Cookie をクリアする", async () => {
     const res = await request(createApp()).post("/api/auth/logout");
 
