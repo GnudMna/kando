@@ -179,4 +179,93 @@ describe("MemoPanel", () => {
 
     expect(titleInput).toHaveValue("編集後");
   });
+
+  it("自動保存に失敗したらエラーを表示し、成功したら消える", async () => {
+    vi.mocked(updateMemo).mockRejectedValueOnce(new Error("サーバーエラー"));
+    vi.mocked(updateMemo).mockResolvedValueOnce({
+      ...sampleMemos[0],
+      content: "再編集",
+    });
+
+    renderMemoPanel();
+    await waitFor(() => screen.getByDisplayValue("メモA"));
+
+    fireEvent.change(screen.getByLabelText("メモ内容"), {
+      target: { value: "編集1" },
+    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole("alert")).toHaveTextContent("サーバーエラー");
+      },
+      { timeout: 3000 },
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("「メモA」");
+
+    fireEvent.change(screen.getByLabelText("メモ内容"), {
+      target: { value: "再編集" },
+    });
+    await waitFor(
+      () => {
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it("保存リクエストは直列化され、前の保存が完了するまで次を送らない", async () => {
+    let resolveFirst: (memo: Memo) => void = () => {};
+    vi.mocked(updateMemo).mockImplementationOnce(
+      () =>
+        new Promise<Memo>((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    vi.mocked(updateMemo).mockResolvedValueOnce({
+      ...sampleMemos[0],
+      content: "2回目",
+    });
+
+    renderMemoPanel();
+    await waitFor(() => screen.getByDisplayValue("メモA"));
+
+    fireEvent.change(screen.getByLabelText("メモ内容"), {
+      target: { value: "1回目" },
+    });
+    await waitFor(() => expect(updateMemo).toHaveBeenCalledTimes(1), {
+      timeout: 3000,
+    });
+
+    fireEvent.change(screen.getByLabelText("メモ内容"), {
+      target: { value: "2回目" },
+    });
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(updateMemo).toHaveBeenCalledTimes(1);
+
+    resolveFirst({ ...sampleMemos[0], content: "1回目" });
+    await waitFor(() => expect(updateMemo).toHaveBeenCalledTimes(2), {
+      timeout: 3000,
+    });
+    expect(vi.mocked(updateMemo).mock.calls[1][1]).toEqual({
+      title: "メモA",
+      content: "2回目",
+    });
+  });
+
+  it("ページ離脱時に未保存の入力を keepalive で送信する", async () => {
+    vi.mocked(updateMemo).mockResolvedValue(sampleMemos[0]);
+
+    renderMemoPanel();
+    await waitFor(() => screen.getByDisplayValue("メモA"));
+
+    fireEvent.change(screen.getByLabelText("メモ内容"), {
+      target: { value: "離脱前の入力" },
+    });
+    window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+
+    expect(updateMemo).toHaveBeenCalledWith(
+      1,
+      { title: "メモA", content: "離脱前の入力" },
+      { keepalive: true },
+    );
+  });
 });

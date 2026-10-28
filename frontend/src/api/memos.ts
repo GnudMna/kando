@@ -26,16 +26,18 @@ export const createMemo = (title: string, content: string): Promise<Memo> =>
  * メモのタイトル・内容を部分更新する。
  * @param id - メモ ID
  * @param patch - 更新フィールド
+ * @param options - `keepalive: true` でページ離脱後もリクエストを継続させる(ボディ 64KB まで)
  * @returns 更新後のメモ
  */
 export const updateMemo = (
   id: number,
   patch: { title?: string; content?: string },
+  options?: { keepalive?: boolean },
 ): Promise<Memo> =>
-  apiClient.request<Memo>(
-    `${API_URL}/memos/${id}`,
-    apiClient.json("PUT", patch),
-  );
+  apiClient.request<Memo>(`${API_URL}/memos/${id}`, {
+    ...apiClient.json("PUT", patch),
+    keepalive: options?.keepalive,
+  });
 
 /**
  * メモを削除する。

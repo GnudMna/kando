@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Plus, Trash2, X, FileText } from "lucide-react";
-import type { Memo } from "../api/memos";
+import { updateMemo, type Memo } from "../api/memos";
 import { useMemoMutations, useMemosQuery } from "../hooks/useMemos";
 import { useDraggable } from "../hooks/useDraggable";
 import { useAppNavigation } from "../providers/useAppNavigation";
@@ -74,6 +74,10 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
 
   const [userDraft, setUserDraft] = useState<MemoDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<{
+    memoId: number;
+    message: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selectedId = userDraft?.id ?? initialTarget?.id ?? null;
@@ -84,12 +88,17 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
   const savedRef = useRef<{ title: string; content: string } | null>(null);
   const selectedIdRef = useRef<number | null>(null);
   const draftRef = useRef({ title: "", content: "" });
+  // 保存リクエストを直列化するためのチェーン(古いリクエストが後着して上書きするのを防ぐ)
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSavesRef = useRef(0);
+  const saveErrorRef = useRef(saveError);
 
   const selectedMemo = memos.find((m) => m.id === selectedId) ?? null;
   const memosRef = useRef(memos);
   const loading = isLoading;
   const displayError =
     error ??
+    saveError?.message ??
     (queryError instanceof Error
       ? queryError.message
       : queryError
@@ -99,6 +108,10 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
   useEffect(() => {
     selectedIdRef.current = selectedId;
   }, [selectedId]);
+
+  useEffect(() => {
+    saveErrorRef.current = saveError;
+  }, [saveError]);
 
   useEffect(() => {
     draftRef.current = { title: editTitle, content: editContent };
@@ -114,6 +127,50 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
     savedRef.current = { title: draft.title, content: draft.content };
   }, []);
 
+  /**
+   * メモを保存する。リクエストは直列化され、先に発行した保存が必ず先に完了する。
+   * 失敗時は `saveError` に記録し、`savedRef` を更新しない(未保存のまま残す)。
+   * @param memoId - 保存対象のメモ ID
+   * @param title - 保存するタイトル
+   * @param content - 保存する内容
+   * @returns 保存の完了(失敗しても reject しない)
+   */
+  const persist = useCallback(
+    (memoId: number, title: string, content: string): Promise<void> => {
+      pendingSavesRef.current += 1;
+      setSaving(true);
+      const run = async () => {
+        try {
+          await updateMutationRef.current.mutateAsync({
+            id: memoId,
+            patch: { title, content },
+          });
+          // 保存中に別メモへ切り替わっていた場合、現在のメモの保存済み状態を壊さない
+          if (selectedIdRef.current === memoId) {
+            savedRef.current = { title, content };
+          }
+          setSaveError((prev) => (prev?.memoId === memoId ? null : prev));
+        } catch (err) {
+          const label =
+            memosRef.current.find((m) => m.id === memoId)?.title.trim() ||
+            "無題のメモ";
+          const reason = err instanceof Error ? err.message : "不明なエラー";
+          setSaveError({
+            memoId,
+            message: `「${label}」の保存に失敗しました(${reason})。内容は保存されていません`,
+          });
+        } finally {
+          pendingSavesRef.current -= 1;
+          if (pendingSavesRef.current === 0) setSaving(false);
+        }
+      };
+      const next = saveChainRef.current.then(run);
+      saveChainRef.current = next;
+      return next;
+    },
+    [],
+  );
+
   const handleSelect = useCallback(
     (memo: Memo) => {
       if (autosaveTimer.current) {
@@ -126,12 +183,7 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
         (editTitle !== savedRef.current.title ||
           editContent !== savedRef.current.content)
       ) {
-        void updateMutationRef.current
-          .mutateAsync({
-            id: selectedId,
-            patch: { title: editTitle, content: editContent },
-          })
-          .catch(() => {});
+        void persist(selectedId, editTitle, editContent);
       }
       setUserDraft({
         id: memo.id,
@@ -140,12 +192,13 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
       });
       savedRef.current = { title: memo.title, content: memo.content };
     },
-    [selectedId, editTitle, editContent],
+    [selectedId, editTitle, editContent, persist],
   );
 
   const scheduleAutosave = useCallback(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(async () => {
+    autosaveTimer.current = setTimeout(() => {
+      autosaveTimer.current = null;
       const memoId = selectedIdRef.current;
       const { title, content } = draftRef.current;
       if (memoId === null) return;
@@ -155,20 +208,9 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
       ) {
         return;
       }
-      setSaving(true);
-      try {
-        await updateMutationRef.current.mutateAsync({
-          id: memoId,
-          patch: { title, content },
-        });
-        savedRef.current = { title, content };
-      } catch {
-        // 自動保存失敗は静かに無視する
-      } finally {
-        setSaving(false);
-      }
+      void persist(memoId, title, content);
     }, AUTOSAVE_DELAY_MS);
-  }, []);
+  }, [persist]);
 
   const flushPendingSave = useCallback(() => {
     if (autosaveTimer.current) {
@@ -183,10 +225,8 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
       savedRef.current.content === content
     )
       return;
-    void updateMutationRef.current
-      .mutateAsync({ id: memoId, patch: { title, content } })
-      .catch(() => {});
-  }, []);
+    void persist(memoId, title, content);
+  }, [persist]);
 
   const handleTitleChange = useCallback(
     (value: string) => {
@@ -263,6 +303,34 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
   }, [flushPendingSave]);
 
   useEffect(() => {
+    // タブを閉じる/リロードする際、デバウンス待ちや保存失敗中の入力を keepalive で送り直す
+    const handlePageLeave = (e: BeforeUnloadEvent | PageTransitionEvent) => {
+      const memoId = selectedIdRef.current;
+      const { title, content } = draftRef.current;
+      const saved = savedRef.current;
+      const dirty =
+        memoId !== null &&
+        saved !== null &&
+        (saved.title !== title || saved.content !== content);
+      if (dirty) {
+        void updateMemo(memoId, { title, content }, { keepalive: true }).catch(
+          () => {},
+        );
+      }
+      // 既に保存失敗が通知されている場合は、離脱前にブラウザの確認ダイアログで警告する
+      if (e.type === "beforeunload" && dirty && saveErrorRef.current) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handlePageLeave);
+    window.addEventListener("pagehide", handlePageLeave);
+    return () => {
+      window.removeEventListener("beforeunload", handlePageLeave);
+      window.removeEventListener("pagehide", handlePageLeave);
+    };
+  }, []);
+
+  useEffect(() => {
     memosRef.current = memos;
   }, [memos]);
 
@@ -326,7 +394,10 @@ export function MemoPanel({ onClose }: MemoPanelProps) {
           <button
             type="button"
             className="memo-error-dismiss"
-            onClick={() => setError(null)}
+            onClick={() => {
+              setError(null);
+              setSaveError(null);
+            }}
             aria-label="エラーを閉じる"
           >
             <X size={12} />
