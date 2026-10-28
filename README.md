@@ -42,11 +42,11 @@
 - 🧾 **リストビュー切り替え**: かんばん表示と一覧表示をワンクリックで切替
 - 🔎 **横断検索**: タスク本文、サブタスク、チェックリスト、コメントを対象に検索
 - 📅 **期限管理と強調表示**: 期限切れ・期限間近を自動判定（しきい値は 0〜30 日で調整可能）
-- 🧰 **タスク編集モーダル**: タスク本文、期限、完了状態、サブタスク、チェックリスト、コメントを一括編集
+- 🧰 **タスク編集モーダル**: タスク本文、期限、完了状態、サブタスク、チェックリスト、コメント、関連メモを一括編集。新規タスクは「保存して閉じる」を押した時点で初めて作成する（途中で閉じても空のタスクは残らない）
 - ✅ **完了ステータス**: タスクの完了/未完了を切り替え（完了時は期限強調を抑制）
 - 💾 **スナップショット保存**: 編集モーダルの内容を単一 API でトランザクション保存する。詳細の読み込み完了後に送り、`revision` が一致しない古い内容は 409 で拒否する
 - 📋 **タスクのコピー**: サブタスク・チェックリスト・コメントを含めて複製
-- 📝 **メモ帳**: メモの作成・編集・自動保存、タスクとの相互リンク
+- 📝 **メモ帳**: メモの作成・編集・自動保存、タスクとの相互リンク。自動保存に失敗するとエラーを表示し、未保存の入力はタブを閉じるときにも送信を試みる
 - ⚡ **段階的データ読み込み**: ボードは 20 行ずつ取得し、画面外の行は描画しない。タスク詳細は表示時に遅延読み込み
 - 🌓 **テーマ切り替え**: ダーク/ライトモードをローカル保存
 - ⚠️ **操作エラー通知**: API 失敗時に共通バナーでユーザーへ通知
@@ -67,9 +67,18 @@
 | テスト | Vitest（単体・ルーター）と Playwright（E2E） |
 
 `compose.yaml` では `db`（PostgreSQL）、`backend`（Node.js API）、`frontend`（Nginx で静的Reactアプリ配信）を起動します。
-`backend` コンテナ内では起動時に `npm run migrate`（`node-pg-migrate` によるバージョン管理マイグレーション）を実行したあと、API サーバーを開始します。backend コンテナは root ではなく `node` ユーザーで動きます。
+`backend` コンテナ内では起動時にマイグレーション（`node-pg-migrate` によるバージョン管理。`node dist/migrate.js`）を実行したあと、API サーバーを開始します。サーバーは `exec` で起動して node を PID 1 にしているため、`docker stop` の SIGTERM が届いて graceful shutdown が動きます。backend コンテナは root ではなく `node` ユーザーで動きます。
 
 バックエンドの `validateBody` / `validateQuery`、フロントのログインフォーム、OpenAPI 仕様はいずれも `@kando/types/validation` の Zod スキーマを参照します。
+
+### セキュリティヘッダー
+
+| 配信元 | 内容 |
+|---|---|
+| Nginx（SPA） | `Content-Security-Policy`（スクリプトは `'self'` のみ。外部許可は Google Fonts の CSS / フォントだけ）、`X-Frame-Options`、`X-Content-Type-Options`、`Referrer-Policy`、`Permissions-Policy` |
+| Express（API） | `helmet` の既定ヘッダー。Swagger UI が使う unpkg とインラインスクリプトの許可は `/api/docs` だけに、nonce 付き CSP で限定 |
+
+フロントエンドで外部のスクリプト・スタイル・フォントを追加する場合は、`frontend/nginx.conf` の CSP も更新してください。
 
 ---
 
@@ -383,14 +392,14 @@ scripts\windows\db-restore.bat backups\kanban_db-YYYYMMDD-HHMMSS.sql
 | コメント | `/api/task-comments` | コメント CRUD |
 | メモ | `/api/memos` | メモ CRUD・タスクリンク |
 
-**OpenAPI（機械可読）:** `GET /api/openapi.json` / Swagger UI `GET /api/docs`（Compose 起動時: http://localhost:8080/api/docs）
+**OpenAPI（機械可読）:** `GET /api/openapi.json` / Swagger UI `GET /api/docs`（Compose 起動時: http://localhost:8080/api/docs）。Swagger UI は unpkg から読み込むため、閲覧にはインターネット接続が必要
 
 **横断的な仕様:**
 
 - `/api/auth/*` 以外は JWT 認証必須（HttpOnly Cookie または `Authorization: Bearer <token>`）
 - リクエストバリデーションは [`@kando/types`](packages/types/README.md) の Zod スキーマで統一（リクエストボディ + クエリパラメータ）
 - ログイン/登録フォームも同一 Zod スキーマで送信前検証
-- `PUT /api/tasks/:id/snapshot` はリクエストの `revision` が現在値と一致するときだけ保存し、不一致は 409 を返す
+- `PUT /api/tasks/:id/snapshot` はリクエストの `revision` が現在値と一致するときだけ保存し、不一致は 409 を返す。サブタスク・チェックリスト項目・コメントの個別 API も `revision` を進めるため、古い内容でのスナップショット保存は 409 になる
 - タスクとカラムの並び順は対象行をロックしてから採番する。希望位置が衝突するか間隔が潰れているときは、1000 刻みに振り直す。振り直しが起きたときは、タスク作成・タスク移動・カラム移動のレスポンスに `rebalanced`（他アイテムの新しい `position`）が入る
 - JSON ボディの上限は 100kb（`/api/memos` のみ 512kb）。不正な JSON は 400、上限超過は 413 を返す
 - パスやボディの ID は PostgreSQL の `INTEGER` 上限（2147483647）を超えると 400 になる
@@ -428,7 +437,7 @@ npm workspace で 3 パッケージを管理しています。
 .
 ├── backend/              # Express API
 │   ├── middleware/       # 認証・asyncHandler・validateBody/validateQuery・エラー処理
-│   ├── migrations/       # node-pg-migrate（初期スキーマ、token_version、task.revision）
+│   ├── migrations/       # node-pg-migrate（初期スキーマ、token_version、task.revision、検索用 pg_trgm インデックス）
 │   ├── openapi/          # 生成済み OpenAPI JSON
 │   ├── repositories/     # DB アクセス層（board, rows, columns, tasks, memos 等）
 │   ├── routes/           # HTTP ルーター（薄いハンドラ）
@@ -442,7 +451,8 @@ npm workspace で 3 パッケージを管理しています。
 │   ├── positionSlot.ts   # 並び順の採番と振り直し
 │   ├── productionEnv.ts  # 本番の AUTH_SECRET / CORS / Cookie / プロキシ設定
 │   ├── rateLimits.ts     # レートリミット設定
-│   └── server.ts
+│   ├── server.ts
+│   └── transaction.ts    # withTransaction（BEGIN / COMMIT / ROLLBACK）
 ├── frontend/             # React + Vite
 │   ├── public/
 │   └── src/

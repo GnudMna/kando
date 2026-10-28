@@ -51,10 +51,10 @@ npm install
 | `AUTH_SECRET`         | 条件付き | JWT 署名シークレット（`NODE_ENV=production` では必須。開発用プレースホルダは拒否）        | なし                                       |
 | `COOKIE_SECURE`       | いいえ   | 認証 Cookie の Secure 属性。`true` / `false`。未指定時は production だけ true             | production で true                         |
 | `TRUST_PROXY`         | いいえ   | 信頼するリバースプロキシの段数（0 以上の整数）。nginx の前段にプロキシを足したら増やす    | `1`                                        |
-| `PORT`                | いいえ   | API 待ち受けポート                                                                        | `3001`                                     |
+| `PORT`                | いいえ   | API 待ち受けポート（1〜65535 の整数。不正な値では起動しない）                             | `3001`                                     |
 | `NODE_ENV`            | いいえ   | 実行環境 (`production` で挙動変更)                                                        | `development`                              |
 | `CORS_ORIGIN`         | 条件付き | CORS 許可オリジン（`NODE_ENV=production` では必須、カンマ区切りで複数指定可）             | `http://localhost:5173`（production 以外） |
-| `SHUTDOWN_TIMEOUT_MS` | いいえ   | Graceful shutdown で接続の終了を待つ上限（ミリ秒）                                        | `30000`                                    |
+| `SHUTDOWN_TIMEOUT_MS` | いいえ   | Graceful shutdown で接続の終了を待つ上限（ミリ秒、正の整数。不正な値では起動しない）      | `30000`                                    |
 | `E2E_TEST`            | いいえ   | `true` で認証レートリミットを無効化する（E2E 専用。`scripts/linux/e2e-server.sh` が設定） | なし                                       |
 
 `.env` 例（ルートの `.env.example` を参照）:
@@ -85,6 +85,12 @@ npm run start
 ```
 
 Docker イメージ（`backend/Dockerfile`）は root ではなく `node` ユーザーで実行します。アプリは実行時にファイルを書き込みません。
+
+コンテナの起動コマンドは `node dist/migrate.js && exec node dist/server.js` です。npm 経由にしないのは、`exec` で node を PID 1 にして `docker stop` の SIGTERM を `server.ts` のシャットダウン処理まで届けるためです。
+
+### Graceful shutdown
+
+SIGTERM / SIGINT を受けると新規接続を止め、既存の接続が終わるのを待って DB 接続を閉じます。`SHUTDOWN_TIMEOUT_MS` を過ぎても終わらない場合は、残った接続を破棄して終了コード 1 で強制終了します。
 
 ## マイグレーション
 
@@ -141,6 +147,7 @@ Zod バリデーションスキーマ（`@kando/types/validation`）からビル
 - 仕様のソース: [`packages/types/src/openapi/`](../packages/types/src/openapi/)（生成手順は [packages/types/README.md](../packages/types/README.md) 参照）
 - リクエストボディ・クエリパラメータは Zod スキーマと同期（単一の真実の源）
 - 認証方式: HttpOnly Cookie（`token`）を優先、`Authorization: Bearer <JWT>` にフォールバック
+- `GET /api/docs` の Swagger UI は unpkg から配信されるため、閲覧にはインターネット接続が必要。このページだけ、unpkg とインラインスクリプトを許可する nonce 付き CSP を返す。それ以外の API は `helmet` の既定 CSP のまま
 
 Docker Compose 起動時:
 
@@ -179,6 +186,7 @@ Docker Compose 起動時:
 - 初回起動時は `GET /api/auth/status` が `{ "hasUsers": false }` を返し、フロントエンドは登録画面を表示する。ユーザーが既にいる場合、登録は 403 になる
 - JWT にはトークン世代が入り、ログアウトで世代を進める。世代が合わないトークンは 401 になる
 - パスワードの上限を文字数ではなくバイト数で検証するのは、bcrypt が先頭 72 バイトしか使わず、それ以降を黙って切り捨てるため
+- ログインはユーザーが存在しない場合も bcrypt の比較を実行し、応答時間からユーザー名の有無が判別されないようにする。比較用のダミーハッシュは、実際の cost（12）で起動時に生成する
 - 認証不要エンドポイント: `/api/health`、`/api/liveness`、`/api/auth/*`、`/api/openapi.json`、`/api/docs`
 
 ### ボード取得
@@ -195,7 +203,9 @@ Docker Compose 起動時:
 - `detail`: `summary`（既定）または `full`
   - `summary`: 子要素は件数のみ返し、表示時に `GET /api/tasks/:id` で遅延読み込み
   - `full`: サブタスク・チェックリスト・コメントをすべて含めて返却
-- `q`: 検索文字列（最大 200 文字）。タスク本文・サブタスク・チェックリスト・コメントを横断検索し、一致タスクのみを返却
+- `q`: 検索文字列（最大 200 文字）。タスク本文・サブタスク・チェックリスト・コメントを `ILIKE` で部分一致検索し、一致タスクのみを返却（`pg_trgm` の GIN インデックスを使用）
+
+行は `position`、同値なら `id` の昇順で返します。`position` が重複していても順序が確定するため、`limit` / `offset` によるページングが安定します。
 
 ### rows
 
